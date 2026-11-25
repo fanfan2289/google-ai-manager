@@ -75,41 +75,25 @@ export BROWSER="/usr/local/bin/wsl-open-browser"
 export NO_PROXY="localhost,127.0.0.1,::1"
 export no_proxy="localhost,127.0.0.1,::1"
 
-# 若 Windows 开启了本地 Clash 代理但环境变量未注入（例如 su - 清理了环境），自动探测本机常用端口
-if [[ -z "${HTTPS_PROXY:-}${https_proxy:-}" ]]; then
-    for port in 7897 7890 10809; do
-        if (echo >/dev/tcp/127.0.0.1/$port) >/dev/null 2>&1; then
-            export HTTP_PROXY="http://127.0.0.1:${port}"
-            export HTTPS_PROXY="http://127.0.0.1:${port}"
-            export http_proxy="$HTTP_PROXY"
-            export https_proxy="$HTTPS_PROXY"
-            echo "  -> 自动探测并启用本地代理: $HTTP_PROXY"
-            break
-        fi
-    done
+# 网络代理：统一读取 ~/.google-ai-manager/settings.json（面板「设置 → 网络代理」可视化配置，默认自动探测）
+GAM_NETCFG_ABS="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)/providers/netcfg.py"
+if command -v python3 >/dev/null 2>&1 && [[ -f "$GAM_NETCFG_ABS" ]]; then
+    eval "$(python3 "$GAM_NETCFG_ABS" shell-env)" || true
 fi
+echo "  -> 网络代理: ${HTTPS_PROXY:-直连}"
 
-# 写入 ~/.bashrc 保证交互终端自动加载 PATH、BROWSER 与智能代理兜底
+# 写入 ~/.bashrc 保证交互终端自动加载 PATH、BROWSER 与代理设置（与面板共用同一份配置）
 MARKER="# >>> colab-h3 env >>>"
 if ! grep -qF "$MARKER" "$HOME/.bashrc" 2>/dev/null; then
-    cat >> "$HOME/.bashrc" <<'EOF'
+    cat >> "$HOME/.bashrc" <<EOF
 
 # >>> colab-h3 env >>>
-export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+export PATH="\$HOME/.local/bin:/usr/local/bin:\$PATH"
 export BROWSER="/usr/local/bin/wsl-open-browser"
 export NO_PROXY="localhost,127.0.0.1,::1"
 export no_proxy="localhost,127.0.0.1,::1"
-if [[ -z "${HTTPS_PROXY:-}${https_proxy:-}" ]]; then
-    for _p in 7897 7890 10809; do
-        if (echo >/dev/tcp/127.0.0.1/$_p) >/dev/null 2>&1; then
-            export HTTP_PROXY="http://127.0.0.1:${_p}"
-            export HTTPS_PROXY="http://127.0.0.1:${_p}"
-            export http_proxy="$HTTP_PROXY"
-            export https_proxy="$HTTPS_PROXY"
-            break
-        fi
-    done
-    unset _p
+if command -v python3 >/dev/null 2>&1 && [[ -f "${GAM_NETCFG_ABS}" ]]; then
+    eval "\$(python3 "${GAM_NETCFG_ABS}" shell-env 2>/dev/null)"
 fi
 # <<< colab-h3 env <<<
 EOF

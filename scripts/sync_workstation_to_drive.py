@@ -20,17 +20,17 @@ from pathlib import Path
 
 
 def _ensure_proxy() -> None:
-    os.environ.setdefault("NO_PROXY", "localhost,127.0.0.1,::1")
-    if not (os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")):
-        for port in (7897, 7890, 10809):
-            try:
-                with socket.create_connection(("127.0.0.1", port), timeout=0.2):
-                    p = f"http://127.0.0.1:{port}"
-                    for k in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
-                        os.environ[k] = p
-                    break
-            except OSError:
-                continue
+    """Apply the user-configured proxy (~/.google-ai-manager/settings.json, default: auto-detect)."""
+    project_dir = str(Path(__file__).resolve().parent.parent)
+    if project_dir not in sys.path:
+        sys.path.insert(0, project_dir)
+    try:
+        from providers import netcfg
+
+        netcfg.apply_proxy_env()
+    except Exception as exc:
+        os.environ.setdefault("NO_PROXY", "localhost,127.0.0.1,::1")
+        sys.stderr.write(f"[sync_workstation] Note: proxy config not applied ({exc})\n")
 
 
 def _reexec_colab_venv() -> None:

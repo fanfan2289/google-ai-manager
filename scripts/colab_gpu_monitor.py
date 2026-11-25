@@ -44,27 +44,16 @@ DB_PATH = LOGS_DIR / "gpu_monitor.db"
 CONFIG_PATH = LOGS_DIR / "gpu_monitor_config.json"
 HOLD_STATE_PATH = LOGS_DIR / "active_hold.json"
 UI_HTML_PATH = SCRIPT_DIR / "monitor_ui.html"
+APP_VERSION = "2.1-m1"
 
+if str(PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIR))
 
-def _ensure_wsl_proxy_env() -> None:
-    """Ensure NO_PROXY covers localhost and auto-detect local Windows Clash proxy if unset."""
-    os.environ.setdefault("NO_PROXY", "localhost,127.0.0.1,::1")
-    os.environ.setdefault("no_proxy", "localhost,127.0.0.1,::1")
-    if not (os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")):
-        for port in (7897, 7890, 10809):
-            try:
-                with socket.create_connection(("127.0.0.1", port), timeout=0.2):
-                    proxy_url = f"http://127.0.0.1:{port}"
-                    os.environ["HTTP_PROXY"] = proxy_url
-                    os.environ["HTTPS_PROXY"] = proxy_url
-                    os.environ["http_proxy"] = proxy_url
-                    os.environ["https_proxy"] = proxy_url
-                    break
-            except OSError:
-                continue
+# User-configurable proxy (~/.google-ai-manager/settings.json); stdlib-only, so it runs before
+# the re-exec below and the resolved env is inherited by the colab venv interpreter.
+from providers import netcfg  # noqa: E402
 
-
-_ensure_wsl_proxy_env()
+netcfg.apply_proxy_env()
 
 
 def _find_colab_python() -> str | None:
@@ -129,6 +118,9 @@ from colab_cli.state import SessionState  # noqa: E402
 from colab_cli.utils import get_status_code  # noqa: E402
 
 import colab_meter  # noqa: E402
+from providers import PLANNED_PROVIDERS, ProviderHub  # noqa: E402
+from providers import colab as colab_provider  # noqa: E402
+from providers.google_storage import GoogleStorageProvider  # noqa: E402
 
 
 GPU_CATALOG: list[dict[str, Any]] = [
@@ -538,9 +530,21 @@ class SSEBroker:
 class MonitorEngine:
     """Core Colab GPU probing scheduler + zero-leak safety guard."""
 
-    def __init__(self, store: ProbeStore, broker: SSEBroker, account: str | None = None) -> None:
+    def __init__(
+        self,
+        store: ProbeStore,
+        broker: SSEBroker,
+        account: str | None = None,
+        *,
+        probe_disabled: bool = False,
+    ) -> None:
         self.store = store
         self.broker = broker
+        # Read-only mode (`--no-probe`): never allocates GPUs; used for safe UI / provider testing.
+        self.probe_disabled = probe_disabled
+        self.providers = ProviderHub(ttl_seconds=120)
+        self.providers.register(colab_provider.ColabProvider())
+        self.providers.register(GoogleStorageProvider())
         self._state_lock = threading.Lock()
         self._probe_lock = threading.Lock()
         self._stop_event = threading.Event()
@@ -694,11 +698,32 @@ class MonitorEngine:
                 self.cooldown_until.clear()
         self.broadcast_state()
 
+    def _ensure_probe_allowed(self) -> None:
+        if self.probe_disabled:
+            raise ValueError("当前后端以只读模式运行（--no-probe），已禁用探测与抢卡")
+
     def trigger_manual_probe(self, gpu: str | None = None) -> None:
+        self._ensure_probe_allowed()
         if gpu and gpu not in GPU_META_BY_ID:
             raise ValueError(f"Unsupported GPU: {gpu}")
         self._manual_queue.append([gpu] if gpu else None)
         self._wake_event.set()
+
+    def current_account_name(self) -> str:
+        with self._state_lock:
+            name = self.account_snapshot.get("account")
+        if name and name != "loading...":
+            return str(name)
+        return str(colab_provider.resolve_account_state(self.config.get("account"))[0])
+
+    def providers_payload(self, account: str | None = None, *, force: bool = False) -> dict[str, Any]:
+        acct = (account or "").strip() or self.current_account_name()
+        return {
+            "account": acct,
+            "providers": self.providers.describe_all(),
+            "snapshots": self.providers.snapshot_many(acct, force=force),
+            "planned": PLANNED_PROVIDERS,
+        }
 
     def _get_account_state(self):
         states = colab_meter._iter_states(self.config.get("account"))
@@ -706,43 +731,12 @@ class MonitorEngine:
 
     def refresh_account_snapshot(self) -> dict[str, Any]:
         acct_name, st = self._get_account_state()
-        snap = colab_meter._query_account(acct_name, st)
-        eligible_gpus: list[str] = []
-        ineligible_gpus: list[str] = []
-        eligible_tpus: list[str] = []
+        sanitized = colab_provider.fetch_account_snapshot(acct_name, st)
+        # Keep the provider cache warm so /api/providers reuses this live data.
         try:
-            with colab_meter._activate_ext_context(acct_name):
-                raw_ccu = st.client._issue_request(
-                    f"{st.client.colab_domain}/tun/m/ccu-info",
-                    schema=dict,
-                )
-                if isinstance(raw_ccu, dict):
-                    eligible_gpus = [str(x).upper() for x in (raw_ccu.get("eligibleGpus") or [])]
-                    ineligible_gpus = [str(x).upper() for x in (raw_ccu.get("ineligibleGpus") or [])]
-                    eligible_tpus = [str(x).upper() for x in (raw_ccu.get("eligibleTpus") or [])]
+            self.providers.put(colab_provider.snapshot_from_account_data(sanitized))
         except Exception:
             pass
-
-        sanitized = {
-            "account": snap["account"],
-            "balance": snap["balance"],
-            "rate_hourly": snap["rate_hourly"],
-            "assignments": [
-                {
-                    "name": item["name"],
-                    "endpoint": item["endpoint"],
-                    "hardware": item["hardware"],
-                    "shape": item["shape"],
-                    "variant": item["variant"],
-                }
-                for item in snap["assignments"]
-            ],
-            "eligible_gpus": eligible_gpus,
-            "ineligible_gpus": ineligible_gpus,
-            "eligible_tpus": eligible_tpus,
-            "usage_error": snap["usage_error"],
-            "updated_at_iso": _now_iso(),
-        }
         with self._state_lock:
             self.account_snapshot = sanitized
             if self.session_start_ccu is None and isinstance(sanitized["balance"], (int, float)):
@@ -1088,6 +1082,7 @@ class MonitorEngine:
         gpu_id = str(gpu_id or "").strip().upper()
         if gpu_id not in GPU_META_BY_ID:
             raise ValueError(f"Unsupported GPU: {gpu_id}")
+        self._ensure_probe_allowed()
         with self._state_lock:
             if self.active_hold is not None:
                 raise ValueError(f"当前已锁定 {self.active_hold['gpu']} ({self.active_hold['session_name']})，请先释放或使用当前实例")
@@ -1573,6 +1568,14 @@ class MonitorEngine:
 
     def run_probe_cycle(self, target_gpus: list[str] | None = None, *, manual: bool = False) -> list[dict[str, Any]]:
         """Run one full probe cycle across target GPUs (thread-safe, serialized)."""
+        if self.probe_disabled:
+            # Read-only mode: only refresh the account snapshot, never call /tun/m/assign.
+            try:
+                self.refresh_account_snapshot()
+            except Exception as exc:
+                print(f"[{_now_iso()}] [gpu_monitor] Snapshot refresh error: {exc}", file=sys.stderr, flush=True)
+            self.broadcast_state()
+            return []
         with self._probe_lock:
             with self._state_lock:
                 self.probing = True
@@ -1750,6 +1753,8 @@ class MonitorEngine:
             "server_time_iso": _now_iso(now),
             "started_ts": started_ts,
             "started_iso": _now_iso(started_ts),
+            "version": APP_VERSION,
+            "probe_disabled": self.probe_disabled,
             "paused": paused,
             "probing": probing,
             "current_probe_gpu": cur_gpu,
@@ -1822,7 +1827,8 @@ def make_handler(engine: MonitorEngine):
                 self._send_json(
                     {
                         "ok": True,
-                        "version": "2.0-hold",
+                        "version": APP_VERSION,
+                        "probe_disabled": engine.probe_disabled,
                         "server_time_iso": _now_iso(),
                         "has_active_hold": engine.active_hold is not None,
                     }
@@ -1831,6 +1837,19 @@ def make_handler(engine: MonitorEngine):
 
             if path == "/api/state":
                 self._send_json(engine.build_state_payload())
+                return
+
+            if path == "/api/providers":
+                account = (qs.get("account") or [None])[0]
+                force = (qs.get("refresh") or ["0"])[0] in ("1", "true", "yes")
+                try:
+                    self._send_json(engine.providers_payload(account, force=force))
+                except Exception as exc:
+                    self._send_json({"error": str(exc)}, status=500)
+                return
+
+            if path == "/api/settings":
+                self._send_json({"proxy": netcfg.public_view(), "version": APP_VERSION})
                 return
 
             if path == "/api/job/log":
@@ -1987,6 +2006,25 @@ def make_handler(engine: MonitorEngine):
                     self._send_json({"error": str(exc)}, status=400)
                 return
 
+            if path == "/api/settings/proxy":
+                try:
+                    cfg = netcfg.save_proxy_settings(body)
+                    resolved = netcfg.apply_proxy_env(cfg)
+                    print(f"[{_now_iso()}] [gpu_monitor] 代理设置已更新: {resolved['detail']}", flush=True)
+                    self._send_json({"ok": True, "proxy": netcfg.public_view()})
+                except ValueError as exc:
+                    self._send_json({"error": str(exc)}, status=400)
+                except Exception as exc:
+                    self._send_json({"error": str(exc)}, status=500)
+                return
+
+            if path == "/api/settings/proxy/test":
+                url = body.get("url")
+                if url is None:
+                    url = netcfg.resolve_proxy()["url"]
+                self._send_json(netcfg.test_proxy(str(url or "")))
+                return
+
             if path == "/api/toggle-pause":
                 target = body.get("paused")
                 if target is None:
@@ -2048,6 +2086,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-a", "--account", default=None, help="指定 colab-ext 账号名")
     p.add_argument("--open", dest="open_browser", action="store_true", help="启动后自动打开 Windows 浏览器看板")
     p.add_argument("--once", action="store_true", help="仅执行一次命令行探测后退出（不启动 Web 看板）")
+    p.add_argument(
+        "--no-probe",
+        dest="no_probe",
+        action="store_true",
+        help="只读模式：只刷新账号与额度快照，禁用探测/抢卡（用于安全测试 UI 与 providers）",
+    )
     return p
 
 
@@ -2055,7 +2099,7 @@ def main() -> int:
     args = build_parser().parse_args()
     store = ProbeStore(DB_PATH)
     broker = SSEBroker()
-    engine = MonitorEngine(store=store, broker=broker, account=args.account)
+    engine = MonitorEngine(store=store, broker=broker, account=args.account, probe_disabled=args.no_probe)
 
     patch: dict[str, Any] = {}
     if args.interval is not None:
@@ -2099,6 +2143,9 @@ def main() -> int:
     print(f"  监控显卡 : {', '.join(engine.config['enabled_gpus'])}", flush=True)
     print(f"  轮询间隔 : {engine.config['interval_seconds']}s  |  历史库: {DB_PATH}", flush=True)
     print("  防扣费保护: 503 缺货 0 扣费；命中即 <1s 自动秒释并复核 0 残留", flush=True)
+    print(f"  网络代理 : {netcfg.resolve_proxy()['detail']}", flush=True)
+    if engine.probe_disabled:
+        print("  ⚠️ 只读模式 (--no-probe)：已禁用探测与抢卡，仅刷新账号与额度快照", flush=True)
     print("  按 Ctrl+C 可随时安全退出。", flush=True)
     print("==================================================================", flush=True)
 

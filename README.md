@@ -29,10 +29,10 @@
 
 - [x] **v2.0**：Colab GPU 余量监控、命中即占卡、自动静默挂盘、15 分钟超时自动关机、Edge WebView2 原生桌面端 + 系统托盘
 - [ ] **Phase 1（多账号与通用化）**：
-  - 图形化多 Google 账号中心（添加 / 切换 / 删除 / 标签备注 / OAuth 引导）
-  - 多账号 CCU 余额与活跃实例聚合看板 + 跨账号抢卡回退
-  - Google One / Google Drive 存储容量监控
-  - 代理配置与自定义远端任务模板可视化
+  - [x] **M1** `providers/` 额度插件层（Colab CCU、Google One 存储容量）+ 可视化网络代理设置（自动探测 / 手动 / 直连，配置保存在 `~/.google-ai-manager/`）
+  - [ ] **M2** 图形化多 Google 账号中心（添加 / 切换 / 删除 / 标签备注 / OAuth 引导）+ 多账号额度聚合看板
+  - [ ] **M3** 指定账号抢卡 + 主号 CCU 不足 / 限流时自动切换备用号
+  - [ ] **M4** Antigravity / Gemini CLI 额度、Pro 权益中心、远端任务模板、首次启动环境自检
 - [ ] **Phase 2（多服务额度插件生态）**：
   - `providers/` 插件抽象：接入 Gemini / AI Studio API Key 池、GCP / Vertex AI 配额等其他 Google AI 额度
   - 核心监控与抢卡脱离 WSL2 强依赖，支持纯原生 Windows / macOS / Linux 运行与自动构建安装包
@@ -43,6 +43,8 @@
 
 ```text
 google-ai-manager/
+├── providers/                    # 额度插件层：colab / google_storage / netcfg(代理) / paths(~/.google-ai-manager)
+├── tests/                        # 离线单元测试（python -m unittest discover -s tests）
 ├── desktop_app/
 │   ├── colab_gpu_tools.py        # Windows 原生 Edge WebView2 桌面外壳 + 系统托盘
 │   └── colab_gpu_tools.ico       # 应用图标

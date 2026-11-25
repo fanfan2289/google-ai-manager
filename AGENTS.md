@@ -13,6 +13,12 @@ This repository (`google-ai-manager`) is collaboratively developed by multiple A
   - Runs inside WSL2 Ubuntu using `google-colab-cli`'s `uv` tool venv (`~/.local/share/uv/tools/google-colab-cli/bin/python`).
   - Serves `scripts/monitor_ui.html`, REST APIs (`/api/health`, `/api/state`, `/api/probe-now`, `/api/grab-now`, `/api/hold/*`, `/api/job/*`, `/api/stop-all`, `/api/shutdown`), and SSE (`/api/events`) on `127.0.0.1:8765`.
   - Persists probe history in `logs/gpu_monitor.db`, user config in `logs/gpu_monitor_config.json`, and active lock state in `logs/active_hold.json`.
+- **Quota Providers (`providers/`)**
+  - `base.py`: `QuotaProvider` interface → `ProviderSnapshot` of generic `Metric`s (read-only, never carry tokens). `ProviderHub` (`__init__.py`) caches per (provider, account), serialises refreshes and converts exceptions into `status="error"` snapshots.
+  - `colab.py` (CCU / burn rate / live VMs / GPU eligibility), `google_storage.py` (official Drive v3 `about.storageQuota`, reuses the per-account DriveFS refresh token).
+  - `netcfg.py`: the single source of truth for proxy settings (`auto` / `manual` / `off`), stored in `~/.google-ai-manager/settings.json` (`0600`). Python code calls `netcfg.apply_proxy_env()`; shell scripts run `eval "$(python3 providers/netcfg.py shell-env)"`. Never hard-code proxy ports elsewhere.
+  - `paths.py`: user-private app home `~/.google-ai-manager/` (override with `GAM_HOME`). All user settings / labels / future credentials go here, never into the repo.
+  - REST: `GET /api/providers[?account=&refresh=1]`, `GET /api/settings`, `POST /api/settings/proxy`, `POST /api/settings/proxy/test`.
 - **Cloud Workflow Runner (`scripts/wsl_run_h3.sh`, `cloud_workstation/`)**
   - Supports `--reuse-session` to take over an already-locked Colab session without stopping/re-allocating it, skipping `colab dfs mount` when `/content/drive/MyDrive` is already mounted.
 
@@ -47,4 +53,13 @@ This repository (`google-ai-manager`) is collaboratively developed by multiple A
 
 # WSL backend syntax check
 wsl.exe -d Ubuntu -e bash -lc 'bash -n scripts/wsl_run_h3.sh && $HOME/.local/share/uv/tools/google-colab-cli/bin/python -m py_compile scripts/colab_gpu_monitor.py scripts/colab_meter.py'
+
+# Offline unit tests (no network / Colab / credentials)
+.\.venv-desktop\Scripts\python.exe -m unittest discover -s tests -v
+
+# Safe live test: read-only backend on a spare port (never probes or allocates GPUs,
+# does not disturb the production backend on 8765). Stop it with POST /api/shutdown.
+wsl.exe -d Ubuntu -e python3 -u scripts/colab_gpu_monitor.py --port 8766 --no-probe
 ```
+
+`APP_VERSION` in `scripts/colab_gpu_monitor.py` and `EXPECTED_VERSION` in `desktop_app/colab_gpu_tools.py` must always match (the desktop app restarts a backend whose version differs).

@@ -25,25 +25,27 @@ from pathlib import Path
 from typing import Any
 
 
-def _ensure_wsl_proxy_env() -> None:
-    """Ensure NO_PROXY covers localhost and auto-detect local Windows Clash proxy if unset."""
-    os.environ.setdefault("NO_PROXY", "localhost,127.0.0.1,::1")
-    os.environ.setdefault("no_proxy", "localhost,127.0.0.1,::1")
-    if not (os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")):
-        for port in (7897, 7890, 10809):
-            try:
-                with socket.create_connection(("127.0.0.1", port), timeout=0.2):
-                    proxy_url = f"http://127.0.0.1:{port}"
-                    os.environ["HTTP_PROXY"] = proxy_url
-                    os.environ["HTTPS_PROXY"] = proxy_url
-                    os.environ["http_proxy"] = proxy_url
-                    os.environ["https_proxy"] = proxy_url
-                    break
-            except OSError:
-                continue
+_PROJECT_DIR = Path(__file__).resolve().parent.parent
+if str(_PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_DIR))
 
 
-_ensure_wsl_proxy_env()
+def _ensure_proxy_env() -> None:
+    """Apply the user-configured proxy (~/.google-ai-manager/settings.json, default: auto-detect)."""
+    try:
+        from providers import netcfg
+
+        netcfg.apply_proxy_env()
+    except Exception as exc:  # never block the anti-ghost-billing guard on proxy config errors
+        os.environ.setdefault("NO_PROXY", "localhost,127.0.0.1,::1")
+        os.environ.setdefault("no_proxy", "localhost,127.0.0.1,::1")
+        sys.stderr.write(f"[colab_meter] Note: proxy config not applied ({exc})\n")
+
+
+# When imported by colab_gpu_monitor the proxy env is already applied (and kept in sync at
+# runtime from the settings UI); only apply it when running as a standalone CLI.
+if __name__ == "__main__":
+    _ensure_proxy_env()
 
 
 def _find_colab_python() -> str | None:

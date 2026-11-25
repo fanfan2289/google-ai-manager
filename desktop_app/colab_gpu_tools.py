@@ -29,7 +29,7 @@ APP_TITLE = "Colab GPU Tools"
 BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 8765
 BACKEND_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}"
-EXPECTED_VERSION = "2.0-hold"
+EXPECTED_VERSION = "2.1-m1"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
 
 APP_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = APP_DIR.parent
@@ -172,7 +172,7 @@ def ensure_wsl_backend() -> None:
 
     health = _check_backend_health()
     if health and health.get("ok") and health.get("version") == EXPECTED_VERSION:
-        _log_desktop("Reusing running v2.0-hold WSL backend.")
+        _log_desktop(f"Reusing running v{EXPECTED_VERSION} WSL backend.")
         return
 
     # If an older v1 backend is occupying port 8765, cleanly stop it first

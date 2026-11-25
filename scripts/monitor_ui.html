@@ -683,6 +683,37 @@
     border-bottom: 1px solid var(--border);
   }
   .form-row:last-child { border-bottom: none; }
+
+  /* Provider quota tiles */
+  .prov-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+  }
+  .prov-tile {
+    background: rgba(10, 13, 20, 0.45);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-width: 0;
+  }
+  .prov-tile.planned { opacity: 0.55; border-style: dashed; }
+  .prov-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .prov-name { font-weight: 700; font-size: 13px; color: #f8fafc; }
+  .prov-big { font-family: var(--mono); font-size: 18px; font-weight: 700; color: #fff; }
+  .prov-big span { font-size: 11px; color: var(--text-dim); font-weight: 500; margin-left: 4px; }
+  .prov-line { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--text-muted); }
+  .prov-line b { font-family: var(--mono); color: var(--text); font-weight: 600; }
+  .prov-err { font-size: 11.5px; color: #fca5a5; word-break: break-word; }
+  .prov-foot { font-size: 10.5px; color: var(--text-dim); }
+  .meter { height: 7px; border-radius: 99px; background: rgba(148, 163, 184, 0.16); overflow: hidden; }
+  .meter > i { display: block; height: 100%; background: var(--emerald); border-radius: 99px; }
+  .meter > i.warn { background: var(--amber); }
+  .meter > i.crit { background: var(--crimson); }
+  .proxy-result { font-size: 12px; font-family: var(--mono); color: var(--text-muted); }
   .form-title { font-weight: 600; color: var(--text); }
   .form-desc { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
   select, input[type="number"], input[type="text"] {
@@ -803,6 +834,7 @@
         <div id="topbarTitle" class="page-title">GPU 监控与自动抢占</div>
         <span id="topModePill" class="pill amber">命中即占卡 · 15m</span>
         <span id="topNextPill" class="pill">下次探测 --</span>
+        <span id="topReadonlyPill" class="pill blue" style="display:none;" title="后端以 --no-probe 启动：禁用探测与抢卡">👁 只读模式</span>
       </div>
       <div class="topbar-right">
         <button id="btnProbeNow" class="btn btn-primary btn-sm" onclick="probeNow()">🔍 立即探测</button>
@@ -878,6 +910,18 @@
               <span>锁卡自动挂 Google Drive</span>
             </label>
           </div>
+        </div>
+
+        <!-- Provider quota overview -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">📦 账号额度概览</div>
+              <div id="provSub" class="card-sub">当前账号的 Google AI Pro 各项额度（只读查询）</div>
+            </div>
+            <button class="btn btn-sm" onclick="loadProviders(true)">🔄 刷新额度</button>
+          </div>
+          <div id="provGrid" class="prov-grid"><div class="card-sub">额度加载中...</div></div>
         </div>
 
         <!-- GPU Cards -->
@@ -1008,6 +1052,54 @@
 
       <!-- VIEW 5: SETTINGS -->
       <section id="view-settings" class="view">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🌐 网络代理</div>
+              <div class="card-sub">后端、命令行工具与 WSL 脚本共用同一份配置（保存在 ~/.google-ai-manager/settings.json，不进仓库）</div>
+            </div>
+            <span id="proxyEffective" class="pill">当前：--</span>
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">代理模式</div>
+              <div class="form-desc">自动：优先沿用环境变量，否则按下方主机 × 端口探测本地代理；手动：固定使用指定地址；直连：不走代理</div>
+            </div>
+            <div class="seg-group" id="proxyModeSeg">
+              <button class="seg-btn" data-mode="auto" onclick="setProxyMode('auto')">自动探测</button>
+              <button class="seg-btn" data-mode="manual" onclick="setProxyMode('manual')">手动</button>
+              <button class="seg-btn" data-mode="off" onclick="setProxyMode('off')">直连</button>
+            </div>
+          </div>
+          <div class="form-row" id="proxyManualRow">
+            <div>
+              <div class="form-title">代理地址</div>
+              <div class="form-desc">支持 http / https / socks5 / socks5h，例如 http://127.0.0.1:7890</div>
+            </div>
+            <input id="proxyManualUrl" type="text" placeholder="http://127.0.0.1:7890" style="width:260px;" />
+          </div>
+          <div class="form-row" id="proxyAutoRow">
+            <div>
+              <div class="form-title">自动探测范围</div>
+              <div class="form-desc">主机与端口均用逗号分隔；<code>wsl-host</code> 表示 WSL2 NAT 网络下的 Windows 主机（<span id="proxyWslHost">--</span>）</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+              <input id="proxyAutoHosts" type="text" placeholder="127.0.0.1, wsl-host" style="width:170px;" />
+              <input id="proxyAutoPorts" type="text" placeholder="7897, 7890, 10809" style="width:150px;" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">保存与连通性测试</div>
+              <div id="proxyTestResult" class="proxy-result">测试将通过当前生效的代理访问 https://www.google.com/generate_204</div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm" onclick="testProxy()">🧪 测试连接</button>
+              <button class="btn btn-sm btn-primary" onclick="saveProxySettings()">💾 保存并应用</button>
+            </div>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-header">
             <div class="card-title">监控与占卡安全设置</div>
@@ -1175,6 +1267,8 @@ function switchView(view) {
   if (view === "analytics") loadAnalytics();
   if (view === "history") loadHistory();
   if (view === "runner") refreshJobLog();
+  if (view === "settings") loadProxySettings();
+  if (view === "dashboard") loadProviders(false);
 }
 
 function renderState(st) {
@@ -1185,6 +1279,7 @@ function renderState(st) {
   const cfg = st.config || {};
   const acct = st.account || {};
   const hold = st.active_hold || null;
+  document.getElementById("topReadonlyPill").style.display = st.probe_disabled ? "inline-flex" : "none";
 
   // Sidebar status
   const dot = document.getElementById("sidebarDot");
@@ -1662,6 +1757,158 @@ window.addEventListener("pywebviewready", () => {
   document.getElementById("btnMinTray").style.display = "inline-flex";
 });
 
+// ---------------------------------------------------------------- Providers (quota overview)
+function escHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function fmtBytes(n) {
+  if (typeof n !== "number" || !isFinite(n)) return "--";
+  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(n >= 100 || i === 0 ? 0 : n >= 10 ? 1 : 2)} ${units[i]}`;
+}
+
+function fmtMetricVal(m, v) {
+  if (typeof v !== "number") return "--";
+  if (m.unit === "bytes") return fmtBytes(v);
+  const digits = Number.isInteger(v) || Math.abs(v) >= 1000 ? 0 : 2;
+  return `${v.toFixed(digits)} ${escHtml(m.unit)}`;
+}
+
+const PROV_STATUS = {
+  ok: ["emerald", "正常"],
+  error: ["crimson", "查询失败"],
+  unauthorized: ["crimson", "授权失效"],
+  not_configured: ["", "未授权"],
+  unavailable: ["", "不可用"],
+};
+
+function renderProviderTile(desc, snap) {
+  const [tone, txt] = PROV_STATUS[snap?.status] || ["", snap?.status || "--"];
+  const badge = desc.official_api ? "" : `<span class="pill" title="使用非官方 / 内部接口" style="padding:1px 7px;font-size:10.5px;">非官方接口</span>`;
+  const metrics = (snap && snap.metrics) || [];
+  let body = "";
+  if (snap && snap.status === "ok") {
+    const primary = metrics[0];
+    if (primary && primary.total != null && primary.used != null) {
+      const frac = primary.total > 0 ? primary.used / primary.total : 0;
+      const cls = frac >= 0.95 ? "crit" : frac >= 0.8 ? "warn" : "";
+      body += `<div class="prov-big">${fmtMetricVal(primary, primary.used)}<span>/ ${fmtMetricVal(primary, primary.total)} · ${(frac * 100).toFixed(1)}%</span></div>
+               <div class="meter"><i class="${cls}" style="width:${Math.min(100, frac * 100).toFixed(1)}%"></i></div>`;
+    } else if (primary) {
+      const v = primary.remaining != null ? primary.remaining : primary.used;
+      body += `<div class="prov-big">${fmtMetricVal(primary, v).replace(/ (\S+)$/, "<span>$1</span>")}</div>`;
+    }
+    metrics.slice(1).forEach(m => {
+      const v = m.remaining != null && m.used == null ? m.remaining : m.used;
+      body += `<div class="prov-line"><span>${escHtml(m.label)}</span><b>${fmtMetricVal(m, v)}</b></div>`;
+    });
+  } else if (snap) {
+    body += `<div class="prov-err">${escHtml(snap.error || txt)}</div>`;
+  }
+  const when = snap?.updated_at_iso ? `更新于 ${new Date(snap.updated_at_iso).toLocaleTimeString()}` : "";
+  return `<div class="prov-tile">
+    <div class="prov-head"><span class="prov-name">${escHtml(desc.label)}</span>
+      <span style="display:flex;gap:5px;">${badge}<span class="pill ${tone}" style="padding:1px 7px;font-size:10.5px;">${txt}</span></span></div>
+    ${body}
+    <div class="prov-foot">${escHtml(desc.description || "")}${when ? " · " + when : ""}</div>
+  </div>`;
+}
+
+let providersLoading = false;
+async function loadProviders(force = false) {
+  if (providersLoading) return;
+  providersLoading = true;
+  const grid = document.getElementById("provGrid");
+  try {
+    const res = await fetch(`/api/providers${force ? "?refresh=1" : ""}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    document.getElementById("provSub").textContent = `账号「${data.account}」的 Google AI Pro 各项额度（只读查询）`;
+    const tiles = (data.providers || []).map(d => renderProviderTile(d, (data.snapshots || {})[d.id]));
+    (data.planned || []).forEach(p => {
+      tiles.push(`<div class="prov-tile planned">
+        <div class="prov-head"><span class="prov-name">${escHtml(p.label)}</span>
+          <span class="pill" style="padding:1px 7px;font-size:10.5px;">规划中 · ${escHtml(p.milestone)}</span></div>
+        <div class="prov-foot">${escHtml(p.description)}</div></div>`);
+    });
+    grid.innerHTML = tiles.join("");
+    if (force) showToast("额度已刷新", "emerald");
+  } catch (e) {
+    grid.innerHTML = `<div class="prov-err">额度加载失败：${escHtml(e.message)}</div>`;
+  } finally {
+    providersLoading = false;
+  }
+}
+
+// ---------------------------------------------------------------- Proxy settings
+let proxyMode = "auto";
+function setProxyMode(mode) {
+  proxyMode = mode;
+  document.querySelectorAll("#proxyModeSeg .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.mode === mode));
+  document.getElementById("proxyManualRow").style.opacity = mode === "manual" ? "1" : "0.5";
+  document.getElementById("proxyAutoRow").style.opacity = mode === "auto" ? "1" : "0.5";
+}
+
+function renderProxyView(view) {
+  const s = view.settings || {};
+  setProxyMode(s.mode || "auto");
+  document.getElementById("proxyManualUrl").value = s.manual_url || "";
+  document.getElementById("proxyAutoHosts").value = (s.auto_hosts || []).join(", ");
+  document.getElementById("proxyAutoPorts").value = (s.auto_ports || []).join(", ");
+  document.getElementById("proxyWslHost").textContent = view.wsl_host_ip || "未检测到";
+  const r = view.resolved || {};
+  const pill = document.getElementById("proxyEffective");
+  pill.textContent = r.url ? `当前：${r.url}` : "当前：直连";
+  pill.className = `pill ${r.url ? "emerald" : ""}`;
+  pill.title = r.detail || "";
+}
+
+async function loadProxySettings() {
+  try {
+    const res = await fetch("/api/settings");
+    const data = await res.json();
+    if (data.proxy) renderProxyView(data.proxy);
+  } catch (e) {
+    showToast("读取代理设置失败: " + e.message, "crimson");
+  }
+}
+
+async function saveProxySettings() {
+  try {
+    const data = await apiPost("/api/settings/proxy", {
+      mode: proxyMode,
+      manual_url: document.getElementById("proxyManualUrl").value.trim(),
+      auto_hosts: document.getElementById("proxyAutoHosts").value,
+      auto_ports: document.getElementById("proxyAutoPorts").value,
+    });
+    renderProxyView(data.proxy);
+    showToast(`代理设置已应用：${data.proxy?.resolved?.detail || "OK"}`, "emerald");
+  } catch (e) {
+    showToast("保存失败: " + e.message, "crimson");
+  }
+}
+
+async function testProxy() {
+  const box = document.getElementById("proxyTestResult");
+  box.textContent = "测试中...";
+  const body = {};
+  if (proxyMode === "manual") body.url = document.getElementById("proxyManualUrl").value.trim();
+  if (proxyMode === "off") body.url = "";
+  try {
+    const r = await apiPost("/api/settings/proxy/test", body);
+    box.textContent = r.ok
+      ? `✅ 连通正常 · HTTP ${r.status ?? "-"} · ${r.latency_ms ?? "-"} ms${r.detail ? " · " + r.detail : ""}`
+      : `❌ 连接失败：${r.error || "未知错误"}`;
+    box.style.color = r.ok ? "#6ee7b7" : "#fca5a5";
+  } catch (e) {
+    box.textContent = `❌ ${e.message}`;
+    box.style.color = "#fca5a5";
+  }
+}
+
 // SSE Connection
 function connectSSE() {
   if (eventSource) eventSource.close();
@@ -1701,8 +1948,11 @@ setInterval(() => {
   }
 }, 3000);
 
+setInterval(() => { if (currentView === "dashboard") loadProviders(false); }, 120000);
+
 fetch("/api/state").then(r => r.json()).then(renderState).catch(() => {});
 connectSSE();
+loadProviders(false);
 </script>
 </body>
 </html>

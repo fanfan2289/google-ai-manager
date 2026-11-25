@@ -5,15 +5,12 @@ set -euo pipefail
 export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
 export NO_PROXY="localhost,127.0.0.1,::1"
 export no_proxy="localhost,127.0.0.1,::1"
-if [[ -z "${HTTPS_PROXY:-}${https_proxy:-}" ]]; then
-    for _p in 7897 7890 10809; do
-        if (echo >/dev/tcp/127.0.0.1/$_p) >/dev/null 2>&1; then
-            export HTTP_PROXY="http://127.0.0.1:${_p}" HTTPS_PROXY="http://127.0.0.1:${_p}"
-            export http_proxy="$HTTP_PROXY" https_proxy="$HTTPS_PROXY"
-            break
-        fi
-    done
+# 网络代理：统一读取 ~/.google-ai-manager/settings.json（面板「设置 → 网络代理」可视化配置，默认自动探测）
+_GAM_NETCFG="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)/providers/netcfg.py"
+if command -v python3 >/dev/null 2>&1 && [[ -f "$_GAM_NETCFG" ]]; then
+    eval "$(python3 "$_GAM_NETCFG" shell-env)" || true
 fi
+unset _GAM_NETCFG
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Ensure Windows browser bridge is wired for Python `webbrowser.open()` in WSL2
