@@ -1,0 +1,140 @@
+{
+  "project_name": "02_eastern_fantasy_xianxia_qinglian_2min",
+  "title": "东方玄幻完整剧情短剧《青莲剑劫》(15幕·约2分钟正片)",
+  "output_drive_dir": "/content/drive/MyDrive/AI_Workstation/outputs/02_eastern_fantasy_xianxia",
+  "defaults": {
+    "width": 1344,
+    "height": 768,
+    "fps": 24,
+    "duration_sec": 8,
+    "steps": 8,
+    "use_turbo_lora": true,
+    "turbo_lora": "minimax_h3_fl2v_turbo_8step_v1.2_768p_comfyui_bf16.safetensors",
+    "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+    "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+    "video_vae": "minimax_h3_video_vae_int8_convrot.safetensors",
+    "audio_vae": "minimax_h3_audio_vae_fp32.safetensors"
+  },
+  "shots": [
+    {
+      "id": "shot_01_tribulation_vow",
+      "title": "第01幕：孤峰承劫·立誓开天",
+      "seed": 202601,
+      "duration_sec": 8,
+      "continue_from_prev": false,
+      "prompt": "Epic Eastern Xianxia live-action cinema, IMAX 65mm film look, dark slate-blue thunderclouds churning above towering floating jade mountain peaks, silver lightning veins illuminating misty ancient cliffs, embedding:minimaxh3_storm_magic. A handsome young Chinese sword cultivator in flowing white-and-cyan Daoist robes with wind-whipped long black hair stands alone on a sheer cliff edge, eyes glowing faint cyan as an antique bronze sword hovers beside his shoulder trembling with ethereal lotus energy. Sweeping aerial crane push-in to heroic medium close-up, dramatic rim lighting, drifting rain droplets.\nAudio: Deep rolling thunder across mountain valleys, howling gale wind, resonant metallic hum of the hovering spirit sword, solemn ancient guzheng and low war-drum swell. The young cultivator speaks calmly and resolutely in clear Mandarin Chinese: \"天劫已至，今日我便以青莲剑意，斩开这九重天门！\""
+    },
+    {
+      "id": "shot_02_master_warning",
+      "title": "第02幕：师尊传音·魔气暗涌",
+      "seed": 202602,
+      "duration_sec": 8,
+      "continue_from_prev": false,
+      "prompt": "Epic Eastern Xianxia live-action cinema, mystical golden-blue twilight inside an ancient jade temple pavilion overlooking storm clouds. A venerable white-bearded Daoist elder in embroidered silver-grey robes stands before a glowing bronze celestial astrolabe that suddenly cracks with ominous violet sparks, urgent temple bells ringing in the distance. Medium close-up slow push-in on the elder's alarmed face as he projects a shimmering spirit message toward the distant stormy peak.\nAudio: Urgent tolling of ancient bronze temple bells, sharp crystalline crack of the astrolabe, eerie low-frequency demonic hum beneath howling storm wind, tense Chinese xiao flute. The elder speaks urgently in deep resonant Mandarin Chinese: \"青儿快退！九天雷劫已被域外魔气污染，此劫绝不可硬接！\""
+    },
+    {
+      "id": "shot_03_blood_seal_awakening",
+      "title": "第03幕：剑心决断·血契青莲",
+      "seed": 202603,
+      "duration_sec": 8,
+      "continue_from_prev": false,
+      "prompt": "Epic Eastern Xianxia live-action cinema, intense dramatic close-up on the cliff edge in pouring storm rain. The young white-robed sword cultivator draws two fingers cleanly along the glowing bronze blade; a drop of crimson blood ignites into radiant cyan lotus runes cascading down the entire sword length, illuminating his determined eyes and wet black hair with fierce cyan light. Rapid dolly zoom tightening onto his resolute expression as lightning flashes behind him.\nAudio: Sharp ringing draw of blade resonance, sizzling spiritual ignition chime, roaring wind and close thunderclap, rising heroic strings and percussion. The young cultivator answers firmly in clear Mandarin Chinese: \"若退半步，山下万民涂炭。师尊，弟子宁折不弯！\""
+    },
+    {
+      "id": "shot_04_dragon_descends",
+      "title": "第04幕：苍穹撕裂·玄魔龙降",
+      "seed": 202604,
+      "duration_sec": 8,
+      "continue_from_prev": false,
+      "prompt": "Epic Eastern Xianxia live-action cinema, colossal catastrophic sky-scape above floating jade peaks. The dark storm vortex violently rips open with blinding crimson-violet lightning, and a titanic ancient obsidian celestial dragon with glowing purple scales and horns coils downward out of the shattered clouds, dwarfing the mountain spires below, embedding:minimaxh3_dark_magic. Wide sweeping low-angle IMAX shot tilting upward as shockwaves blow waterfalls upward in reverse.\nAudio: Sky-splitting thunder tear, earth-shaking ancient dragon roar reverberating across endless canyons, crashing avalanche of shattered cliff rocks, massive ominous brass and taiko war drums."
+    },
+    {
+      "id": "shot_05_demon_lord_taunt",
+      "title": "第05幕：魔尊临世·冷傲宣战",
+      "seed": 202605,
+      "duration_sec": 8,
+      "continue_from_prev": false,
+      "prompt": "Epic Eastern Xianxia live-action cinema, dramatic medium shot atop the towering obsidian dragon's horned brow amidst crackling violet lightning. A tall, imposing Demon Lord clad in ornate black-and-crimson obsidian armor with a billowing dark cloak and glowing crimson eyes looks down contemptuously toward the cliff below, gripping a jagged blood-red halberd radiating dark smoke. Slow menacing push-in with dramatic crimson backlighting.\nAudio: Crackling dark purple lightning arcs, heavy metallic hum of demonic armor, fierce howling abyssal wind, dark menacing cello ostinato. The Demon Lord sneers coldly in deep commanding Mandarin Chinese: \"区区凡尘剑修，也敢窥视仙门？跪下臣服，饶你神魂不灭！\""
+    },
+    {
+      "id": "shot_06_dragon_breath_cataclysm",
+      "title": "第06幕：紫雷龙息·焚山裂崖",
+      "seed": 202606,
+      "duration_sec": 8,
+      "continue_from_prev": true,
+      "prompt": "Epic Eastern Xianxia live-action cinema, seamless high-intensity action continuation. The Demon Lord points his halberd downward; the colossal obsidian dragon opens its massive jaws and unleashes a blinding torrent of violet-crimson demonic lightning fire straight down onto the floating cliff peak, embedding:minimaxh3_fire_breath. Exploding granite boulders, molten shockwaves, and swirling purple flames engulf the summit in a cataclysmic inferno. Shaking handheld cinematic tracking shot plunging with the beam.\nAudio: Deafening plasma dragon breath roar, thunderous mountain rock explosion, roaring wall of magical fire and debris crashing down cliffs, explosive orchestral combat percussion."
+    },
+    {
+      "id": "shot_07_lotus_barrier_rise",
+      "title": "第07幕：青莲护体·绝境起阵",
+      "seed": 202607,
+      "duration_sec": 8,
+      "continue_from_prev": false,
+      "prompt": "Epic Eastern Xianxia live-action cinema, awe-inspiring visual contrast inside the raging violet inferno on the shattered cliff. Amidst swirling purple flames, a luminous colossal translucent cyan jade lotus blooms beneath the white-robed cultivator's feet, its glowing petals deflecting the torrent of dark fire harmlessly aside. The cultivator's white robes whip fiercely as he snaps his hands into a sacred Daoist sword seal, eyes ablaze with cyan starlight. Rapid 180-degree hero orbit shot.\nAudio: Resonant crystalline jade bell chime shattering the roaring flames, crackling energy shield deflection, swelling heroic guzheng arpeggios. The young cultivator shouts fiercely in clear Mandarin Chinese: \"青莲剑阵——起！\""
+    },
+    {
+      "id": "shot_08_thousand_swords_ascend",
+      "title": "第08幕：万剑归宗·冲霄破云",
+      "seed": 202608,
+      "duration_sec": 8,
+      "continue_from_prev": true,
+      "prompt": "Epic Eastern Xianxia live-action cinema, seamless breathtaking continuation. As the white-robed sword cultivator sweeps his arm skyward, hundreds of translucent glowing cyan spirit swords erupt behind him in an expanding sacred spinning lotus mandala, spiraling straight up through the dark thunderclouds with radiant cyan-gold starlight trails, embedding:minimaxh3_spiral_ascent. Dynamic soaring crane shot rising rapidly alongside the swirling vortex of spirit blades.\nAudio: Magnificent resonant chorus of hundreds of spiritual swords unsheathing and humming in harmony, whistling supersonic wind trails, soaring Chinese xiao flute and triumphant taiko drums climbing to fever pitch."
+    },
+    {
+      "id": "shot_09_aerial_sword_flight",
+      "title": "第09幕：御剑破空·穿行雷海",
+      "seed": 202609,
+      "duration_sec": 8,
+      "continue_from_prev": false,
+      "prompt": "Epic Eastern Xianxia live-action cinema, exhilarating high-speed aerial combat sequence. The white-robed cultivator leaps off the shattered cliff riding his blazing cyan bronze sword like a shooting comet, darting upward at blinding speed through jagged webs of purple heavenly lightning and falling fiery boulders while dozens of cyan spirit swords weave defensively around him. Kinetic FPV aerial tracking camera weaving closely behind his billowing white robes.\nAudio: High-speed supersonic whoosh of sword flight, violent crackling lightning bolts narrowly missing, crisp slicing chimes of spirit blades cutting through fireballs, adrenaline-pumping fast orchestral strings and drums."
+    },
+    {
+      "id": "shot_10_bullet_time_clash",
+      "title": "第10幕：子弹时间·剑斩魔龙",
+      "seed": 202610,
+      "duration_sec": 8,
+      "continue_from_prev": false,
+      "prompt": "Epic Eastern Xianxia live-action cinema, iconic slow-motion climax clash high above the cloud sea. The white-robed sword cultivator plunges head-on into the lunging obsidian dragon's snapping jaws and purple lightning breath, slicing diagonally across a blazing torrent of dark lightning with a crescent arc of radiant cyan lotus light, embedding:minimaxh3_bullet_time. Ultra-cinematic speed-ramp bullet-time camera sweeping 270 degrees around the frozen collision as raindrops, sparks, and shattered obsidian scales suspend in mid-air.\nAudio: Deep bass-drop time-dilation whoosh, crystal-clear metallic ring of blade slicing magical lightning, reverberating muffled dragon snarl snapping back into a massive shockwave boom."
+    },
+    {
+      "id": "shot_11_demon_lord_fury",
+      "title": "第11幕：魔尊震怒·九幽倾覆",
+      "seed": 202611,
+      "duration_sec": 8,
+      "continue_from_prev": false,
+      "prompt": "Epic Eastern Xianxia live-action cinema, dark apocalyptic confrontation in mid-air. Driven back by the dazzling cyan shockwave, the Demon Lord's black armor cracks with glowing seams; enraged, he leaps off the reeling dragon and swings his colossal blood-red halberd downward, summoning towering pillars of black-purple nine-nether lightning across the entire horizon, embedding:minimaxh3_storm_magic. Sweeping dramatic camera shaking under the overwhelming pressure.\nAudio: Deafening crack of converging thunder pillars, fierce metallic shriek of the demon halberd cutting air, furious roaring gale, thunderous dark brass choir. The Demon Lord roars furiously in booming Mandarin Chinese: \"不可能！区区凡尘剑意，岂能破我九幽魔雷！\""
+    },
+    {
+      "id": "shot_12_ultimate_lotus_annihilation",
+      "title": "第12幕：万劫归一·青莲寂灭",
+      "seed": 202612,
+      "duration_sec": 8,
+      "continue_from_prev": true,
+      "prompt": "Epic Eastern Xianxia live-action cinema, seamless ultimate climax continuation. Against the apocalyptic wall of black lightning, the white-robed cultivator brings his palms together; all hundreds of cyan spirit swords converge overhead into one sky-splitting colossal glowing cyan-gold Lotus Greatsword. He thrusts downward—the colossal blade cleaves cleanly through the dark halberd, the obsidian dragon, and the entire storm sky in a blinding heavenly burst of cyan-gold light, embedding:minimaxh3_art_is_explosion.\nAudio: Resonant heavenly chime crescendo, earth-shattering sky-cleaving explosion of pure energy, epic full orchestral climax with soaring chorus. The young cultivator proclaims powerfully in clear Mandarin Chinese: \"万劫归一，青莲——寂灭！\""
+    },
+    {
+      "id": "shot_13_storm_clears_petals",
+      "title": "第13幕：劫云退散·青莲漫天",
+      "seed": 202613,
+      "duration_sec": 8,
+      "continue_from_prev": false,
+      "prompt": "Epic Eastern Xianxia live-action cinema, breathtaking serene aftermath above the infinite sea of clouds. The dark storm clouds part smoothly like silver curtains as brilliant warm golden dawn sunbeams pour across endless floating jade mountains and ancient golden pagodas; thousands of translucent luminous cyan-and-gold lotus petals drift gently through volumetric god-rays across the sky, embedding:minimaxh3_blooming_flowers. Majestic wide slow-gliding aerial shot bathed in warm golden-hour light.\nAudio: Distant fading rumble of dissipating storm clouds, gentle sparkling chime of drifting lotus petals in crisp morning mountain air, warm uplifting Chinese guzheng and sweeping lyrical strings."
+    },
+    {
+      "id": "shot_14_sheathe_sword_peace",
+      "title": "第14幕：收剑归鞘·俯瞰山河",
+      "seed": 202614,
+      "duration_sec": 8,
+      "continue_from_prev": true,
+      "prompt": "Epic Eastern Xianxia live-action cinema, seamless emotional continuation in radiant golden sunrise light. Floating serenely above the sunlit sea of clouds, the young white-robed sword cultivator—his robes gently frayed from battle yet glowing in warm sunlight—watches peacefully as his antique bronze sword glides smoothly back into its scabbard on his back with a soft cyan gleam. Slow graceful medium close-up orbiting his calm, transcendent gaze toward the luminous horizon.\nAudio: Crisp peaceful metallic click of sword returning to scabbard, gentle mountain breeze fluttering silk robes, deeply moving Chinese erhu solo interwoven with soft guzheng and distant tranquil temple bells."
+    },
+    {
+      "id": "shot_15_immortal_gate_epilogue",
+      "title": "第15幕：天门大开·仙路自启",
+      "seed": 202615,
+      "duration_sec": 8,
+      "continue_from_prev": false,
+      "prompt": "Epic Eastern Xianxia live-action cinema grand finale. From behind the silhouetted white-robed cultivator floating peacefully above the glowing cloud sea, the camera slowly pulls far back to reveal an awe-inspiring colossal golden Heavenly Immortal Gate slowly opening amidst swirling iridescent clouds on the distant sunrise horizon, while flocks of white spirit cranes glide gracefully across the radiant sky. Sweeping IMAX epilogue crane pull-back.\nAudio: Majestic ethereal resonance of the ancient Heavenly Gate opening, distant graceful crane calls, grand serene Chinese orchestral finale fading smoothly into peaceful chime echoes. Deep resonant Mandarin narrator voiceover: \"一剑破万劫，青莲照九霄。仙路，自此开。\""
+    }
+  ]
+}

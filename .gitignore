@@ -1,0 +1,36 @@
+# Runtime logs, SQLite monitor DB & local state
+logs/
+outputs/
+*.log
+*.db
+*.db-shm
+*.db-wal
+active_hold.json
+gpu_monitor_config.json
+
+# Virtual environments & WebView2 cache
+.venv/
+.venv-desktop/
+venv/
+desktop_app/webview_data/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Secrets, OAuth credentials & environment files (NEVER commit)
+.env
+.env.*
+*oauth*.json
+*credentials*.json
+*secret*.json
+*token*.json
+*.pem
+*.key
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini

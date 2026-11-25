@@ -1,0 +1,54 @@
+{
+  "project_name": "04_moonlit_infinite_combo_3act_locked",
+  "title": "月下无限连招（三幕长镜头锁脸精修版）· 30秒无缝一镜连斩",
+  "output_drive_dir": "/content/drive/MyDrive/AI_Workstation/outputs/04_moonlit_infinite_combo_3act_locked",
+  "defaults": {
+    "mode": "fl2va",
+    "width": 1344,
+    "height": 768,
+    "fps": 24,
+    "steps": 20,
+    "use_turbo_lora": false,
+    "turbo_lora": "minimax_h3_fl2v_turbo_8step_v1.2_768p_comfyui_bf16.safetensors",
+    "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+    "ref2va_unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+    "ref2va_turbo_lora": "minimax_h3_ref2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors",
+    "ref_image_size": "match",
+    "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+    "video_vae": "minimax_h3_video_vae_fp16.safetensors",
+    "audio_vae": "minimax_h3_audio_vae_fp32.safetensors"
+  },
+  "shots": [
+    {
+      "id": "Act01_00_10_moonlit_breakout_vortex_ambush",
+      "title": "【第一幕 0:00-0:10】月下破阵·凌空跃月环形剑气·黑金漩涡接密围反击",
+      "mode": "fl2va",
+      "seed": 20263001,
+      "length": 243,
+      "first_frame_asset": "assets/S01.jpg",
+      "last_frame_asset": "assets/S06.jpg",
+      "prompt": "High-end realistic Chinese donghua 3D CG film, tack-sharp micro-detail, crystal-clear luminous contrast, pure deep darks, seamless unbroken kinetic wuxia cinematography, strict character facial and costume consistency (the exact same pale refined Eastern female swordswoman with clean forehead and no forehead mark, high jet-black topknot with delicate silver hairpins, flowing sheer white silk hanfu with silver embroidery and jade waist tassel, slender gleaming straight jian sword), no blood. Starting from the silent moonlit encirclement on endless glossy black mirror water beneath the colossal cold-white full moon, the camera surges forward smoothly through the tightening ring of faceless ink-black shadow assassins. Suddenly the white-robed swordswoman erupts in a blazing horizontal streak of incandescent ice-blue sword-qi, then vaults high across the colossal cold-white full moon in a crisp white-silk silhouette before plunging back down onto the mirror water to unleash a razor-sharp 360-degree circular ring of ice-blue sword-qi mingled with swirling black-gold calligraphy ink energy. As dark ink and glowing ice-blue trails coil briefly around the battlefield like a spinning tempest, fresh shadow assassins lunge simultaneously from left, right, and front; the camera sweeps seamlessly down to a crisp medium front-facing hero view as she leaps over exploding crystalline silver water spray and slashes two crossing glowing arcs of ice-blue sword-qi right across the frame.\nAudio: Eerie night stillness over open water shattered by a piercing metallic sword unsheathing ring, explosive ice-blue sword-qi slash, whistling aerial vault across the night sky, thunderous splash of feet landing on mirror water, resonant swirling vortex hum and surging Chinese war drums building seamlessly into crisp clashing blades and splashing water spray."
+    },
+    {
+      "id": "Act02_10_20_ground_combo_water_dash_ink_dragon_rise",
+      "title": "【第二幕 0:10-0:20】贴身延迟连斩·踏水微距突进·黑白太极漩涡·黑金升龙起势",
+      "mode": "fl2va",
+      "seed": 20263002,
+      "length": 243,
+      "trim_start_sec": 0.045,
+      "first_frame_asset": "assets/S06.jpg",
+      "last_frame_asset": "assets/S09.jpg",
+      "prompt": "High-end realistic Chinese donghua 3D CG film, tack-sharp micro-detail, crystal-clear motion clarity, pure deep indigo-black darks, seamless continuous kinetic cinematography, strict character facial and costume consistency (the exact same pale refined Eastern female swordswoman with clean forehead and no forehead mark, silver-pinned jet-black hair, layered flowing sheer white silk hanfu with jade waist tassel, slender gleaming straight jian sword), no blood. Continuing smoothly without interruption from her crossing ice-blue counter-slash over splashing water, she carves relentlessly through the swarming faceless ink-black shadow assassins in a continuous close-quarters sword combo; delayed glowing ice-blue slash lines ignite across struck enemies before shattering them into weightless drifting dark ink shards. The camera drops low skimming inches above the glossy black mirror water as her footsteps send sparkling silver droplets bursting upward and her sword tip carves a blazing ice-blue wake in a blistering forward dash straight through the dark tide. Sweeping smoothly upward into a breathtaking high-contrast overhead spin, massive trails of pitch-black calligraphy ink whirl around her luminous white form like a living black-and-white taiji ink disc before plunging back onto the moonlit water where layered circular rings of ice-blue sword-qi fuse with surging molten warm-gold and black ink energy. Standing centered before the colossal cold-white full moon as golden concentric ripples spread across the mirror water, she raises her gleaming straight sword diagonally skyward while a majestic blazing molten-gold and black-ink Eastern dragon coils dramatically into full manifestation behind her.\nAudio: Relentless staccato steel-and-energy sword slashes and crystalline chimes of delayed ice-blue cuts, crisp close-up water splashes and metallic hiss of sword tip slicing water, soaring calligraphic ink-vortex roar with thunderous Chinese taiko drums, crescendoing into a deep mythic resonant tremor and blazing golden energy surge as the dragon manifests."
+    },
+    {
+      "id": "Act03_20_30_dragon_moon_soar_blade_array_starlight_finale",
+      "title": "【第三幕 0:20-0:30】金龙掠月大招·漫天冰蓝剑雨清场·剑尖冷白星芒月下定型",
+      "mode": "fl2va",
+      "seed": 20263003,
+      "length": 243,
+      "trim_start_sec": 0.045,
+      "first_frame_asset": "assets/S09.jpg",
+      "prompt": "High-end realistic Chinese donghua 3D CG film finale, tack-sharp cinema-grade clarity, pure deep darks and radiant luminous contrast, seamless epic unbroken camera flow, strict character facial and costume consistency (the exact same pale refined Eastern female swordswoman from the opening frame with clean forehead and no forehead mark, silver-pinned jet-black hair, layered flowing sheer white silk hanfu with jade waist tassel, slender gleaming straight jian sword), no blood. Continuing seamlessly from her sword raised beneath the coiled blazing molten-gold Eastern dragon and giant cold-white full moon, she sweeps her blade in a grand upward arc and vaults high into the indigo night sky as the colossal warm-gold and black-ink dragon roars to life, surging majestically directly across the upper rim of the giant full moon. Instantly dozens of towering luminous ice-blue sword-qi light blades rain down like a radiant heavenly blade array across the dark mirror water, shattering and disintegrating every remaining swarming ink-black shadow assassin into weightless drifting dark embers as the golden dragon sweeps across the wide horizon. The camera glides smoothly and steadily into an iconic razor-sharp three-quarter profile hero close-up: the white-robed swordswoman lands poised steadily on the tranquil mirror water directly in front of the colossal cold-white full moon, holding her slender straight jian sword leveled forward while billowing black ink mist and glowing warm-gold dragon energy swirl gracefully behind her back and reflect cleanly in the still water; at the final peak moment of absolute dominance, a crisp piercing cold-white starlight glint flashes brightly at her sword tip.\nAudio: Earth-shaking mythic Eastern dragon roar echoing across the moonlit sky, monumental full orchestral and Chinese brass-gong climax, thunderous rain of colossal ice-blue energy blades striking water and dissolving shadows into silence, resolving gracefully into a single pure crystalline metallic chime as cold-white starlight glints on the sword tip over tranquil rippling water."
+    }
+  ]
+}

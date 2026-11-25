@@ -1,0 +1,131 @@
+{
+  "project_name": "03_wuxia_kongshan_jianying_ep01",
+  "title": "写意武侠短剧《空山剑影 · 第一集：血函惊竹》60秒宽银幕版",
+  "output_drive_dir": "/content/drive/MyDrive/AI_Workstation/outputs/03_wuxia_kongshan_jianying",
+  "defaults": {
+    "mode": "fl2va",
+    "width": 1344,
+    "height": 576,
+    "fps": 24,
+    "steps": 8,
+    "use_turbo_lora": true,
+    "turbo_lora": "minimax_h3_fl2v_turbo_8step_v1.2_768p_comfyui_bf16.safetensors",
+    "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+    "ref2va_unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+    "ref2va_turbo_lora": "minimax_h3_ref2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors",
+    "ref_image_size": "match",
+    "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+    "video_vae": "minimax_h3_video_vae_int8_convrot.safetensors",
+    "audio_vae": "minimax_h3_audio_vae_fp32.safetensors"
+  },
+  "shots": [
+    {
+      "id": "S01_hook_blood_letter_eyes",
+      "title": "第01镜【3秒钩子】：血函坠阶·凤眼惊觉",
+      "mode": "fl2va",
+      "seed": 19712001,
+      "length": 90,
+      "first_frame_asset": "assets/S01.jpg",
+      "prompt": "1970s King Hu Taiwanese wuxia cinema on 35mm Eastmancolor film, 2.35:1 anamorphic widescreen, muted ochre and slate-grey palette, organic film grain, no digital glow. Starting from the tense extreme close-up frame: beneath the woven bamboo hat brim and black gauze veil casting shadow across her brow, Ling Shuang's sharp phoenix eyes suddenly snap to the right in Peking opera alert while her head remains completely still; a single dry bamboo leaf drifts silently across the foreground past her cheek as faint pine smoke curls in the backlit mist.\nAudio: Faint rustle of dry bamboo leaves brushing stone, then SUDDENLY a sharp, thunderous Peking opera woodblock clapper strike ('DA!') that cuts all wind to dead silence for a heartbeat."
+    },
+    {
+      "id": "S02_empty_mountain_walk",
+      "title": "第02镜：空山层峦·孤影独行",
+      "mode": "fl2va",
+      "seed": 19712002,
+      "length": 124,
+      "first_frame_asset": "assets/S02.jpg",
+      "prompt": "1970s King Hu wuxia cinema on 35mm Eastmancolor film, Song dynasty ink landscape composition with two-thirds misty white negative space, static extreme wide camera. Thick morning valley mist drifts slowly across layered slate-grey mountain peaks and an ancient gnarled pine tree. Along the narrow stone ridge path in the lower right, the tiny lone figure of Ling Shuang in undyed coarse linen robes and a wide bamboo hat walks steadily from right to left carrying her straight sword.\nAudio: Lonely high-mountain wind sweeping through distant pine needles, very soft measured footsteps on damp stone, sparse natural atmosphere with no background music."
+    },
+    {
+      "id": "S03_bamboo_sunbeam_path",
+      "title": "第03镜：雾竹石阶·天光穿烟",
+      "mode": "fl2va",
+      "seed": 19712003,
+      "length": 124,
+      "first_frame_asset": "assets/S03.jpg",
+      "prompt": "1970s King Hu wuxia cinema on 35mm Eastmancolor film, 2.35:1 anamorphic widescreen, slow subtle lateral tracking camera. Through a towering dense forest of tall straight bamboo, diagonal shafts of morning sunlight pierce thick drifting white pine smoke. Wearing her wide woven bamboo hat with short sheer black gauze veil, Ling Shuang carries her black-scabbard sword and walks calmly forward along the mossy stone steps as several dry bamboo leaves drift slowly through the glowing sunbeams.\nAudio: Soft rustling of tall bamboo canopy swaying in the breeze, delicate dry bamboo leaves whispering down onto mossy stone, tense quiet footsteps."
+    },
+    {
+      "id": "S04_dongchang_ambush_dive",
+      "title": "第04镜：竹梢截杀·东厂俯冲",
+      "mode": "fl2va",
+      "seed": 19712004,
+      "length": 107,
+      "first_frame_asset": "assets/S04.jpg",
+      "prompt": "1970s King Hu wuxia cinema on 35mm Eastmancolor film, extreme low-angle wide camera looking upward through tall bamboo tips toward pale overcast sky. Three sinister Ming Dongchang agents in dark tea-brown narrow-sleeved hemp robes and tall pointed conical brown felt hats leap downward like black crows from the violently bending bamboo tops, raising curved Ming sabers overhead as they plummet toward the camera in bursts of shattered green bamboo leaves and swirling mist.\nAudio: Violent whipping snap of bent bamboo stalks recoiling, whooshing fabric plunging through air, sudden rapid Peking opera small-gong and clapper battle percussion."
+    },
+    {
+      "id": "S05_hat_toss_sword_ready",
+      "title": "第05镜：甩笠亮剑·寒刃定势",
+      "mode": "fl2va",
+      "seed": 19712005,
+      "length": 90,
+      "first_frame_asset": "assets/S05.jpg",
+      "prompt": "1970s King Hu wuxia cinema on 35mm Eastmancolor film, crisp medium shot in the misty sunlit bamboo forest. Ling Shuang sinks firmly into her coiled martial side-stance while her tossed woven bamboo hat spins away into the misty air behind her shoulder, revealing her black topknot pinned with a plain dark wooden hairpin. She whips her gleaming bare steel straight jian sword smoothly into a razor-sharp horizontal guard, eyes locked fiercely off-frame right as drifting sunlit pine smoke swirls around her coarse linen sleeves.\nAudio: Crisp, razor-sharp metallic ring ('KENG!') of tempered steel cutting the air, whoosh of the spinning bamboo hat falling behind her, taut rising bangu drumbeat."
+    },
+    {
+      "id": "S06_smoke_clash_duel",
+      "title": "第06镜：穿烟交锋·双刀夹击",
+      "mode": "ref2va",
+      "seed": 19712006,
+      "length": 124,
+      "ref_image_assets": ["assets/A1_lingshuang.jpg", "assets/A4_dongchang.jpg", "assets/A5_bamboo.jpg"],
+      "prompt": "1970s King Hu Taiwanese wuxia film on 35mm Eastmancolor negative, 2.35:1 anamorphic widescreen, muted ochre and pale jade palette, visible film grain, practical film-set stunts, no CGI glow. Inside the dense misty sunlit bamboo forest of <Picture 3> with strong diagonal shafts of sunlight piercing thick white smoke, the woman swordswoman from <Picture 1> (high topknot with plain dark wooden hairpin, undyed off-white coarse linen tunic, charcoal cloth sash) pivots sharply in Peking opera martial choreography, parrying a heavy downward curved saber strike from one tea-brown robed tall-conical-hat Dongchang agent from <Picture 2> with her bare steel straight jian while spinning swiftly to deflect a second lunging Dongchang agent as dry bamboo leaves burst through the sunbeams.\nAudio: Sharp ringing steel-on-steel clangs ('CLANG! CLANG!'), snapping coarse linen in fast motion, tight driving Peking opera bangu drum and brass cymbal combat rhythm."
+    },
+    {
+      "id": "S07_bamboo_slash_cut",
+      "title": "第07镜：一剑削竹·断茎悬叶",
+      "mode": "ref2va",
+      "seed": 19712007,
+      "length": 90,
+      "ref_image_assets": ["assets/A1_lingshuang.jpg", "assets/A5_bamboo.jpg"],
+      "prompt": "1970s King Hu Taiwanese wuxia film on 35mm Eastmancolor negative, 2.35:1 anamorphic widescreen, tight kinetic close-up inside the misty sunlit bamboo grove of <Picture 2>. The woman swordswoman from <Picture 1> (wooden-hairpin topknot, cool fierce phoenix eyes, undyed coarse linen tunic) sweeps her bare steel straight jian sword diagonally across the foreground, cleanly slicing a thick green bamboo stalk in two; the severed upper bamboo shaft slides cleanly off the angled cut in mid-air amidst pale flying splinters and green leaves suspended in backlit white mist.\nAudio: Clean whipping sword slash through air followed by a razor-crisp hollow 'KACHA!' crack of thick green bamboo splitting in two, dry splinters scattering."
+    },
+    {
+      "id": "S08_touch_of_zen_dive",
+      "title": "第08镜：《侠女》名场面·竹梢倒俯飞刺",
+      "mode": "ref2va",
+      "seed": 19712008,
+      "length": 107,
+      "ref_image_assets": ["assets/A1_lingshuang.jpg", "assets/A5_bamboo.jpg"],
+      "prompt": "1970s King Hu wuxia cinema homage to A Touch of Zen (1971), 35mm Eastmancolor film, 2.35:1 widescreen, dramatic extreme low-angle camera looking sharply up through the towering misty bamboo canopy of <Picture 2> into blinding diagonal morning sunbeams and swirling white pine smoke. The woman swordswoman from <Picture 1> (wooden hairpin topknot, undyed off-white coarse linen robes and charcoal sash billowing fiercely upward) plummets head-first straight downward from the bamboo tops toward the lens, gripping her bare steel straight jian sword with both hands pointed vertically down as she slices through shafts of sunlight and bursting green bamboo leaves. Practical 1970s wirework realism, zero digital glow.\nAudio: Roaring high-speed wind rush drowning out all percussion, razor-sharp whistling blade cutting violently through the mountain air."
+    },
+    {
+      "id": "S09_liangxiang_freeze_fall",
+      "title": "第09镜：京剧亮相·三番子依次倒地",
+      "mode": "ref2va",
+      "seed": 19712009,
+      "length": 124,
+      "ref_image_assets": ["assets/A1_lingshuang.jpg", "assets/A4_dongchang.jpg", "assets/A5_bamboo.jpg"],
+      "prompt": "1970s King Hu Taiwanese wuxia film on 35mm Eastmancolor negative, 2.35:1 widescreen, wide static fixed camera on the mossy stone steps of the misty sunlit bamboo forest in <Picture 3>. In the center foreground, the woman swordswoman from <Picture 1> holds a low crouching Peking opera liangxiang pose with her bare straight jian leveled horizontally across her chest, staying completely still and frozen like a sculpture while staring coldly straight into the camera. Behind her in the drifting white mist and vertical bamboo silhouettes, the three tea-brown robed tall-conical-hat Dongchang agents from <Picture 2> hesitate for one eerie beat, then collapse one by one onto their knees and fall backward as their curved sabers clatter onto the mossy stones.\nAudio: One thunderous heavy brass cymbal crash ('KUANG!') that cuts abruptly into utter mountain silence, followed only by the delayed clatter of iron sabers dropping onto wet stone and soft rustling leaves."
+    },
+    {
+      "id": "S10_twist_iron_token",
+      "title": "第10镜【反转】：剑挑玄铁令·惊现师门旧印",
+      "mode": "ref2va",
+      "seed": 19712010,
+      "length": 141,
+      "ref_image_assets": ["assets/A1_lingshuang.jpg", "assets/A5_bamboo.jpg"],
+      "prompt": "1970s King Hu Taiwanese wuxia film on 35mm Eastmancolor negative, 2.35:1 widescreen, atmospheric close-up slowly tilting up on the damp mossy stone steps of the misty bamboo forest in <Picture 2>. Beside a fallen dark brown conical felt hat, the gleaming steel tip of the swordswoman's jian gently flips over a heavy blood-streaked dark iron Ming waist-token lying on wet moss, revealing ancient carved seal characters on its reverse side; the camera glides slightly upward to the pale face of the woman swordswoman from <Picture 1> as her composed phoenix eyes widen ever so slightly in quiet chilled shock amidst drifting white mist.\nAudio: Faint metallic scrape of sword tip turning cold iron against wet stone, then a single haunting low guqin harmonic pluck vibrating across the silent misty forest."
+    },
+    {
+      "id": "S11_cliffhanger_black_sedan",
+      "title": "第11镜【悬念】：浓雾黑纱竹轿·玉指按剑",
+      "mode": "ref2va",
+      "seed": 19712011,
+      "length": 141,
+      "ref_image_assets": ["assets/A5_bamboo.jpg"],
+      "prompt": "1970s King Hu Taiwanese wuxia film on 35mm Eastmancolor negative, 2.35:1 widescreen, ominous slow push-in along the misty sunlit bamboo stone-step corridor of <Picture 1>. Emerging silently out of thick white backlit pine smoke in the distance glides an austere Ming dynasty bamboo sedan chair draped in translucent sheer black gauze curtains, carried by shadowy silhouette bearers. As the black gauze curtain parts slowly from within, a pale refined hand wearing a pale celadon jade thumb ring rests deliberately upon a vermilion-lacquered sword hilt inside the dim sedan shadow while surrounding bamboo leaves freeze in unnatural stillness.\nAudio: Eerie sudden hush across the bamboo grove, soft rhythmic crunch of straw sandals stepping through wet leaves, faint creak of bamboo sedan poles, tense low resonant woodwind drone."
+    },
+    {
+      "id": "S12_finale_standoff_title",
+      "title": "第12镜【落幕留白】：空山对峙·墨书题字",
+      "mode": "ref2va",
+      "seed": 19712012,
+      "length": 141,
+      "ref_image_assets": ["assets/A1_lingshuang.jpg", "assets/A5_bamboo.jpg"],
+      "prompt": "1970s King Hu Taiwanese wuxia film finale on 35mm Eastmancolor negative, 2.35:1 widescreen, static extreme wide shot with generous Song-dynasty misty white negative space on the upper left. Looking down the towering mossy bamboo stone corridor of <Picture 2> bathed in a vertical shaft of dawn sunlight through white smoke, the woman swordswoman from <Picture 1>—wearing a wide woven bamboo hat with sheer black veil and undyed coarse linen tunic—stands resolute in the lower right foreground gripping her straight jian horizontally, facing the distant shadowy silhouette of a black-gauze bamboo sedan half-swallowed by swirling mist. In the calm upper-left misty white negative space, refined traditional vertical black ink calligraphy reads '空山劍影' as mist drifts softly across the valley.\nAudio: A single pure, resonant Zen temple bronze chime ringing long and clear across the empty mountain, slowly dissolving into gentle bamboo wind and fading softly into silence."
+    }
+  ]
+}

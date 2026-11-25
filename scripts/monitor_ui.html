@@ -1,0 +1,1708 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Colab GPU Tools</title>
+<style>
+  :root {
+    --bg: #0a0d14;
+    --bg-sidebar: #0e131e;
+    --bg-panel: #121826;
+    --bg-card: #151c2c;
+    --bg-card-2: #1a2234;
+    --bg-hover: #1f2940;
+    --border: rgba(148, 163, 184, 0.13);
+    --border-strong: rgba(148, 163, 184, 0.25);
+    --text: #e8eef8;
+    --text-muted: #94a3b8;
+    --text-dim: #64748b;
+    --accent: #3b82f6;
+    --accent-soft: rgba(59, 130, 246, 0.15);
+    --accent-border: rgba(59, 130, 246, 0.42);
+    --emerald: #10b981;
+    --emerald-soft: rgba(16, 185, 129, 0.14);
+    --emerald-border: rgba(16, 185, 129, 0.42);
+    --amber: #f59e0b;
+    --amber-soft: rgba(245, 158, 11, 0.15);
+    --amber-border: rgba(245, 158, 11, 0.45);
+    --crimson: #ef4444;
+    --crimson-soft: rgba(239, 68, 68, 0.14);
+    --crimson-border: rgba(239, 68, 68, 0.42);
+    --purple: #a855f7;
+    --purple-soft: rgba(168, 85, 247, 0.15);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --mono: "Cascadia Code", "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+    --sans: "Segoe UI", "Microsoft YaHei UI", system-ui, -apple-system, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13.5px;
+    line-height: 1.45;
+    user-select: none;
+  }
+
+  /* Desktop App Shell */
+  .app-shell {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+  }
+
+  /* Left Sidebar (Antigravity Tools aesthetic) */
+  .sidebar {
+    width: 232px;
+    flex-shrink: 0;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 16px 12px 14px;
+    gap: 14px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .brand-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #2563eb 0%, #10b981 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+    flex-shrink: 0;
+  }
+  .brand-title {
+    font-size: 14.5px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    color: #f8fafc;
+  }
+  .brand-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 1px;
+  }
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--emerald);
+    display: inline-block;
+    box-shadow: 0 0 8px var(--emerald);
+  }
+  .status-dot.paused { background: var(--text-dim); box-shadow: none; }
+  .status-dot.holding { background: var(--amber); box-shadow: 0 0 10px var(--amber); animation: pulse 1.3s infinite; }
+  .status-dot.probing { background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: pulse 0.9s infinite; }
+  .status-dot.error { background: var(--crimson); box-shadow: 0 0 10px var(--crimson); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(0.85); }
+  }
+
+  .nav-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .nav-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-dim);
+    padding: 4px 10px 4px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 11px;
+    border-radius: 9px;
+    color: var(--text-muted);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.14s ease;
+    font-weight: 500;
+  }
+  .nav-item:hover {
+    background: rgba(148, 163, 184, 0.08);
+    color: var(--text);
+  }
+  .nav-item.active {
+    background: var(--accent-soft);
+    color: #93c5fd;
+    border-color: var(--accent-border);
+    font-weight: 600;
+  }
+  .nav-item .nav-badge {
+    margin-left: auto;
+    font-size: 11px;
+    font-family: var(--mono);
+    padding: 1px 6px;
+    border-radius: 99px;
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--text);
+  }
+  .nav-item .nav-badge.amber {
+    background: var(--amber-soft);
+    color: #fcd34d;
+    border: 1px solid var(--amber-border);
+  }
+
+  .sidebar-spacer { flex: 1; }
+
+  .acct-mini {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .acct-mini-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11.5px;
+    color: var(--text-muted);
+  }
+  .acct-ccu {
+    font-size: 18px;
+    font-weight: 700;
+    font-family: var(--mono);
+    color: #f8fafc;
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+  }
+  .acct-ccu span { font-size: 11px; color: var(--text-dim); font-weight: 500; }
+  .acct-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+  }
+
+  .sidebar-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* Main Workspace */
+  .main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: radial-gradient(900px 420px at 18% -12%, rgba(59, 130, 246, 0.11), transparent 60%),
+                radial-gradient(700px 380px at 85% -15%, rgba(16, 185, 129, 0.08), transparent 55%),
+                var(--bg);
+  }
+
+  .topbar {
+    height: 54px;
+    flex-shrink: 0;
+    padding: 0 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: rgba(14, 19, 30, 0.65);
+    backdrop-filter: blur(8px);
+  }
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  .page-title {
+    font-size: 15.5px;
+    font-weight: 700;
+    color: #f8fafc;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 99px;
+    font-size: 11.5px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .pill.emerald { background: var(--emerald-soft); border-color: var(--emerald-border); color: #6ee7b7; }
+  .pill.amber { background: var(--amber-soft); border-color: var(--amber-border); color: #fcd34d; }
+  .pill.crimson { background: var(--crimson-soft); border-color: var(--crimson-border); color: #fca5a5; }
+  .pill.blue { background: var(--accent-soft); border-color: var(--accent-border); color: #93c5fd; }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .content-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 22px 28px;
+  }
+  .content-scroll::-webkit-scrollbar { width: 8px; }
+  .content-scroll::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.2); border-radius: 4px; }
+  .content-scroll::-webkit-scrollbar-track { background: transparent; }
+
+  .view { display: none; flex-direction: column; gap: 16px; }
+  .view.active { display: flex; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 13px;
+    border-radius: var(--radius-sm);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-card-2);
+    color: var(--text);
+    transition: all 0.14s ease;
+    white-space: nowrap;
+  }
+  .btn:hover:not(:disabled) { background: var(--bg-hover); border-color: rgba(148, 163, 184, 0.45); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-primary {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    border-color: rgba(96, 165, 250, 0.5);
+    color: #fff;
+  }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
+  .btn-emerald {
+    background: linear-gradient(135deg, #059669, #10b981);
+    border-color: rgba(110, 231, 183, 0.5);
+    color: #fff;
+  }
+  .btn-emerald:hover:not(:disabled) { filter: brightness(1.08); }
+  .btn-amber {
+    background: rgba(245, 158, 11, 0.18);
+    border-color: var(--amber-border);
+    color: #fcd34d;
+  }
+  .btn-amber:hover:not(:disabled) { background: rgba(245, 158, 11, 0.28); }
+  .btn-danger {
+    background: rgba(239, 68, 68, 0.16);
+    border-color: var(--crimson-border);
+    color: #fca5a5;
+  }
+  .btn-danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.28); color: #fff; }
+  .btn-block { width: 100%; }
+
+  /* Critical Alert */
+  .critical-banner {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    background: var(--crimson-soft);
+    border: 1px solid var(--crimson-border);
+    color: #fecaca;
+    font-weight: 600;
+  }
+  .critical-banner.show { display: flex; }
+
+  /* Active Hold Hero Card */
+  .hold-hero {
+    display: none;
+    border-radius: 14px;
+    padding: 18px 20px;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(16, 185, 129, 0.10) 100%);
+    border: 1px solid var(--amber-border);
+    box-shadow: 0 8px 28px rgba(245, 158, 11, 0.12);
+    flex-direction: column;
+    gap: 14px;
+  }
+  .hold-hero.show { display: flex; }
+  .hold-hero.job-mode {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.16) 0%, rgba(16, 185, 129, 0.12) 100%);
+    border-color: var(--accent-border);
+  }
+  .hold-hero-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .hold-title-block {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .hold-title {
+    font-size: 16.5px;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .hold-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+  }
+  .hold-countdown-box {
+    text-align: right;
+    background: rgba(10, 13, 20, 0.55);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    padding: 8px 16px;
+    border-radius: 10px;
+    min-width: 155px;
+  }
+  .hold-countdown-label { font-size: 11px; color: #fcd34d; font-weight: 600; }
+  .hold-countdown-val {
+    font-size: 28px;
+    font-weight: 800;
+    font-family: var(--mono);
+    color: #fff;
+    letter-spacing: 1px;
+    line-height: 1.15;
+  }
+  .hold-drive-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 9px;
+    background: rgba(10, 13, 20, 0.45);
+    border: 1px solid var(--border);
+    font-size: 12.5px;
+    flex-wrap: wrap;
+  }
+  .hold-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* Quick Hold Policy Bar */
+  .policy-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+  }
+  .policy-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .policy-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+  .seg-group {
+    display: inline-flex;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2px;
+    gap: 2px;
+  }
+  .seg-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.13s ease;
+  }
+  .seg-btn:hover { color: var(--text); }
+  .seg-btn.active { background: var(--accent); color: #fff; }
+  .seg-btn.active-amber { background: var(--amber); color: #0a0d14; }
+
+  /* Switch */
+  .switch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .switch input { display: none; }
+  .switch-track {
+    width: 34px;
+    height: 19px;
+    background: rgba(148, 163, 184, 0.25);
+    border-radius: 99px;
+    position: relative;
+    transition: 0.16s ease;
+  }
+  .switch-track::after {
+    content: "";
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: #fff;
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    transition: 0.16s ease;
+  }
+  .switch input:checked + .switch-track { background: var(--emerald); }
+  .switch input:checked + .switch-track::after { transform: translateX(15px); }
+  .switch.amber input:checked + .switch-track { background: var(--amber); }
+
+  /* Cards Grid */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    gap: 10px;
+  }
+  .card-title { font-size: 14px; font-weight: 700; color: #f8fafc; }
+  .card-sub { font-size: 12px; color: var(--text-dim); }
+
+  .gpu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(295px, 1fr));
+    gap: 14px;
+  }
+  .gpu-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+  }
+  .gpu-card:hover { border-color: var(--border-strong); }
+  .gpu-card.available { border-color: var(--emerald-border); box-shadow: 0 0 22px rgba(16, 185, 129, 0.12); }
+  .gpu-card.locked { border-color: var(--amber-border); box-shadow: 0 0 24px rgba(245, 158, 11, 0.18); }
+  .gpu-card.probing { border-color: var(--accent-border); }
+  .gpu-card.disabled-card { opacity: 0.68; }
+
+  .gpu-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .gpu-name { font-size: 15px; font-weight: 700; color: #f8fafc; }
+  .gpu-meta { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+  .gpu-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    background: rgba(10, 13, 20, 0.45);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .stat-k { font-size: 10.5px; color: var(--text-dim); }
+  .stat-v { font-size: 12.5px; font-weight: 700; font-family: var(--mono); color: var(--text); margin-top: 1px; }
+
+  .ticks-row {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    height: 16px;
+  }
+  .tick {
+    flex: 1;
+    height: 10px;
+    border-radius: 2px;
+    background: rgba(148, 163, 184, 0.14);
+  }
+  .tick.AVAILABLE { background: var(--emerald); height: 14px; }
+  .tick.LOCKED { background: var(--amber); height: 15px; }
+  .tick.SOLD_OUT { background: rgba(239, 68, 68, 0.42); }
+  .tick.NETWORK_ERROR, .tick.BUSY { background: rgba(245, 158, 11, 0.42); }
+  .tick.INELIGIBLE { background: rgba(100, 116, 139, 0.35); }
+
+  .gpu-toggles {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border);
+  }
+  .gpu-btns {
+    display: flex;
+    gap: 6px;
+  }
+
+  /* KPI Strip */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 13px 15px;
+  }
+  .kpi-label { font-size: 11.5px; color: var(--text-dim); }
+  .kpi-value { font-size: 20px; font-weight: 700; font-family: var(--mono); color: #f8fafc; margin-top: 4px; }
+  .kpi-foot { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+
+  /* Terminal Log Box */
+  .log-box {
+    background: #070a10;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.55;
+    color: #cbd5e1;
+    height: 320px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    user-select: text;
+  }
+
+  /* Heatmap */
+  .heatmap-grid {
+    display: grid;
+    grid-template-columns: repeat(24, 1fr);
+    gap: 4px;
+    margin-top: 10px;
+  }
+  .hm-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .hm-bar {
+    width: 100%;
+    height: 44px;
+    border-radius: 5px;
+    background: rgba(148, 163, 184, 0.1);
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-family: var(--mono);
+    color: #fff;
+  }
+  .hm-hour { font-size: 10px; color: var(--text-dim); font-family: var(--mono); }
+
+  /* Table */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  th, td {
+    padding: 9px 11px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    background: rgba(10, 13, 20, 0.55);
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 11.5px;
+  }
+  tr:hover td { background: rgba(148, 163, 184, 0.04); }
+  td.mono { font-family: var(--mono); font-size: 12px; }
+
+  /* Form controls */
+  .form-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .form-row:last-child { border-bottom: none; }
+  .form-title { font-weight: 600; color: var(--text); }
+  .form-desc { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  select, input[type="number"], input[type="text"] {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
+    padding: 6px 10px;
+    font-size: 12.5px;
+    font-family: var(--sans);
+    outline: none;
+  }
+  select:focus, input:focus { border-color: var(--accent); }
+
+  /* Toast stack */
+  .toast-stack {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 9999;
+    max-width: 360px;
+  }
+  .toast {
+    padding: 11px 14px;
+    border-radius: 10px;
+    background: #162033;
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    color: var(--text);
+    font-size: 12.5px;
+    animation: slideIn 0.2s ease;
+  }
+  .toast.emerald { border-color: var(--emerald-border); background: #0d2420; }
+  .toast.amber { border-color: var(--amber-border); background: #261d0d; }
+  .toast.crimson { border-color: var(--crimson-border); background: #281115; }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 960px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .sidebar { width: 196px; }
+  }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <!-- Left Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="4" width="16" height="16" rx="3"></rect>
+          <rect x="9" y="9" width="6" height="6"></rect>
+          <path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"></path>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">Colab GPU Tools</div>
+        <div class="brand-sub">
+          <span id="sidebarDot" class="status-dot"></span>
+          <span id="sidebarStatusTxt">正在连接...</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">工作台</div>
+      <div class="nav-item active" data-view="dashboard">
+        <span>⚡</span><span>GPU 监控与抢卡</span>
+        <span id="navHoldBadge" class="nav-badge amber" style="display:none;">占卡中</span>
+      </div>
+      <div class="nav-item" data-view="runner">
+        <span>🎬</span><span>占卡与短剧接管</span>
+      </div>
+      <div class="nav-item" data-view="analytics">
+        <span>📊</span><span>放卡规律热力图</span>
+      </div>
+      <div class="nav-item" data-view="history">
+        <span>🧾</span><span>探测与占卡记录</span>
+      </div>
+      <div class="nav-item" data-view="settings">
+        <span>⚙️</span><span>设置与防扣费</span>
+      </div>
+    </div>
+
+    <div class="sidebar-spacer"></div>
+
+    <div class="acct-mini">
+      <div class="acct-mini-top">
+        <span id="acctName">账号加载中...</span>
+        <span id="acctVmBadge" class="pill" style="padding:1px 7px;font-size:10.5px;">0 VM</span>
+      </div>
+      <div class="acct-ccu">
+        <span id="acctBalance" style="font-size:19px;color:#fff;">--</span>
+        <span>CCU</span>
+      </div>
+      <div class="acct-meta">
+        <span id="acctRate">0.00 CCU/hr</span>
+        <span id="acctDelta">本次 -0.00</span>
+      </div>
+    </div>
+
+    <div class="sidebar-actions">
+      <button class="btn btn-danger btn-block" onclick="emergencyStopAll()">🛑 一键强杀全部 GPU</button>
+      <button id="btnMinTray" class="btn btn-sm btn-block" style="display:none;" onclick="minimizeToTray()">🗕 最小化到托盘</button>
+    </div>
+  </aside>
+
+  <!-- Main Workspace -->
+  <main class="main-area">
+    <header class="topbar">
+      <div class="topbar-left">
+        <div id="topbarTitle" class="page-title">GPU 监控与自动抢占</div>
+        <span id="topModePill" class="pill amber">命中即占卡 · 15m</span>
+        <span id="topNextPill" class="pill">下次探测 --</span>
+      </div>
+      <div class="topbar-right">
+        <button id="btnProbeNow" class="btn btn-primary btn-sm" onclick="probeNow()">🔍 立即探测</button>
+        <button id="btnTogglePause" class="btn btn-sm" onclick="togglePause()">⏸ 暂停监控</button>
+      </div>
+    </header>
+
+    <div class="content-scroll">
+      <!-- Critical Alert -->
+      <div id="criticalBanner" class="critical-banner">
+        <span id="criticalText">⚠️ 检测到异常残留实例！</span>
+        <button class="btn btn-danger btn-sm" onclick="emergencyStopAll()">立即强制清理</button>
+      </div>
+
+      <!-- VIEW 1: DASHBOARD -->
+      <section id="view-dashboard" class="view active">
+        <!-- Active Hold Hero Banner -->
+        <div id="holdHero" class="hold-hero">
+          <div class="hold-hero-top">
+            <div class="hold-title-block">
+              <div class="hold-title">
+                <span id="holdStateTag" class="pill amber">🔒 已锁卡 · 待认领</span>
+                <span id="holdGpuTitle">A100</span>
+              </div>
+              <div id="holdEndpointSub" class="hold-sub">会话: h3work · 显卡检测中...</div>
+            </div>
+            <div class="hold-countdown-box">
+              <div id="holdCountdownLabel" class="hold-countdown-label">超时自动关机倒计时</div>
+              <div id="holdCountdownVal" class="hold-countdown-val">15:00</div>
+            </div>
+          </div>
+
+          <div class="hold-drive-row">
+            <div>
+              <strong>Google Drive 云盘：</strong>
+              <span id="holdDriveBadge" class="pill blue" style="margin:0 6px;">挂载中...</span>
+              <span id="holdDriveDetail" style="color:var(--text-muted);">正在静默挂载 /content/drive...</span>
+            </div>
+            <button class="btn btn-sm" onclick="mountDriveNow()">🔄 重新挂载云盘</button>
+          </div>
+
+          <div class="hold-actions">
+            <button id="btnHeroRunDrama" class="btn btn-emerald" onclick="runDramaOnHold()">🎬 接管运行 MiniMax-H3 短剧</button>
+            <button id="btnHeroClaimManual" class="btn btn-primary" onclick="claimManual()">🛠 认领手动使用（转 120m 兜底）</button>
+            <button id="btnHeroExtend10" class="btn btn-amber" onclick="extendHold(10)">⏱ +10 分钟续期</button>
+            <button id="btnHeroExtend20" class="btn btn-amber" onclick="extendHold(20)">⏱ +20 分钟</button>
+            <button class="btn btn-danger" style="margin-left:auto;" onclick="releaseHold()">⏹ 立即释放关机</button>
+          </div>
+        </div>
+
+        <!-- Quick Hold Policy Bar -->
+        <div class="policy-bar">
+          <div class="policy-group">
+            <span class="policy-label">命中策略：</span>
+            <div class="seg-group">
+              <button id="modeHoldBtn" class="seg-btn active-amber" onclick="setHoldMode(true)">🔒 命中即占卡</button>
+              <button id="modeProbeBtn" class="seg-btn" onclick="setHoldMode(false)">👀 仅监控秒释 (0 CCU)</button>
+            </div>
+          </div>
+          <div class="policy-group">
+            <span class="policy-label">无人认领自动关机：</span>
+            <div class="seg-group" id="holdMinPills">
+              <button class="seg-btn" data-min="10" onclick="setHoldMinutes(10)">10 分钟</button>
+              <button class="seg-btn active" data-min="15" onclick="setHoldMinutes(15)">15 分钟</button>
+              <button class="seg-btn" data-min="20" onclick="setHoldMinutes(20)">20 分钟</button>
+              <button class="seg-btn" data-min="30" onclick="setHoldMinutes(30)">30 分钟</button>
+            </div>
+          </div>
+          <div class="policy-group">
+            <label class="switch">
+              <input type="checkbox" id="chkAutoMount" checked onchange="updateCfg({auto_mount_drive: this.checked})" />
+              <span class="switch-track"></span>
+              <span>锁卡自动挂 Google Drive</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- GPU Cards -->
+        <div id="gpuGrid" class="gpu-grid"></div>
+      </section>
+
+      <!-- VIEW 2: RUNNER & HOLD CONTROL -->
+      <section id="view-runner" class="view">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🎬 MiniMax-H3 短剧一键接管控制台</div>
+              <div class="card-sub">复用已锁定并挂好云盘的 Colab GPU（跳过重新抢卡），跑完自动拉取视频到本地 outputs/ 并强杀关机</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-sm" onclick="openOutputsFolder()">📂 打开 outputs 成品目录</button>
+              <button class="btn btn-sm" onclick="openDramaConfig()">📝 编辑剧本 drama_config.json</button>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+            <label style="font-size:12px;color:var(--text-muted);">工作流：
+              <input id="inpWorkflow" type="text" value="workflow_h3_fl2va_turbo.json" style="width:230px;margin-left:4px;" />
+            </label>
+            <label style="font-size:12px;color:var(--text-muted);">剧本配置：
+              <input id="inpConfig" type="text" value="drama_config.json" style="width:170px;margin-left:4px;" />
+            </label>
+            <label style="font-size:12px;color:var(--text-muted);">最大兜底(分)：
+              <input id="inpMaxMin" type="number" value="180" min="30" max="360" style="width:76px;margin-left:4px;" />
+            </label>
+            <button id="btnStartDrama" class="btn btn-emerald" onclick="runDramaOnHold()">▶ 接管锁定 GPU 跑短剧</button>
+            <button id="btnStopDrama" class="btn btn-danger" onclick="stopDramaJob()">⏹ 中止并强杀 GPU</button>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <span id="jobLogMeta" style="font-size:11.5px;color:var(--text-dim);font-family:var(--mono);">日志路径: 等待任务启动...</span>
+            <button class="btn btn-sm" onclick="refreshJobLog()">🔄 刷新日志</button>
+          </div>
+          <div id="jobLogBox" class="log-box">暂无运行中的短剧任务日志。
+提示：
+1. 开启「命中即占卡」后，一旦抢到 G4 或 A100，系统会自动占住 15 分钟并静默挂载 Google Drive。
+2. 收到通知后，点击「接管运行 MiniMax-H3 短剧」即可直接复用该机器开始渲染。
+3. 如果超过设定时间你未操作，后台看门狗会自动强杀实例，绝不白扣 CCU。</div>
+        </div>
+      </section>
+
+      <!-- VIEW 3: ANALYTICS -->
+      <section id="view-analytics" class="view">
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">24 小时总探测次数</div>
+            <div id="kpiTotal" class="kpi-value">0</div>
+            <div class="kpi-foot">503 缺货全程 0 扣费</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">24 小时命中次数</div>
+            <div id="kpiHits" class="kpi-value" style="color:var(--emerald);">0</div>
+            <div id="kpiLastHit" class="kpi-foot">上次命中：暂无</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">平均探测延迟</div>
+            <div id="kpiLatency" class="kpi-value">-- ms</div>
+            <div class="kpi-foot">经由本地代理直连 Colab</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">本次监控已耗 CCU</div>
+            <div id="kpiCcuDelta" class="kpi-value">0.00</div>
+            <div class="kpi-foot">仅占卡/运行任务时计费</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">24 小时放卡时段热力图（本地时间 00:00 – 23:00）</div>
+              <div class="card-sub">统计过去 72 小时每个小时的命中率，帮你掌握 G4 / A100 放卡规律</div>
+            </div>
+            <select id="analyticsHours" onchange="loadAnalytics()">
+              <option value="24">最近 24 小时</option>
+              <option value="72" selected>最近 72 小时</option>
+              <option value="168">最近 7 天</option>
+            </select>
+          </div>
+          <div id="heatmapContainer"></div>
+        </div>
+      </section>
+
+      <!-- VIEW 4: HISTORY -->
+      <section id="view-history" class="view">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">探测与占卡历史记录</div>
+            <div style="display:flex;gap:8px;">
+              <select id="histGpu" onchange="loadHistory()">
+                <option value="">全部显卡</option>
+                <option value="G4">G4</option>
+                <option value="A100">A100</option>
+                <option value="H100">H100</option>
+                <option value="L4">L4</option>
+                <option value="T4">T4</option>
+              </select>
+              <select id="histStatus" onchange="loadHistory()">
+                <option value="">全部状态</option>
+                <option value="AVAILABLE">有卡 / 已锁卡</option>
+                <option value="SOLD_OUT">503 缺货</option>
+                <option value="NETWORK_ERROR">网络波动</option>
+              </select>
+              <button class="btn btn-sm" onclick="loadHistory()">🔄 刷新</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>显卡</th>
+                  <th>状态</th>
+                  <th>处理方式</th>
+                  <th>延迟</th>
+                  <th>详情</th>
+                </tr>
+              </thead>
+              <tbody id="historyBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 5: SETTINGS -->
+      <section id="view-settings" class="view">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">监控与占卡安全设置</div>
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">轮询探测间隔</div>
+              <div class="form-desc">每次探测 G4/A100 的间隔秒数（建议 60–180 秒，过短易触发 429 限流）</div>
+            </div>
+            <select id="cfgInterval" onchange="updateCfg({interval_seconds: Number(this.value)})">
+              <option value="30">每 30 秒</option>
+              <option value="60">每 60 秒（推荐）</option>
+              <option value="120">每 2 分钟</option>
+              <option value="180">每 3 分钟</option>
+              <option value="300">每 5 分钟</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">默认无人认领自动关机时长（分钟）</div>
+              <div class="form-desc">抢到 GPU 后如果你未点「接管」或「续期」，倒计时归零自动强杀</div>
+            </div>
+            <input id="cfgHoldMin" type="number" min="5" max="180" value="15" style="width:90px;" onchange="updateCfg({hold_minutes: Number(this.value)})" />
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">手动认领最大兜底时长（分钟）</div>
+              <div class="form-desc">点击「认领手动使用」后仍保留的超时自动关机上限，防止忘记关机</div>
+            </div>
+            <input id="cfgClaimMax" type="number" min="15" max="360" value="120" style="width:90px;" onchange="updateCfg({manual_claim_max_minutes: Number(this.value)})" />
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">已有活跃 VM 时自动跳过探测</div>
+              <div class="form-desc">开启后若账号下已有运行中或锁定中的实例，自动跳过探测避免冲突</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="cfgSkipBusy" checked onchange="updateCfg({skip_when_active_vm: this.checked})" />
+              <span class="switch-track"></span>
+            </label>
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">Windows 桌面通知弹窗</div>
+              <div class="form-desc">抢到卡或超时自动释放时弹出系统通知</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="cfgToast" checked onchange="updateCfg({windows_toast: this.checked})" />
+              <span class="switch-track"></span>
+            </label>
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">面板提示音</div>
+              <div class="form-desc">抢到卡并锁定时播放醒目提示音</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="cfgSound" checked onchange="updateCfg({browser_sound: this.checked})" />
+              <span class="switch-track"></span>
+            </label>
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">调试与维护</div>
+              <div class="form-desc">测试通知提醒，或清空历史探测记录</div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm" onclick="testAlert()">🔔 测试提醒</button>
+              <button class="btn btn-sm btn-danger" onclick="clearHistory()">🗑 清空探测记录</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div id="toastStack" class="toast-stack"></div>
+
+<script>
+let appState = null;
+let serverOffsetMs = 0;
+let currentView = "dashboard";
+let eventSource = null;
+
+function fmtMMSS(sec) {
+  const s = Math.max(0, Math.floor(sec));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = s % 60;
+  if (h > 0) return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(r).padStart(2,"0")}`;
+  return `${String(m).padStart(2,"0")}:${String(r).padStart(2,"0")}`;
+}
+
+function fmtRelTime(ts) {
+  if (!ts) return "暂无";
+  const diff = Math.max(0, Math.floor(Date.now()/1000 - ts));
+  if (diff < 60) return `${diff} 秒前`;
+  if (diff < 3600) return `${Math.floor(diff/60)} 分钟前`;
+  if (diff < 86400) return `${Math.floor(diff/3600)} 小时前`;
+  return `${Math.floor(diff/86400)} 天前`;
+}
+
+function showToast(msg, tone = "") {
+  const stack = document.getElementById("toastStack");
+  const el = document.createElement("div");
+  el.className = `toast ${tone}`;
+  el.textContent = msg;
+  stack.appendChild(el);
+  setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 240); }, 4200);
+}
+
+function playChime(isLocked) {
+  if (appState && appState.config && appState.config.browser_sound === false) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = isLocked ? [587.33, 880.0, 1174.66] : [659.25, 880.0];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.001, ctx.currentTime + i * 0.14);
+      gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + i * 0.14 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.14 + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + i * 0.14);
+      osc.stop(ctx.currentTime + i * 0.14 + 0.38);
+    });
+  } catch (_) {}
+}
+
+async function apiPost(path, body = {}) {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+// Navigation
+const VIEW_TITLES = {
+  dashboard: "GPU 监控与自动抢占",
+  runner: "占卡与 MiniMax-H3 短剧接管",
+  analytics: "24 小时放卡规律分析",
+  history: "探测与占卡历史记录",
+  settings: "系统与防幽灵计费设置",
+};
+document.querySelectorAll(".nav-item").forEach(el => {
+  el.addEventListener("click", () => {
+    const view = el.dataset.view;
+    switchView(view);
+  });
+});
+
+function switchView(view) {
+  currentView = view;
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.toggle("active", n.dataset.view === view));
+  document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === `view-${view}`));
+  document.getElementById("topbarTitle").textContent = VIEW_TITLES[view] || "Colab GPU Tools";
+  if (view === "analytics") loadAnalytics();
+  if (view === "history") loadHistory();
+  if (view === "runner") refreshJobLog();
+}
+
+function renderState(st) {
+  appState = st;
+  if (st.server_time_ts) {
+    serverOffsetMs = st.server_time_ts * 1000 - Date.now();
+  }
+  const cfg = st.config || {};
+  const acct = st.account || {};
+  const hold = st.active_hold || null;
+
+  // Sidebar status
+  const dot = document.getElementById("sidebarDot");
+  const stTxt = document.getElementById("sidebarStatusTxt");
+  dot.className = "status-dot";
+  if (st.critical_alert) {
+    dot.classList.add("error");
+    stTxt.textContent = "发现残留告警";
+  } else if (hold) {
+    dot.classList.add("holding");
+    stTxt.textContent = hold.state === "CLAIMED_JOB" ? `渲染中 · ${hold.gpu}` : `已锁卡 · ${hold.gpu}`;
+  } else if (st.probing) {
+    dot.classList.add("probing");
+    stTxt.textContent = `探测 ${st.current_probe_gpu || "..."}`;
+  } else if (st.paused) {
+    dot.classList.add("paused");
+    stTxt.textContent = "监控已暂停";
+  } else {
+    stTxt.textContent = "后台监控中";
+  }
+
+  const navBadge = document.getElementById("navHoldBadge");
+  if (hold) {
+    navBadge.style.display = "inline-block";
+    navBadge.textContent = hold.gpu;
+  } else {
+    navBadge.style.display = "none";
+  }
+
+  // Account mini
+  document.getElementById("acctName").textContent = acct.account || "未登录";
+  const bal = typeof acct.balance === "number" ? acct.balance.toFixed(2) : "--";
+  document.getElementById("acctBalance").textContent = bal;
+  const rate = typeof acct.rate_hourly === "number" ? acct.rate_hourly.toFixed(2) : "0.00";
+  document.getElementById("acctRate").textContent = `${rate} CCU/hr`;
+  const delta = typeof st.session_ccu_delta === "number" ? st.session_ccu_delta.toFixed(2) : "0.00";
+  document.getElementById("acctDelta").textContent = `本次 -${delta}`;
+  document.getElementById("kpiCcuDelta").textContent = delta;
+
+  const vmCount = (acct.assignments || []).length;
+  const vmBadge = document.getElementById("acctVmBadge");
+  vmBadge.textContent = `${vmCount} VM`;
+  vmBadge.className = `pill ${vmCount > 0 ? "amber" : "emerald"}`;
+
+  // Topbar pills & buttons
+  const modePill = document.getElementById("topModePill");
+  if (cfg.hold_on_hit) {
+    modePill.className = "pill amber";
+    modePill.textContent = `🔒 命中即占卡 · ${cfg.hold_minutes || 15}m`;
+  } else {
+    modePill.className = "pill emerald";
+    modePill.textContent = "👀 仅监控秒释 · 0 CCU";
+  }
+  document.getElementById("btnTogglePause").textContent = st.paused ? "▶ 恢复监控" : "⏸ 暂停监控";
+  document.getElementById("btnProbeNow").disabled = Boolean(st.probing || hold);
+
+  // Critical banner
+  const critEl = document.getElementById("criticalBanner");
+  if (st.critical_alert) {
+    critEl.classList.add("show");
+    document.getElementById("criticalText").textContent = st.critical_alert;
+  } else {
+    critEl.classList.remove("show");
+  }
+
+  // Policy bar sync
+  document.getElementById("modeHoldBtn").className = `seg-btn ${cfg.hold_on_hit ? "active-amber" : ""}`;
+  document.getElementById("modeProbeBtn").className = `seg-btn ${!cfg.hold_on_hit ? "active" : ""}`;
+  document.querySelectorAll("#holdMinPills .seg-btn").forEach(b => {
+    b.classList.toggle("active", Number(b.dataset.min) === Number(cfg.hold_minutes));
+  });
+  document.getElementById("chkAutoMount").checked = Boolean(cfg.auto_mount_drive);
+
+  // Settings sync
+  const selInt = document.getElementById("cfgInterval");
+  if ([...selInt.options].some(o => Number(o.value) === Number(cfg.interval_seconds))) {
+    selInt.value = String(cfg.interval_seconds);
+  }
+  document.getElementById("cfgHoldMin").value = cfg.hold_minutes || 15;
+  document.getElementById("cfgClaimMax").value = cfg.manual_claim_max_minutes || 120;
+  document.getElementById("cfgSkipBusy").checked = Boolean(cfg.skip_when_active_vm);
+  document.getElementById("cfgToast").checked = Boolean(cfg.windows_toast);
+  document.getElementById("cfgSound").checked = Boolean(cfg.browser_sound);
+
+  // Hold Hero Banner
+  const hero = document.getElementById("holdHero");
+  if (hold) {
+    hero.classList.add("show");
+    hero.classList.toggle("job-mode", hold.state === "CLAIMED_JOB");
+    const tag = document.getElementById("holdStateTag");
+    if (hold.state === "HOLDING") {
+      tag.className = "pill amber";
+      tag.textContent = "🔒 已锁卡 · 待认领";
+      document.getElementById("holdCountdownLabel").textContent = "未认领自动关机倒计时";
+    } else if (hold.state === "CLAIMED_MANUAL") {
+      tag.className = "pill blue";
+      tag.textContent = "🛠 手动使用中";
+      document.getElementById("holdCountdownLabel").textContent = "最大兜底保护倒计时";
+    } else {
+      tag.className = "pill emerald";
+      tag.textContent = "🎬 短剧推理运行中";
+      document.getElementById("holdCountdownLabel").textContent = "任务最大保护时长";
+    }
+    document.getElementById("holdGpuTitle").textContent = `${hold.gpu}${hold.gpu_model ? " · " + hold.gpu_model : ""}`;
+    document.getElementById("holdEndpointSub").textContent = `会话: ${hold.session_name} · 节点: ${hold.endpoint} · 锁定于 ${(hold.locked_at_iso || "").slice(11, 19)}`;
+
+    const dBadge = document.getElementById("holdDriveBadge");
+    if (hold.drive_status === "MOUNTED") {
+      dBadge.className = "pill emerald";
+      dBadge.textContent = "✅ 已挂载";
+    } else if (hold.drive_status === "MOUNTING") {
+      dBadge.className = "pill blue";
+      dBadge.textContent = "⏳ 挂载中";
+    } else if (hold.drive_status === "FAILED") {
+      dBadge.className = "pill crimson";
+      dBadge.textContent = "❌ 挂载失败";
+    } else {
+      dBadge.className = "pill";
+      dBadge.textContent = "未挂载";
+    }
+    document.getElementById("holdDriveDetail").textContent = hold.drive_detail || "";
+
+    const isJob = hold.state === "CLAIMED_JOB";
+    document.getElementById("btnHeroRunDrama").style.display = isJob ? "none" : "inline-flex";
+    document.getElementById("btnHeroClaimManual").style.display = hold.state === "HOLDING" ? "inline-flex" : "none";
+    document.getElementById("btnHeroExtend10").style.display = isJob ? "none" : "inline-flex";
+    document.getElementById("btnHeroExtend20").style.display = isJob ? "none" : "inline-flex";
+  } else {
+    hero.classList.remove("show");
+  }
+
+  // GPU Cards
+  const grid = document.getElementById("gpuGrid");
+  grid.innerHTML = (st.gpus || []).map(g => {
+    const isLocked = hold && hold.gpu === g.id;
+    const latest = g.latest || {};
+    let badgeHtml = `<span class="pill">未探测</span>`;
+    let cardCls = "gpu-card";
+    if (!g.enabled) cardCls += " disabled-card";
+    if (isLocked) {
+      cardCls += " locked";
+      badgeHtml = `<span class="pill amber">🔒 已锁定占用</span>`;
+    } else if (g.probing_now) {
+      cardCls += " probing";
+      badgeHtml = `<span class="pill blue">⏳ 探测中...</span>`;
+    } else if (g.eligible === false) {
+      badgeHtml = `<span class="pill">无权限</span>`;
+    } else if (latest.status === "AVAILABLE") {
+      cardCls += " available";
+      badgeHtml = `<span class="pill emerald">✅ 刚有卡</span>`;
+    } else if (latest.status === "SOLD_OUT") {
+      badgeHtml = `<span class="pill crimson">503 缺货</span>`;
+    } else if (latest.status) {
+      badgeHtml = `<span class="pill amber">${latest.status}</span>`;
+    }
+
+    const ticks = (g.recent_ticks || []).slice(-22);
+    while (ticks.length < 22) ticks.unshift({ status: "EMPTY" });
+    const ticksHtml = ticks.map(t => {
+      const cls = t.status === "AVAILABLE" && t.released === 2 ? "LOCKED" : t.status;
+      return `<div class="tick ${cls}" title="${t.ts_iso || ""} ${t.status || ""}"></div>`;
+    }).join("");
+
+    return `
+      <div class="${cardCls}">
+        <div class="gpu-head">
+          <div>
+            <div class="gpu-name">${g.label}</div>
+            <div class="gpu-meta">${g.vram} · ${g.ccu_hint} · ${g.note}</div>
+          </div>
+          ${badgeHtml}
+        </div>
+        <div class="gpu-stats">
+          <div><div class="stat-k">24h 探测/命中</div><div class="stat-v">${g.window_total} / ${g.window_hits}</div></div>
+          <div><div class="stat-k">连续缺货</div><div class="stat-v">${g.consecutive_misses} 次</div></div>
+          <div><div class="stat-k">上次有卡</div><div class="stat-v">${fmtRelTime(g.last_available_ts)}</div></div>
+        </div>
+        <div class="ticks-row">${ticksHtml}</div>
+        <div class="gpu-toggles">
+          <div style="display:flex;gap:12px;">
+            <label class="switch">
+              <input type="checkbox" ${g.enabled ? "checked" : ""} onchange="toggleGpuEnabled('${g.id}', this.checked)" />
+              <span class="switch-track"></span><span>监控</span>
+            </label>
+            <label class="switch amber">
+              <input type="checkbox" ${g.hold_enabled ? "checked" : ""} onchange="toggleGpuHold('${g.id}', this.checked)" />
+              <span class="switch-track"></span><span>命中即锁</span>
+            </label>
+          </div>
+          <div class="gpu-btns">
+            <button class="btn btn-sm" ${st.probing || hold ? "disabled" : ""} onclick="probeNow('${g.id}')">探测</button>
+            <button class="btn btn-sm btn-amber" ${st.probing || hold || g.eligible === false ? "disabled" : ""} onclick="grabNow('${g.id}')">🔒 抢占</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  updateTickers();
+}
+
+function updateTickers() {
+  if (!appState) return;
+  const nowSec = (Date.now() + serverOffsetMs) / 1000;
+  const nextPill = document.getElementById("topNextPill");
+  if (appState.active_hold) {
+    const rem = Math.max(0, appState.active_hold.expires_at_ts - nowSec);
+    document.getElementById("holdCountdownVal").textContent = fmtMMSS(rem);
+    nextPill.textContent = `占卡中 · 剩余 ${fmtMMSS(rem)}`;
+    nextPill.className = "pill amber";
+  } else if (appState.paused) {
+    nextPill.textContent = "已暂停自动探测";
+    nextPill.className = "pill";
+  } else if (appState.probing) {
+    nextPill.textContent = `正在探测 ${appState.current_probe_gpu || "..."}`;
+    nextPill.className = "pill blue";
+  } else if (appState.next_probe_ts) {
+    const rem = Math.max(0, Math.ceil(appState.next_probe_ts - nowSec));
+    nextPill.textContent = `下次探测 ${rem}s`;
+    nextPill.className = "pill";
+  }
+}
+
+async function updateCfg(patch) {
+  try {
+    await apiPost("/api/config", patch);
+    showToast("配置已保存", "emerald");
+  } catch (e) {
+    showToast("保存失败: " + e.message, "crimson");
+  }
+}
+
+function setHoldMode(on) { updateCfg({ hold_on_hit: on }); }
+function setHoldMinutes(m) { updateCfg({ hold_minutes: m }); }
+
+function toggleGpuEnabled(gid, checked) {
+  const list = new Set((appState?.config?.enabled_gpus) || []);
+  if (checked) list.add(gid); else list.delete(gid);
+  updateCfg({ enabled_gpus: [...list] });
+}
+
+function toggleGpuHold(gid, checked) {
+  const list = new Set((appState?.config?.hold_gpus) || []);
+  if (checked) list.add(gid); else list.delete(gid);
+  updateCfg({ hold_gpus: [...list] });
+}
+
+async function probeNow(gpu = null) {
+  try {
+    await apiPost("/api/probe-now", gpu ? { gpu } : {});
+    showToast(gpu ? `已触发 ${gpu} 单次探测` : "已触发全卡立即探测", "emerald");
+  } catch (e) {
+    showToast(e.message, "crimson");
+  }
+}
+
+async function grabNow(gpu) {
+  try {
+    showToast(`正在尝试直接抢占 ${gpu} 并自动挂载云盘...`, "amber");
+    const res = await apiPost("/api/grab-now", { gpu });
+    if (res.locked) {
+      showToast(`🔒 抢占成功！已锁定 ${gpu} 并开始挂载 Google Drive`, "emerald");
+      playChime(true);
+    } else {
+      showToast(`${gpu} 当前暂不可用：${res.record?.detail || "503 缺货"}`, "crimson");
+    }
+  } catch (e) {
+    showToast("抢占失败: " + e.message, "crimson");
+  }
+}
+
+async function togglePause() {
+  try {
+    const res = await apiPost("/api/toggle-pause", {});
+    showToast(res.paused ? "已暂停自动监控" : "已恢复自动监控", "emerald");
+  } catch (e) {
+    showToast(e.message, "crimson");
+  }
+}
+
+async function extendHold(mins) {
+  try {
+    await apiPost("/api/hold/extend", { minutes: mins });
+    showToast(`已成功续期 +${mins} 分钟`, "amber");
+  } catch (e) {
+    showToast(e.message, "crimson");
+  }
+}
+
+async function claimManual() {
+  try {
+    const maxMin = Number(appState?.config?.manual_claim_max_minutes || 120);
+    await apiPost("/api/hold/claim", { max_minutes: maxMin });
+    showToast(`已切换为手动使用模式（${maxMin} 分钟最大兜底防忘关）`, "emerald");
+  } catch (e) {
+    showToast(e.message, "crimson");
+  }
+}
+
+async function mountDriveNow() {
+  try {
+    await apiPost("/api/hold/mount-drive", {});
+    showToast("正在重新挂载 Google Drive...", "amber");
+  } catch (e) {
+    showToast(e.message, "crimson");
+  }
+}
+
+async function releaseHold() {
+  if (!confirm("确定立即关闭并释放当前锁定的 Colab GPU 实例吗？")) return;
+  try {
+    const res = await apiPost("/api/hold/release", {});
+    showToast(res.detail || "已安全释放实例", "emerald");
+  } catch (e) {
+    showToast("释放失败: " + e.message, "crimson");
+  }
+}
+
+async function runDramaOnHold() {
+  try {
+    const workflow = document.getElementById("inpWorkflow").value.trim() || "workflow_h3_fl2va_turbo.json";
+    const config = document.getElementById("inpConfig").value.trim() || "drama_config.json";
+    const max_minutes = Number(document.getElementById("inpMaxMin").value || 180);
+    await apiPost("/api/hold/run-drama", { workflow, config, max_minutes });
+    showToast("🎬 已接管锁定 GPU 启动短剧渲染，跑完将自动关机！", "emerald");
+    switchView("runner");
+    refreshJobLog();
+  } catch (e) {
+    showToast("启动短剧失败: " + e.message, "crimson");
+  }
+}
+
+async function stopDramaJob() {
+  if (!confirm("确定中止当前短剧任务并立即强杀云端 GPU 吗？")) return;
+  try {
+    const res = await apiPost("/api/job/stop", {});
+    showToast(res.detail || "已中止并回收 GPU", "emerald");
+  } catch (e) {
+    showToast(e.message, "crimson");
+  }
+}
+
+async function refreshJobLog() {
+  try {
+    const res = await fetch("/api/job/log?tail=65536").then(r => r.json());
+    document.getElementById("jobLogMeta").textContent = `状态: ${res.status || "IDLE"} · 日志: ${res.path || "无"}`;
+    const box = document.getElementById("jobLogBox");
+    if (res.content) {
+      box.textContent = res.content;
+      box.scrollTop = box.scrollHeight;
+    }
+  } catch (_) {}
+}
+
+async function emergencyStopAll() {
+  if (!confirm("确定强制关闭账号下所有 Colab GPU 实例（包括未命名孤儿实例）吗？")) return;
+  try {
+    const res = await apiPost("/api/stop-all", {});
+    showToast(`紧急强杀完成：关闭 ${res.killed} 个实例，剩余 ${res.remaining_count} 个`, res.remaining_count === 0 ? "emerald" : "crimson");
+  } catch (e) {
+    showToast("紧急强杀失败: " + e.message, "crimson");
+  }
+}
+
+async function testAlert() {
+  try {
+    await apiPost("/api/test-alert", {});
+    playChime(true);
+    showToast("已发送测试提醒", "emerald");
+  } catch (e) {
+    showToast(e.message, "crimson");
+  }
+}
+
+async function clearHistory() {
+  if (!confirm("确定清空所有历史探测记录吗？")) return;
+  try {
+    await apiPost("/api/clear-history", {});
+    showToast("历史记录已清空", "emerald");
+    loadHistory();
+  } catch (e) {
+    showToast(e.message, "crimson");
+  }
+}
+
+async function loadAnalytics() {
+  try {
+    const h = document.getElementById("analyticsHours").value || 72;
+    const data = await fetch(`/api/analytics?hours=${h}`).then(r => r.json());
+    document.getElementById("kpiTotal").textContent = data.totals?.total_probes ?? 0;
+    document.getElementById("kpiHits").textContent = data.totals?.total_hits ?? 0;
+    document.getElementById("kpiLatency").textContent = data.totals?.avg_latency_ms ? `${data.totals.avg_latency_ms} ms` : "-- ms";
+    const last = data.totals?.last_any_hit;
+    document.getElementById("kpiLastHit").textContent = last ? `上次命中：${last.gpu} (${fmtRelTime(last.ts)})` : "上次命中：暂无";
+
+    const hm = data.heatmap || {};
+    const container = document.getElementById("heatmapContainer");
+    const targetGpus = ["G4", "A100"];
+    container.innerHTML = targetGpus.map(gid => {
+      const hours = hm[gid] || [];
+      const cells = Array.from({ length: 24 }, (_, hr) => {
+        const row = hours[hr] || { total: 0, hits: 0, rate: 0 };
+        const alpha = row.hits > 0 ? Math.min(0.92, 0.25 + (row.rate || 0) * 0.7) : (row.total > 0 ? 0.14 : 0.05);
+        const bg = row.hits > 0 ? `rgba(16, 185, 129, ${alpha})` : `rgba(148, 163, 184, ${alpha})`;
+        return `
+          <div class="hm-cell" title="${gid} ${String(hr).padStart(2,"0")}:00 | 探测 ${row.total} / 命中 ${row.hits}">
+            <div class="hm-bar" style="background:${bg}">${row.hits > 0 ? row.hits : ""}</div>
+            <div class="hm-hour">${String(hr).padStart(2,"0")}</div>
+          </div>
+        `;
+      }).join("");
+      return `<div style="margin-top:12px;"><div style="font-weight:600;font-size:12.5px;color:#cbd5e1;">${gid} 放卡分布</div><div class="heatmap-grid">${cells}</div></div>`;
+    }).join("");
+  } catch (_) {}
+}
+
+async function loadHistory() {
+  try {
+    const gpu = document.getElementById("histGpu").value;
+    const status = document.getElementById("histStatus").value;
+    const qs = new URLSearchParams({ limit: "120" });
+    if (gpu) qs.set("gpu", gpu);
+    if (status) qs.set("status", status);
+    const data = await fetch(`/api/history?${qs}`).then(r => r.json());
+    const tbody = document.getElementById("historyBody");
+    tbody.innerHTML = (data.items || []).map(r => {
+      const actionBadge = r.released === 2
+        ? `<span class="pill amber">🔒 已锁卡</span>`
+        : r.released === 1
+          ? `<span class="pill emerald">秒释 (${r.release_ms || 0}ms)</span>`
+          : r.released === -1
+            ? `<span class="pill crimson">释放异常</span>`
+            : `<span style="color:var(--text-dim);">—</span>`;
+      const statusPill = r.status === "AVAILABLE"
+        ? `<span class="pill emerald">AVAILABLE</span>`
+        : r.status === "SOLD_OUT"
+          ? `<span class="pill crimson">503 缺货</span>`
+          : `<span class="pill">${r.status}</span>`;
+      return `
+        <tr>
+          <td class="mono">${(r.ts_iso || "").replace("T", " ").slice(0, 19)}</td>
+          <td class="mono"><strong>${r.gpu}</strong></td>
+          <td>${statusPill}</td>
+          <td>${actionBadge}</td>
+          <td class="mono">${r.latency_ms ?? "--"} ms</td>
+          <td style="color:var(--text-muted);">${r.detail || ""}</td>
+        </tr>
+      `;
+    }).join("") || `<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:24px;">暂无记录</td></tr>`;
+  } catch (_) {}
+}
+
+// Native Desktop Bridge Actions (pywebview)
+function openOutputsFolder() {
+  if (window.pywebview?.api?.open_outputs_folder) {
+    window.pywebview.api.open_outputs_folder();
+  } else {
+    showToast("成品目录位于项目 outputs/ 文件夹", "amber");
+  }
+}
+function openDramaConfig() {
+  if (window.pywebview?.api?.open_drama_config) {
+    window.pywebview.api.open_drama_config();
+  } else {
+    showToast("剧本配置位于 cloud_workstation/workflows/02_eastern_fantasy_xianxia/drama_config.json", "amber");
+  }
+}
+function minimizeToTray() {
+  if (window.pywebview?.api?.minimize_to_tray) {
+    window.pywebview.api.minimize_to_tray();
+  }
+}
+
+window.addEventListener("pywebviewready", () => {
+  document.getElementById("btnMinTray").style.display = "inline-flex";
+});
+
+// SSE Connection
+function connectSSE() {
+  if (eventSource) eventSource.close();
+  eventSource = new EventSource("/api/events");
+  eventSource.addEventListener("state", e => {
+    try { renderState(JSON.parse(e.data)); } catch (_) {}
+  });
+  eventSource.addEventListener("probe", () => {
+    if (currentView === "history") loadHistory();
+  });
+  eventSource.addEventListener("alert", e => {
+    try {
+      const a = JSON.parse(e.data);
+      if (a.kind === "locked") {
+        playChime(true);
+        showToast(`🔒 已自动抢占并锁定 ${a.gpu}！正在挂载 Google Drive...`, "amber");
+        if (window.pywebview?.api?.on_gpu_locked) {
+          window.pywebview.api.on_gpu_locked(a);
+        }
+      } else if (a.kind === "hit") {
+        playChime(false);
+        showToast(`✅ 探测到 ${a.gpu} 有卡！`, "emerald");
+      } else if (a.kind === "released") {
+        showToast(a.detail || "锁定实例已释放", "emerald");
+      }
+    } catch (_) {}
+  });
+  eventSource.onerror = () => {
+    document.getElementById("sidebarStatusTxt").textContent = "连接断开，重连中...";
+  };
+}
+
+setInterval(updateTickers, 1000);
+setInterval(() => {
+  if (currentView === "runner" && appState?.active_hold?.state === "CLAIMED_JOB") {
+    refreshJobLog();
+  }
+}, 3000);
+
+fetch("/api/state").then(r => r.json()).then(renderState).catch(() => {});
+connectSSE();
+</script>
+</body>
+</html>

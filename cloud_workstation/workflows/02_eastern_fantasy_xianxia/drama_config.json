@@ -1,0 +1,52 @@
+{
+  "project_name": "02_eastern_fantasy_xianxia_qinglian",
+  "title": "东方玄幻影视短剧《青莲剑劫》4段式预告",
+  "output_drive_dir": "/content/drive/MyDrive/AI_Workstation/outputs/02_eastern_fantasy_xianxia",
+  "defaults": {
+    "width": 1344,
+    "height": 768,
+    "fps": 24,
+    "duration_sec": 6,
+    "steps": 8,
+    "use_turbo_lora": true,
+    "turbo_lora": "minimax_h3_fl2v_turbo_8step_v1.2_768p_comfyui_bf16.safetensors",
+    "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+    "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+    "video_vae": "minimax_h3_video_vae_int8_convrot.safetensors",
+    "audio_vae": "minimax_h3_audio_vae_fp32.safetensors"
+  },
+  "shots": [
+    {
+      "id": "shot_01_tribulation_sky",
+      "title": "第一幕：云海渡劫·剑意初醒",
+      "seed": 1008601,
+      "duration_sec": 6,
+      "continue_from_prev": false,
+      "prompt": "Epic Eastern Xianxia live-action cinema, IMAX 65mm film look, dark slate-blue storm clouds swirling above floating jade mountain peaks, lightning veins illuminating ancient misty cliffs, embedding:minimaxh3_storm_magic. A young white-robed Chinese sword cultivator with wind-whipped long black hair stands alone on a sheer cliff edge, eyes glowing faint cyan as an antique bronze sword hovers beside his shoulder trembling with ethereal cyan lotus energy. Sweeping aerial crane push-in from wide misty chasm to heroic medium close-up, dramatic rim lighting, floating embers and rain droplets in slow motion.\nAudio: Deep rolling thunder across mountain valleys, howling high-altitude wind, crisp metallic resonance of the hovering sword humming, solemn ancient guzheng and low war-drum orchestral swell. Male cultivator speaks in calm, resonant Mandarin Chinese: \"天劫已至，今日我便以青莲剑意，斩开这九重天门。\""
+    },
+    {
+      "id": "shot_02_lotus_sword_array",
+      "title": "第二幕：万剑归宗·青莲绽放",
+      "seed": 1008602,
+      "duration_sec": 6,
+      "continue_from_prev": true,
+      "prompt": "Epic Eastern Xianxia live-action cinema, seamless continuation from the opening frame. The white-robed sword cultivator forms a sharp Taoist sword seal with two fingers and sweeps his arm skyward; instantly hundreds of translucent glowing cyan spirit swords materialize behind him in a spinning sacred lotus formation, piercing upward through the dark storm clouds with blinding golden-cyan lightning trails, embedding:minimaxh3_spiral_ascent. Dynamic low-angle orbit camera sweeping around the cultivator as shockwaves scatter swirling mist and glowing jade petals.\nAudio: Explosive chorus of hundreds of spiritual swords unsheathing in unison, crackling plasma lightning arcs, deep sub-bass shockwave boom, soaring epic Chinese xiao flute and dramatic taiko drums rising to climax."
+    },
+    {
+      "id": "shot_03_demon_dragon_clash",
+      "title": "第三幕：魔龙破云·剑斩苍穹",
+      "seed": 1008603,
+      "duration_sec": 6,
+      "continue_from_prev": false,
+      "prompt": "Epic Eastern Xianxia live-action cinema, high-budget Wuxia VFX action sequence. From the vortex of crimson-black thunderclouds above the floating mountains, a colossal ancient obsidian celestial dragon coiled in purple lightning lunges downward toward the glowing cyan sword array. The white-robed cultivator leaps off the cliff riding a blazing cyan spirit sword, slicing straight into the dragon's torrent of dark lightning in a dazzling clash of cyan lotus light and crimson fire, embedding:minimaxh3_bullet_time. Ultra-cinematic tracking shot with brief speed-ramp slow motion at the moment of impact, sparks and rain vaporizing in mid-air.\nAudio: Earth-shattering dragon roar echoing through the canyon, deafening clash of magical blade against lightning scales, crackling energy burst, intense orchestral strings and percussive combat score."
+    },
+    {
+      "id": "shot_04_dawn_immortal_realm",
+      "title": "第四幕：劫散破晓·剑指仙途",
+      "seed": 1008604,
+      "duration_sec": 6,
+      "continue_from_prev": false,
+      "prompt": "Epic Eastern Xianxia live-action cinema finale, golden hour sunrise breaking through parted storm clouds over endless seas of clouds and distant golden pagoda peaks, volumetric god-rays illuminating drifting jade lotus petals. The white-robed sword cultivator floats serenely in mid-air, robes billowing gently in warm golden light as his ancient sword returns to its scabbard with a soft cyan gleam; he looks calmly toward the horizon as golden light washes over his face. Slow majestic pull-back drone shot revealing the vast mythical immortal mountain range.\nAudio: Storm winds fading into tranquil ethereal chime resonance, crisp soft click of sword sheathing, majestic sweeping Chinese erhu and guzheng theme resolving into a serene heroic finale. Deep resonant Mandarin narrator voiceover: \"一剑破万劫，仙路自此开。\""
+    }
+  ]
+}

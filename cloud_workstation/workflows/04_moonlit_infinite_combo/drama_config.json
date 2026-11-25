@@ -1,0 +1,153 @@
+{
+  "project_name": "04_moonlit_infinite_combo",
+  "title": "月下无限连招（战斗篇）· 30秒东方玄幻高燃CG连斩",
+  "output_drive_dir": "/content/drive/MyDrive/AI_Workstation/outputs/04_moonlit_infinite_combo",
+  "defaults": {
+    "mode": "ref2va",
+    "width": 1344,
+    "height": 768,
+    "fps": 24,
+    "steps": 8,
+    "use_turbo_lora": true,
+    "turbo_lora": "minimax_h3_fl2v_turbo_8step_v1.2_768p_comfyui_bf16.safetensors",
+    "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+    "ref2va_unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+    "ref2va_turbo_lora": "minimax_h3_ref2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors",
+    "ref_image_size": "match",
+    "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+    "video_vae": "minimax_h3_video_vae_int8_convrot.safetensors",
+    "audio_vae": "minimax_h3_audio_vae_fp32.safetensors"
+  },
+  "shots": [
+    {
+      "id": "S01_00_03_moonlit_encirclement",
+      "title": "【0:00-0:03】开场月下包围战·冰蓝剑光破阵",
+      "mode": "ref2va",
+      "seed": 20260401,
+      "length": 73,
+      "ref_image_assets": [
+        "assets/Ref1_swordswoman.jpg",
+        "assets/Ref2_moon_water_arena.jpg",
+        "assets/Ref3_shadow_assassins.jpg"
+      ],
+      "prompt": "High-end realistic Chinese donghua 3D CG film, crystal-clear luminous atmosphere, pure deep darks, ultra-fast kinetic swordsmanship with razor-sharp character and blade arcs, no blood. On the endless mirror-like black water battlefield beneath the colossal cold-white full moon centered in the deep indigo night sky of <Picture 2>, the Eastern female swordswoman from <Picture 1> (identical calm sharp face, long flowing black hair with ornate silver hair ornaments, sheer white ancient silk dress, slender gleaming straight jian sword) stands centered on the reflective water as a vast tightening ring of faceless ink-black shadow assassins from <Picture 3> closes in around her. The camera rockets forward straight through the closing enemy ranks; suddenly she erupts into a blinding streak of ice-blue sword-qi dashing horizontally across the mirror water, followed by a swift razor-sharp close-up of her cold resolute eyes and glowing ice-blue blade radiating intense dominance.\nAudio: Eerie night stillness over open water shattered by a sudden piercing metallic sword unsheathing ring, explosive sonic burst of ice-blue sword-qi slicing the air, rushing water spray, tense rapid Chinese guzheng and deep war-drum pulse."
+    },
+    {
+      "id": "S02_03_06_moon_silhouette_ring_qi",
+      "title": "【0:03-0:06】满月腾空剪影·踏水环形剑气",
+      "mode": "ref2va",
+      "seed": 20260402,
+      "length": 73,
+      "ref_image_assets": [
+        "assets/Ref1_swordswoman.jpg",
+        "assets/Ref2_moon_water_arena.jpg",
+        "assets/Ref3_shadow_assassins.jpg"
+      ],
+      "prompt": "High-end realistic Chinese donghua 3D CG film, clean luminous dark tones, blazing fast wuxia combat choreography, razor-sharp blade trails, no blood. On the mirror-like night water battlefield beneath the colossal cold-white full moon of <Picture 2>, the white-robed Eastern female swordswoman from <Picture 1> launches her first high-intensity assault against swarming ink-black shadow assassins from <Picture 3>. She spins fiercely slashing her straight sword, vaults high into the night sky forming a crisp heroic white-silk silhouette directly across the giant cold-white full moon, then plunges down touching the mirror water with exploding silver ripples to cleave straight back into the enemy swarm. Seamless kinetic camera flow whipping from side tracking shot to dramatic low-angle upward shot and sweeping up into a high overhead view as a complete glowing circular ring of ice-blue sword-qi blooms around her.\nAudio: Whistling aerial leap, crisp snapping white silk sleeves, thunderous splash of feet hitting water, crystalline ringing arc of circular ice-blue sword-qi expanding outward, driving epic Chinese battle drums and soaring strings."
+    },
+    {
+      "id": "S03_06_09_overhead_ink_dragon_vortex",
+      "title": "【0:06-0:09】高空俯视高潮·黑金水墨漩涡盘旋",
+      "mode": "ref2va",
+      "seed": 20260403,
+      "length": 73,
+      "ref_image_assets": [
+        "assets/Ref1_swordswoman.jpg",
+        "assets/Ref2_moon_water_arena.jpg",
+        "assets/Ref3_shadow_assassins.jpg"
+      ],
+      "prompt": "High-end realistic Chinese donghua 3D CG film, dramatic high-altitude top-down overhead rotating camera continuously ascending higher, clean sharp contrast, no blood. Looking straight down onto the vast reflective black water battlefield of <Picture 2>, the white-robed Eastern female swordswoman from <Picture 1> spins and weaves at blinding speed at the dead center of a massive circular formation of ink-black shadow assassins from <Picture 3>. Her razor-sharp ice-blue sword-qi spirals blend seamlessly with swirling calligraphic ink-black and molten warm-gold energy, coiling outward across the mirror water into a colossal spiraling vortex pattern that curls and writhes like a coiling dragon body while the surrounding outer ring of shadow enemies braces against the spinning tempest, embedding:minimaxh3_spiral_ascent.\nAudio: Rising vortex wind howl, swirling resonant humming of combined ice-blue blade arcs and deep mythic dark-gold energy, surging Chinese taiko drums and dramatic orchestral crescendo."
+    },
+    {
+      "id": "S04_09_12_ground_combo_delayed_slashes",
+      "title": "【0:09-0:12】地面贴身连斩·延迟冰蓝斩击线",
+      "mode": "ref2va",
+      "seed": 20260404,
+      "length": 73,
+      "ref_image_assets": [
+        "assets/Ref1_swordswoman.jpg",
+        "assets/Ref2_moon_water_arena.jpg",
+        "assets/Ref3_shadow_assassins.jpg"
+      ],
+      "prompt": "High-end realistic Chinese donghua 3D CG film, pure darks and crisp luminous effects, ultra-fast grounded melee choreography, no blood. Back on the mirror-like water surface beneath the giant cold-white full moon of <Picture 2>, the Eastern female swordswoman from <Picture 1> (identical face, silver-pinned long black hair, flowing white sheer dress) fights inside a swirling nexus of intertwined black-gold ink energy and ice-blue sword light. She dashes through the heart of the ink-black shadow assassins from <Picture 3> with continuous close-quarters slashes, sweeping horizontal cuts, and spinning reverse parries without ever leaving the enemy swarm. Dynamic rapid camera shifts between medium shot, tight close-up, and wide shot; struck shadow assassins hang for a split second as glowing delayed ice-blue slash lines ignite across them before shattering into drifting ink-black shadow shards.\nAudio: Rapid staccato steel-and-energy sword slashes, crisp resonant chime of delayed ice-blue energy cuts igniting, dispersing smoky shatter bursts, relentless high-tempo Chinese percussion and erhu battle motif."
+    },
+    {
+      "id": "S05_12_15_water_macro_low_dash",
+      "title": "【0:12-0:15】水面微距节奏·踏水划水低空突进",
+      "mode": "ref2va",
+      "seed": 20260405,
+      "length": 73,
+      "ref_image_assets": [
+        "assets/Ref1_swordswoman.jpg",
+        "assets/Ref2_moon_water_arena.jpg",
+        "assets/Ref3_shadow_assassins.jpg"
+      ],
+      "prompt": "High-end realistic Chinese donghua 3D CG film, razor-sharp macro water physics and reflections, clean luminous night clarity, no blood. Camera skims inches above the mirror-like black water surface of <Picture 2> reflecting the cold-white full moon: hyper-detailed macro rhythm capturing the white-robed swordswoman from <Picture 1> stepping lightly onto the water sending crystalline droplets and high-speed silver water sprays bursting upward, while the gleaming tip of her straight jian sword drags across the water carving a blazing ice-blue wake. She rockets forward in a low-skimming dash straight into an even denser wave of ink-black shadow assassins from <Picture 3>; the camera pulls back swiftly to a grand wide shot of the moonlit battlefield as the endless shadow tide surges toward her and she carves seamlessly while moving with zero hesitation or wasted swings.\nAudio: Crisp close-up splash of foot stepping on water, shimmering metallic hiss of sword tip slicing water surface, sudden explosive water-skimming whoosh transitioning into rhythmic relentless sword impacts."
+    },
+    {
+      "id": "S06_15_18_dense_ambush_counter",
+      "title": "【0:15-0:18】第一轮密集围攻·高速换位连击",
+      "mode": "ref2va",
+      "seed": 20260406,
+      "length": 73,
+      "ref_image_assets": [
+        "assets/Ref1_swordswoman.jpg",
+        "assets/Ref2_moon_water_arena.jpg",
+        "assets/Ref3_shadow_assassins.jpg"
+      ],
+      "prompt": "High-end realistic Chinese donghua 3D CG film, high-speed continuous group combat, razor-sharp character and blade visibility, no blood. On the vast mirror-water arena beneath the giant cold-white full moon of <Picture 2>, multiple ink-black shadow assassins from <Picture 3> lunge simultaneously from the left, right, and front. The Eastern female swordswoman from <Picture 1> (white sheer ancient Chinese long dress billowing, black hair with silver ornaments whipping cleanly) flows smoothly between attacks—evading by inches, countering with diagonal cleaves, horizontal ice-blue arcs, and lightning-fast pivot-back dashes to switch targets mid-stride. Rapid dynamic cuts following her momentum between close-up, medium, and full-body shots, emphasizing relentless connected hits and blistering footwork through the crowd rather than isolated solo posing, embedding:minimaxh3_bullet_time.\nAudio: Rapid clashing blades and crisp ice-blue energy deflections from all directions, snapping silk fabric, splashing water footsteps, breathless high-energy Chinese battle drums and fierce plucked pipa."
+    },
+    {
+      "id": "S07_18_21_second_overhead_ink_disc",
+      "title": "【0:18-0:21】第二次高空俯视·黑白水墨书法圆盘",
+      "mode": "ref2va",
+      "seed": 20260407,
+      "length": 73,
+      "ref_image_assets": [
+        "assets/Ref1_swordswoman.jpg",
+        "assets/Ref2_moon_water_arena.jpg",
+        "assets/Ref3_shadow_assassins.jpg"
+      ],
+      "prompt": "High-end realistic Chinese donghua 3D CG film, sudden soaring crane ascent into a dramatic top-down bird's-eye spectacle, crisp pure blacks and luminous whites, no blood. The camera shoots abruptly upward over the mirror-water battlefield of <Picture 2> into a breathtaking overhead climax: the white-robed Eastern female swordswoman from <Picture 1> stands at the bright luminous white circular energy core while massive brush-like trails of pitch-black calligraphy ink whirl around her at extreme speed, expanding into a colossal spinning black-and-white taiji ink vortex. Dozens of ink-black shadow assassins from <Picture 3> and the rippling water battlefield appear swept inside a living rotating Chinese ink-calligraphy disc; the camera spins rapidly with the vortex before diving steeply back down toward the water surface.\nAudio: Deep resonant calligraphic ink-wave roar, sweeping wind rush as camera rockets upward, pulsing harmonic white-energy hum, roaring downward dive whoosh with thunderous Chinese war drums."
+    },
+    {
+      "id": "S08_21_24_multi_ring_blade_flurry",
+      "title": "【0:21-0:24】第二轮近身连斩·多重圆形剑气",
+      "mode": "ref2va",
+      "seed": 20260408,
+      "length": 73,
+      "ref_image_assets": [
+        "assets/Ref1_swordswoman.jpg",
+        "assets/Ref2_moon_water_arena.jpg",
+        "assets/Ref3_shadow_assassins.jpg"
+      ],
+      "prompt": "High-end realistic Chinese donghua 3D CG film, hyper-kinetic multi-angle sword combo, crystal-clear motion clarity, no blood. Plunging back into close-range melee on the mirror-like water beneath the colossal cold-white full moon of <Picture 2>, the Eastern female swordswoman from <Picture 1> continues carving rapidly through swarming ink-black shadow assassins from <Picture 3>. As she spins and strikes continuously, layered glowing circular rings and curved ice-blue sword-qi arcs flash nonstop above her head, across her chest, and around her waist. Fast fluid transitions matching her blade momentum across front medium shot, side close-up, over-the-shoulder tracking from behind, and dramatic wide shot; her sheer white silk robes and long jet-black hair whip with intense rotational inertia as water sprays glitter in the moonlight.\nAudio: Cascading chorus of crystalline ice-blue blade arcs slicing in triple-time rhythm, rushing water bursts, whipping silk, intense soaring Chinese xiao flute and driving battle percussion."
+    },
+    {
+      "id": "S09_24_27_golden_dragon_manifestation",
+      "title": "【0:24-0:27】黑金能量升级·金龙掠月大招",
+      "mode": "ref2va",
+      "seed": 20260409,
+      "length": 90,
+      "ref_image_assets": [
+        "assets/Ref1_swordswoman.jpg",
+        "assets/Ref2_moon_water_arena.jpg",
+        "assets/Ref3_shadow_assassins.jpg"
+      ],
+      "prompt": "High-end realistic Chinese donghua 3D CG film, mythic xianxia ultimate escalation, ultra-clean visual clarity, no blood. Camera rises swiftly to an overhead view of the mirror-water arena of <Picture 2> as the black-and-gold calligraphy ink spiral coiling around the white-robed swordswoman from <Picture 1> becomes denser, brighter, and fully formed; then cuts cleanly to a heroic medium close-up as she swings her slender straight sword and a majestic blazing warm-gold Eastern dragon formed of luminous golden energy and black ink mist materializes behind her and surges outward in a thunderous coil. She vaults high into the moonlit sky swinging her blade in a grand arc, guiding the colossal golden dragon silhouette soaring directly across the upper rim of the giant cold-white full moon while waves of ink-black shadow assassins from <Picture 3> surge relentlessly across the water below.\nAudio: Earth-shaking mythic Eastern dragon roar echoing across the night sky, blazing golden energy surge, crackling ink-storm resonance, monumental full orchestral and Chinese brass-gong climax."
+    },
+    {
+      "id": "S10_27_30_final_array_moonlit_hero_pose",
+      "title": "【0:27-0:30】最终高潮收束·冷白星芒月下定型",
+      "mode": "ref2va",
+      "seed": 20260410,
+      "length": 90,
+      "ref_image_assets": [
+        "assets/Ref1_swordswoman.jpg",
+        "assets/Ref2_moon_water_arena.jpg",
+        "assets/Ref3_shadow_assassins.jpg"
+      ],
+      "prompt": "High-end realistic Chinese donghua 3D CG film finale, iconic heroic framing, crystal-clear luminous contrast, pure darks, no blood. On the mirror-like black water battlefield beneath the colossal cold-white full moon of <Picture 2>, dozens of colossal glowing ice-blue sword-qi blades plunge down like a radiant light-blade array across the battlefield, blasting and disintegrating the swarming ink-black shadow assassins from <Picture 3> into weightless drifting dark shadow embers as the blazing warm-gold dragon spirit sweeps majestically across the wide frame. The camera glides smoothly into an iconic moonlit hero finale: the Eastern female swordswoman from <Picture 1> (identical calm sharp face, flowing black hair with silver ornaments, sheer white silk dress) stands poised in three-quarter profile directly in front of the giant cold-white full moon, holding her slender straight sword leveled steadily forward while billowing black ink and glowing warm-gold dragon energy swirl gracefully behind her back and skirt hem; the mirror water cleanly reflects the full moon, her silhouette, and golden-blue energy, ending at the peak moment of power as a razor-bright cold-white starlight glint flashes at her sword tip.\nAudio: Thunderous rain of colossal ice-blue energy blades striking water, sweeping roar of the golden dragon dissolving enemies into silent embers, resolving into a single pure resonant metallic chime as cold-white starlight glints on the sword tip over tranquil rippling moonlit water."
+    }
+  ]
+}
