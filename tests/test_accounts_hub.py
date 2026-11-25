@@ -20,6 +20,7 @@ from providers.accounts_hub import (  # noqa: E402
     AccountsError,
     AccountsHub,
     aggregate_account_totals,
+    choose_probe_account,
     meta_path,
     normalize_code,
     validate_meta_patch,
@@ -181,6 +182,58 @@ class AggregateTests(unittest.TestCase):
         self.assertEqual((t["accounts"], t["ccu_balance"], t["ccu_accounts"]), (3, 150.5, 2))
         self.assertEqual((t["burn_rate"], t["active_vms"]), (1.2, 1))
         self.assertEqual((t["storage_used"], t["storage_total"], t["storage_accounts"]), (tb, 5 * tb, 1))
+
+
+class FailoverTests(unittest.TestCase):
+    def pick(self, snaps, *, on=True, blocked=None, backups=("b", "c"), threshold=5.0):
+        calls = []
+
+        def snapshot_of(name):
+            calls.append(name)
+            val = snaps.get(name)
+            if isinstance(val, Exception):
+                raise val
+            return val
+
+        res = choose_probe_account("a", list(backups), failover_on=on, threshold=threshold,
+                                   blocked_until=blocked or {}, now=100.0, snapshot_of=snapshot_of)
+        return res, calls
+
+    def test_off_always_uses_primary(self):
+        (name, snap, note), calls = self.pick({"a": {"balance": 0.0}}, on=False, blocked={"a": 999})
+        self.assertEqual((name, note, calls), ("a", "", ["a"]))
+
+    def test_healthy_primary_never_queries_backups(self):
+        (name, _, note), calls = self.pick({"a": {"balance": 50.0}})
+        self.assertEqual((name, note, calls), ("a", "", ["a"]))
+
+    def test_low_ccu_switches_to_first_usable_backup(self):
+        snaps = {"a": {"balance": 1.0}, "b": {"balance": 2.0}, "c": {"balance": 80.0}}
+        (name, snap, note), calls = self.pick(snaps)
+        self.assertEqual((name, snap["balance"], calls), ("c", 80.0, ["a", "b", "c"]))
+        self.assertIn("CCU", note)
+
+    def test_blocked_primary_and_broken_backup(self):
+        snaps = {"b": RuntimeError("auth"), "c": {"balance": 9.0, "usage_error": None}}
+        (name, _, note), calls = self.pick(snaps, blocked={"a": 200.0})
+        self.assertEqual((name, calls), ("c", ["b", "c"]))  # blocked primary is not queried
+        self.assertIn("受限", note)
+
+    def test_usage_error_snapshot_is_not_usable(self):
+        snaps = {"a": {"balance": 1.0}, "b": {"balance": 99.0, "usage_error": "boom"}, "c": None}
+        (name, _, note), _ = self.pick(snaps)
+        self.assertEqual(name, "a")  # no usable backup -> keep primary
+        self.assertIn("继续使用主号", note)
+
+    def test_everything_blocked_skips_cycle(self):
+        (name, snap, note), calls = self.pick({}, blocked={"a": 200.0, "b": 200.0, "c": 300.0})
+        self.assertEqual((name, snap, calls), (None, None, []))
+        self.assertIn("跳过", note)
+
+    def test_expired_blocks_and_duplicate_backups(self):
+        snaps = {"a": {"balance": 0.0}, "b": {"balance": 10.0}}
+        (name, _, _), calls = self.pick(snaps, blocked={"b": 50.0}, backups=("a", "b", "b"))
+        self.assertEqual((name, calls), ("b", ["a", "b"]))
 
 
 class HubInvalidateTests(unittest.TestCase):

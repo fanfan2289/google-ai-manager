@@ -29,7 +29,7 @@ APP_TITLE = "Colab GPU Tools"
 BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 8765
 BACKEND_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}"
-EXPECTED_VERSION = "2.1-m2"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
+EXPECTED_VERSION = "2.1-m3"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
 OAUTH_URL_PREFIXES = ("https://accounts.google.com/",)
 
 APP_DIR = Path(__file__).resolve().parent

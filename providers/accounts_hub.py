@@ -341,3 +341,64 @@ class AccountsHub:
         self._cli(["account", "remove", name])
         self._drop_meta(name)
         return {"ok": True, "name": name}
+
+
+# ---------------------------------------------------------------------- failover (M3)
+def snapshot_usable(snap: dict[str, Any] | None, threshold: float) -> bool:
+    """A Colab account snapshot can be probed when its live CCU balance is >= threshold."""
+    if not snap or snap.get("usage_error"):
+        return False
+    bal = snap.get("balance")
+    return isinstance(bal, (int, float)) and float(bal) >= float(threshold)
+
+
+def choose_probe_account(
+    primary: str,
+    backups: list[str],
+    *,
+    failover_on: bool,
+    threshold: float,
+    blocked_until: dict[str, float],
+    now: float,
+    snapshot_of: Callable[[str], dict[str, Any] | None],
+) -> tuple[str | None, dict[str, Any] | None, str]:
+    """Pick the account for the next probe / grab.
+
+    Returns (account, snapshot, note). `account` is None only when failover is on and every
+    candidate (primary included) is temporarily blocked (429 / 412 / auth) — skip the cycle.
+    `snapshot_of` fetches a live snapshot (may raise / return None); it is called lazily so
+    backups are only queried when the primary is not usable.
+    """
+
+    def fetch(name: str) -> dict[str, Any] | None:
+        try:
+            return snapshot_of(name)
+        except Exception:  # noqa: BLE001 - an unreachable backup is simply skipped
+            return None
+
+    primary_blocked = blocked_until.get(primary, 0.0) > now
+    if not failover_on:
+        return primary, fetch(primary), ""
+
+    primary_snap = None if primary_blocked else fetch(primary)
+    if primary_snap is not None and snapshot_usable(primary_snap, threshold):
+        return primary, primary_snap, ""
+
+    why = "主号暂时受限" if primary_blocked else (
+        "主号 CCU 低于阈值" if primary_snap is not None and isinstance(primary_snap.get("balance"), (int, float))
+        else "主号额度查询失败"
+    )
+    seen = {primary}
+    for name in backups:
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        if blocked_until.get(name, 0.0) > now:
+            continue
+        snap = fetch(name)
+        if snapshot_usable(snap, threshold):
+            return name, snap, f"{why}，已切换到备用号 {name}"
+
+    if not primary_blocked:
+        return primary, primary_snap, f"{why}，且没有可用的备用号，继续使用主号"
+    return None, None, f"{why}，备用号均不可用，本轮跳过"

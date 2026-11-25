@@ -888,7 +888,7 @@
     </div>
 
     <div class="sidebar-actions">
-      <button class="btn btn-danger btn-block" onclick="emergencyStopAll()">🛑 一键强杀全部 GPU</button>
+      <button class="btn btn-danger btn-block" onclick="emergencyStopAll()" title="关闭占卡账号与当前账号下的全部 Colab 实例（含孤儿实例）">🛑 一键强杀全部 GPU</button>
       <button id="btnMinTray" class="btn btn-sm btn-block" style="display:none;" onclick="minimizeToTray()">🗕 最小化到托盘</button>
     </div>
   </aside>
@@ -900,6 +900,7 @@
         <div id="topbarTitle" class="page-title">GPU 监控与自动抢占</div>
         <span id="topModePill" class="pill amber">命中即占卡 · 15m</span>
         <span id="topNextPill" class="pill">下次探测 --</span>
+        <span id="topAcctPill" class="pill" style="display:none;cursor:pointer;" onclick="switchView('accounts')"></span>
         <span id="topReadonlyPill" class="pill blue" style="display:none;" title="后端以 --no-probe 启动：禁用探测与抢卡">👁 只读模式</span>
       </div>
       <div class="topbar-right">
@@ -1029,6 +1030,7 @@
             </div>
             <div style="display:flex;gap:8px;">
               <button class="btn btn-sm" onclick="loadAccounts(true)">🔄 刷新额度</button>
+              <button class="btn btn-danger btn-sm" onclick="stopAccounts(null)">🛑 强杀全部账号 VM</button>
               <button class="btn btn-primary btn-sm" onclick="openAddAccount()">➕ 添加账号</button>
             </div>
           </div>
@@ -1211,6 +1213,39 @@
               <button class="btn btn-sm" onclick="testProxy()">🧪 测试连接</button>
               <button class="btn btn-sm btn-primary" onclick="saveProxySettings()">💾 保存并应用</button>
             </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🔁 多账号自动切换</div>
+              <div class="card-sub">主号 CCU 低于阈值、触发 429 限流、实例数达上限或授权失效时，探测与抢卡自动改用下面勾选的备用号（按顺序尝试）</div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">启用自动切换</div>
+              <div class="form-desc">关闭时只使用「账号管理」里选定的账号（与之前行为一致）</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="cfgFailoverOn" onchange="updateCfg({failover_on: this.checked})" />
+              <span class="switch-track"></span>
+            </label>
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">主号 CCU 最低阈值</div>
+              <div class="form-desc">余额低于该值时切换到备用号；备用号同样需要高于该值才会被使用</div>
+            </div>
+            <input id="cfgCcuThreshold" type="number" min="0" max="10000" step="1" value="5" style="width:90px;" onchange="updateCfg({min_ccu_threshold: Number(this.value)})" />
+          </div>
+          <div class="form-row" style="align-items:flex-start;">
+            <div>
+              <div class="form-title">备用号（按顺序）</div>
+              <div id="failoverStatus" class="form-desc">--</div>
+            </div>
+            <div id="failoverList" style="display:flex;flex-direction:column;gap:6px;min-width:220px;"></div>
           </div>
         </div>
 
@@ -1477,6 +1512,8 @@ function renderState(st) {
   }
   document.getElementById("cfgHoldMin").value = cfg.hold_minutes || 15;
   document.getElementById("cfgClaimMax").value = cfg.manual_claim_max_minutes || 120;
+  renderFailoverSettings(st);
+  renderAcctPill(st);
   document.getElementById("cfgSkipBusy").checked = Boolean(cfg.skip_when_active_vm);
   document.getElementById("cfgToast").checked = Boolean(cfg.windows_toast);
   document.getElementById("cfgSound").checked = Boolean(cfg.browser_sound);
@@ -1501,7 +1538,7 @@ function renderState(st) {
       document.getElementById("holdCountdownLabel").textContent = "任务最大保护时长";
     }
     document.getElementById("holdGpuTitle").textContent = `${hold.gpu}${hold.gpu_model ? " · " + hold.gpu_model : ""}`;
-    document.getElementById("holdEndpointSub").textContent = `会话: ${hold.session_name} · 节点: ${hold.endpoint} · 锁定于 ${(hold.locked_at_iso || "").slice(11, 19)}`;
+    document.getElementById("holdEndpointSub").textContent = `账号: ${hold.account || "-"} · 会话: ${hold.session_name} · 节点: ${hold.endpoint} · 锁定于 ${(hold.locked_at_iso || "").slice(11, 19)}`;
 
     const dBadge = document.getElementById("holdDriveBadge");
     if (hold.drive_status === "MOUNTED") {
@@ -1751,15 +1788,89 @@ async function refreshJobLog() {
   } catch (_) {}
 }
 
+function stopResultToast(res) {
+  const failed = (res.failed_accounts || []).length ? `，${res.failed_accounts.length} 个账号无法连接` : "";
+  showToast(`紧急强杀完成（${res.account || "-"}）：关闭 ${res.killed} 个实例，剩余 ${res.remaining_count} 个${failed}`,
+    res.remaining_count === 0 && !failed ? "emerald" : "crimson");
+}
+
 async function emergencyStopAll() {
-  if (!confirm("确定强制关闭账号下所有 Colab GPU 实例（包括未命名孤儿实例）吗？")) return;
+  if (!confirm("确定强制关闭【占卡账号 + 当前账号】下所有 Colab GPU 实例（包括未命名孤儿实例）吗？\n（需要关闭全部账号的实例请到「账号管理」页）")) return;
   try {
-    const res = await apiPost("/api/stop-all", {});
-    showToast(`紧急强杀完成：关闭 ${res.killed} 个实例，剩余 ${res.remaining_count} 个`, res.remaining_count === 0 ? "emerald" : "crimson");
+    stopResultToast(await apiPost("/api/stop-all", {}));
   } catch (e) {
     showToast("紧急强杀失败: " + e.message, "crimson");
   }
 }
+
+async function stopAccounts(name) {
+  const what = name ? `账号「${name}」` : "【全部账号】";
+  if (!confirm(`确定强制关闭${what}下所有 Colab 实例（包括孤儿实例）吗？该操作不可撤销，运行中的任务会丢失。`)) return;
+  try {
+    stopResultToast(await apiPost("/api/stop-all", name ? { accounts: [name] } : { all_accounts: true }));
+  } catch (e) {
+    showToast("强杀失败: " + e.message, "crimson");
+  }
+  loadAccounts(true);
+}
+
+function renderAcctPill(st) {
+  const pill = document.getElementById("topAcctPill");
+  const acct = st.probe_account || st.account?.account;
+  if (!acct) { pill.style.display = "none"; return; }
+  const switched = !!(st.probe_account && (st.failover_note || "").includes("切换到备用号"));
+  pill.textContent = `👤 ${acct}${switched ? " · 备用号" : ""}`;
+  pill.className = `pill ${switched ? "amber" : ""}`;
+  pill.title = st.failover_note || "当前探测 / 抢卡使用的账号（点击管理账号）";
+  pill.style.display = "inline-flex";
+}
+
+let failoverNames = null;
+function renderFailoverSettings(st) {
+  const cfg = st.config || {};
+  const on = document.getElementById("cfgFailoverOn");
+  if (document.activeElement !== on) on.checked = !!cfg.failover_on;
+  const th = document.getElementById("cfgCcuThreshold");
+  if (document.activeElement !== th) th.value = cfg.min_ccu_threshold ?? 5;
+  const blocks = st.account_blocks || {};
+  const blockTxt = Object.entries(blocks).map(([k, v]) => `${k} 冷却 ${Math.ceil(v.remaining_s / 60)} 分钟（${v.reason}）`).join("；");
+  document.getElementById("failoverStatus").textContent =
+    [st.failover_note, blockTxt].filter(Boolean).join("；") || (cfg.failover_on ? "自动切换已启用，当前使用主号" : "未启用");
+  if (failoverNames === null) {
+    failoverNames = [];
+    fetch("/api/accounts").then(r => r.json()).then(d => {
+      failoverNames = (d.accounts || []).map(a => a.name);
+      renderFailoverList(appState?.config || cfg);
+    }).catch(() => { failoverNames = null; });
+  }
+  renderFailoverList(cfg);
+}
+
+function renderFailoverList(cfg) {
+  const box = document.getElementById("failoverList");
+  if (box.contains(document.activeElement)) return;
+  const chosen = cfg.failover_accounts || [];
+  const names = [...chosen.filter(n => (failoverNames || []).includes(n)), ...(failoverNames || []).filter(n => !chosen.includes(n))];
+  const primary = appState?.primary_account;
+  const backups = chosen.filter(n => n !== primary);
+  box.innerHTML = names.length ? names.map(n => {
+    const isPrimary = n === primary;
+    const idx = backups.indexOf(n);
+    return `<label class="switch" style="justify-content:flex-end;gap:8px;${isPrimary ? "opacity:.55;" : ""}" ${isPrimary ? 'title="当前主号，无需作为备用号"' : ""}>
+      <span style="font-size:12px;color:var(--text-muted);">${isPrimary ? "主号 · " : idx >= 0 ? `#${idx + 1} ` : ""}${escHtml(n)}</span>
+      <input type="checkbox" data-fo="${escHtml(n)}" ${idx >= 0 ? "checked" : ""} ${isPrimary ? "disabled" : ""} />
+      <span class="switch-track"></span></label>`;
+  }).join("") : `<span class="form-desc">先在「账号管理」添加账号</span>`;
+}
+
+document.getElementById("failoverList").addEventListener("change", e => {
+  const cb = e.target.closest("input[data-fo]");
+  if (!cb) return;
+  const cur = [...((appState?.config?.failover_accounts) || [])];
+  const name = cb.dataset.fo;
+  const next = cb.checked ? [...cur.filter(n => n !== name), name] : cur.filter(n => n !== name);
+  updateCfg({ failover_accounts: next });
+});
 
 async function testAlert() {
   try {
@@ -2112,6 +2223,11 @@ function renderAccountCard(r) {
   if (cur) b.push(`<span class="pill blue">当前使用</span>`);
   if (r.cli_active) b.push(`<span class="pill" title="colab 命令行的全局默认账号">CLI 默认</span>`);
   if (acctData.hold_account === r.name) b.push(`<span class="pill amber">🔒 占卡中</span>`);
+  if (appState?.probe_account === r.name && !cur) b.push(`<span class="pill amber" title="${escHtml(appState.failover_note || "")}">🔁 自动切换使用中</span>`);
+  const blk = (appState?.account_blocks || {})[r.name];
+  if (blk) b.push(`<span class="pill crimson">冷却 ${Math.ceil(blk.remaining_s / 60)} 分钟 · ${escHtml(blk.reason)}</span>`);
+  const foList = (appState?.config?.failover_accounts || []).filter(n => n !== acctData.current);
+  if (appState?.config?.failover_on && foList.includes(r.name)) b.push(`<span class="pill">备用 #${foList.indexOf(r.name) + 1}</span>`);
   const a = r.auth || {};
   if (a.ready === true) b.push(`<span class="pill emerald">Colab 已授权</span>`);
   else if (a.pending) b.push(`<span class="pill amber">登录待完成</span>`);
@@ -2150,6 +2266,7 @@ function renderAccountCard(r) {
       <button class="btn btn-sm" data-act="login" data-name="${nm}">${a.ready === true ? "重新登录" : "登录 Colab"}</button>
       <button class="btn btn-sm" data-act="drive" data-name="${nm}">${d.ready ? "重新授权云盘" : "授权云盘"}</button>
       <button class="btn btn-sm" data-act="meta" data-name="${nm}">编辑</button>
+      ${vms && vms.used > 0 ? `<button class="btn btn-sm btn-danger" data-act="stop" data-name="${nm}">🛑 强杀 ${vms.used} 个 VM</button>` : ""}
       <button class="btn btn-sm btn-danger" data-act="remove" data-name="${nm}" ${cur ? "disabled title=\"当前使用中的账号不能删除\"" : ""}>删除</button>
     </div>
   </div>`;
@@ -2180,6 +2297,7 @@ document.getElementById("acctGrid").addEventListener("click", e => {
   else if (act === "drive") startOAuth("drive", name);
   else if (act === "meta") openMetaEditor(name);
   else if (act === "remove") openRemoveAccount(name);
+  else if (act === "stop") stopAccounts(name);
 });
 
 async function useAccount(name) {
@@ -2221,6 +2339,7 @@ function acctModalClose() {
   document.getElementById("acctModal").innerHTML = "";
   const changed = acctWizard?.changed;
   acctWizard = null;
+  if (changed) failoverNames = null;
   if (changed) { loadAccounts(true); loadAccountAggregate(true); }
 }
 document.getElementById("acctModalBackdrop").addEventListener("click", e => {

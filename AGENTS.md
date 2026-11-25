@@ -26,6 +26,11 @@ This repository (`google-ai-manager`) is collaboratively developed by multiple A
   - Labels / notes / tags / colour: `~/.google-ai-manager/accounts.json` (`0600`).
   - REST: `GET /api/accounts`, `GET /api/accounts/overview[?refresh=1]`, `POST /api/accounts/{add-start,login-start,login-finish,drive-start,drive-finish,use,remove,meta}`. All POSTs reject cross-origin browser requests (`Origin` ≠ `Host`).
   - `release_hold()` kills on `hold["account"]`, never on whatever account is configured now.
+- **Multi-account safety & failover (M3)**
+  - While a GPU is held, `refresh_account_snapshot()` (watchdog 25 s sync, release, post-lock) follows `hold["account"]`; the "VM disappeared externally" check therefore never compares against another account.
+  - `emergency_stop_all()` targets hold account + configured account + last probe account by default; `{"all_accounts": true}` covers every profile; `{"accounts": [...]}` an explicit list. The hold record is cleared only when *its* account verifies 0 remaining VMs.
+  - Failover (`failover_on`, ordered `failover_accounts`, `min_ccu_threshold`): `choose_probe_account()` (pure, in `accounts_hub.py`) picks the account per probe cycle / grab under `_probe_lock`. 429 / 412 / 401-403 block only that account (`ACCOUNT_BLOCK_SECONDS`); the global back-off applies only when failover is off or every candidate is blocked.
+  - Engine tests with mocked Colab: `tests/test_engine_accounts.py` (run with the google-colab-cli venv python in WSL; skipped elsewhere).
 - **Cloud Workflow Runner (`scripts/wsl_run_h3.sh`, `cloud_workstation/`)**
   - Supports `--reuse-session` to take over an already-locked Colab session without stopping/re-allocating it, skipping `colab dfs mount` when `/content/drive/MyDrive` is already mounted.
 
@@ -63,6 +68,9 @@ wsl.exe -d Ubuntu -e bash -lc 'bash -n scripts/wsl_run_h3.sh && $HOME/.local/sha
 
 # Offline unit tests (no network / Colab / credentials)
 .\.venv-desktop\Scripts\python.exe -m unittest discover -s tests -v
+
+# + engine tests (mocked Colab) inside the google-colab-cli venv
+wsl.exe -d Ubuntu -e bash -lc '$HOME/.local/share/uv/tools/google-colab-cli/bin/python -m unittest discover -s tests'
 
 # Safe live test: read-only backend on a spare port (never probes or allocates GPUs,
 # does not disturb the production backend on 8765). Stop it with POST /api/shutdown.

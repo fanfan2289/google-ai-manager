@@ -31,7 +31,7 @@
 - [ ] **Phase 1（多账号与通用化）**：
   - [x] **M1** `providers/` 额度插件层（Colab CCU、Google One 存储容量）+ 可视化网络代理设置（自动探测 / 手动 / 直连，配置保存在 `~/.google-ai-manager/`）
   - [x] **M2** 图形化多 Google 账号中心（添加 / 切换 / 删除 / 标签备注 / OAuth + 云盘授权引导）+ 多账号额度聚合看板
-  - [ ] **M3** 指定账号抢卡 + 主号 CCU 不足 / 限流时自动切换备用号
+  - [x] **M3** 指定账号抢卡 + 主号 CCU 不足 / 限流 / 实例上限 / 授权失效时自动切换备用号 + 按账号 / 全部账号强杀
   - [ ] **M4** Antigravity / Gemini CLI 额度、Pro 权益中心、远端任务模板、首次启动环境自检
 - [ ] **Phase 2（多服务额度插件生态）**：
   - `providers/` 插件抽象：接入 Gemini / AI Studio API Key 池、GCP / Vertex AI 配额等其他 Google AI 额度

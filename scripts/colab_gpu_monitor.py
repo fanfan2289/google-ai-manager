@@ -44,7 +44,7 @@ DB_PATH = LOGS_DIR / "gpu_monitor.db"
 CONFIG_PATH = LOGS_DIR / "gpu_monitor_config.json"
 HOLD_STATE_PATH = LOGS_DIR / "active_hold.json"
 UI_HTML_PATH = SCRIPT_DIR / "monitor_ui.html"
-APP_VERSION = "2.1-m2"
+APP_VERSION = "2.1-m3"
 
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
@@ -121,7 +121,12 @@ import colab_meter  # noqa: E402
 from providers import PLANNED_PROVIDERS, ProviderHub  # noqa: E402
 from providers import colab as colab_provider  # noqa: E402
 from providers.google_storage import GoogleStorageProvider  # noqa: E402
-from providers.accounts_hub import AccountsError, AccountsHub, aggregate_account_totals  # noqa: E402
+from providers.accounts_hub import (  # noqa: E402
+    AccountsError,
+    AccountsHub,
+    aggregate_account_totals,
+    choose_probe_account,
+)
 
 
 GPU_CATALOG: list[dict[str, Any]] = [
@@ -191,11 +196,34 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "auto_mount_drive": True,
     "hold_session_name": "h3work",
     "manual_claim_max_minutes": 120,
+    # 多账号自动切换（M3）：主号 CCU 低于阈值 / 429 限流 / 412 实例上限 / 授权失效时换用备用号
+    "failover_on": False,
+    "failover_accounts": [],
+    "min_ccu_threshold": 5.0,
 }
+
+# Per-account "blocked" windows used by failover (seconds), keyed by probe status.
+ACCOUNT_BLOCK_SECONDS = {"RATE_LIMITED": 180.0, "LIMIT_REACHED": 300.0, "AUTH_ERROR": 600.0}
 
 
 def _now_ts() -> float:
     return time.time()
+
+
+def _clamp_float(v: Any, lo: float, hi: float, default: float) -> float:
+    try:
+        return max(lo, min(hi, float(v)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _clean_account_list(raw: Any, allowed: list[str] | None = None) -> list[str]:
+    out: list[str] = []
+    for item in raw if isinstance(raw, list) else []:
+        name = str(item or "").strip()
+        if name and name not in out and (allowed is None or name in allowed):
+            out.append(name)
+    return out[:10]
 
 
 def _now_iso(ts: float | None = None) -> str:
@@ -566,7 +594,12 @@ class MonitorEngine:
         self.critical_alert: str | None = None
 
         self.started_ts = _now_ts()
-        self.session_start_ccu: float | None = None
+        # First balance seen per account this run (sidebar "本次 -x" delta).
+        self.session_start_ccu: dict[str, float] = {}
+        # Failover bookkeeping: account -> (blocked_until_ts, reason); last chosen probe account.
+        self.account_blocks: dict[str, tuple[float, str]] = {}
+        self.probe_account: str | None = None
+        self.failover_note: str = ""
         self.account_snapshot: dict[str, Any] = {
             "account": self.config.get("account") or "loading...",
             "balance": None,
@@ -634,6 +667,9 @@ class MonitorEngine:
         cfg["hold_minutes"] = max(5, min(180, int(cfg.get("hold_minutes", 15))))
         cfg["manual_claim_max_minutes"] = max(15, min(360, int(cfg.get("manual_claim_max_minutes", 120))))
         cfg["hold_session_name"] = str(cfg.get("hold_session_name") or "h3work").strip() or "h3work"
+        cfg["failover_on"] = bool(cfg.get("failover_on", False))
+        cfg["failover_accounts"] = _clean_account_list(cfg.get("failover_accounts"))
+        cfg["min_ccu_threshold"] = _clamp_float(cfg.get("min_ccu_threshold", 5.0), 0.0, 10000.0, 5.0)
         return cfg
 
     def _save_config(self) -> None:
@@ -666,6 +702,14 @@ class MonitorEngine:
                 val = str(patch["hold_session_name"] or "h3work").strip()
                 if val:
                     self.config["hold_session_name"] = val
+            if "min_ccu_threshold" in patch:
+                self.config["min_ccu_threshold"] = _clamp_float(patch["min_ccu_threshold"], 0.0, 10000.0, 5.0)
+            if "failover_accounts" in patch:
+                try:
+                    known = self.accounts.names()
+                except Exception:
+                    known = None
+                self.config["failover_accounts"] = _clean_account_list(patch["failover_accounts"], known)
             for bool_key in (
                 "pause_gpu_on_hit",
                 "skip_when_active_vm",
@@ -674,6 +718,7 @@ class MonitorEngine:
                 "browser_notify",
                 "hold_on_hit",
                 "auto_mount_drive",
+                "failover_on",
             ):
                 if bool_key in patch:
                     self.config[bool_key] = bool(patch[bool_key])
@@ -711,6 +756,16 @@ class MonitorEngine:
         self._manual_queue.append([gpu] if gpu else None)
         self._wake_event.set()
 
+    def primary_account_name(self) -> str:
+        """The account chosen in the Accounts Hub (or the CLI active one), independent of failover."""
+        return str(self._get_account_state()[0])
+
+    def _primary_name_safe(self) -> str | None:
+        try:
+            return self.primary_account_name()
+        except Exception:
+            return self.config.get("account")
+
     def current_account_name(self) -> str:
         with self._state_lock:
             name = self.account_snapshot.get("account")
@@ -743,7 +798,8 @@ class MonitorEngine:
             hold = dict(self.active_hold) if self.active_hold else None
         return {
             **listing,
-            "current": self.current_account_name(),
+            "current": self.primary_account_name(),
+            "probe_account": self.probe_account,
             "pinned": self.config.get("account"),
             "hold_account": hold.get("account") if hold else None,
             "job_running": self._job_running(),
@@ -774,8 +830,9 @@ class MonitorEngine:
                     self.config["account"] = name
                 self._save_config()
                 with self._state_lock:
-                    self.session_start_ccu = None
                     self.cooldown_until.clear()
+                    self.account_blocks.clear()
+                    self.failover_note = ""
                     self.account_snapshot = {**self.account_snapshot, "account": name or "loading..."}
             finally:
                 self._probe_lock.release()
@@ -784,13 +841,13 @@ class MonitorEngine:
         except Exception as exc:
             print(f"[{_now_iso()}] [gpu_monitor] 切换账号后刷新失败: {exc}", file=sys.stderr, flush=True)
         self.broadcast_state()
-        return {"ok": True, "current": self.current_account_name(), "pinned": self.config.get("account")}
+        return {"ok": True, "current": self.primary_account_name(), "pinned": self.config.get("account")}
 
     def remove_account(self, name: str, *, confirm: str, allow_unverified: bool = False) -> dict[str, Any]:
         name = self.accounts.require_existing(name)
         if str(confirm or "").strip() != name:
             raise AccountsError("确认名称不匹配")
-        if name == self.current_account_name():
+        if name == self.primary_account_name():
             raise AccountsError("不能删除当前正在使用的账号，请先切换到其他账号")
         with self._state_lock:
             if self.active_hold and self.active_hold.get("account") == name:
@@ -809,6 +866,11 @@ class MonitorEngine:
             }
         res = self.accounts.remove(name)
         self.providers.invalidate(name)
+        with self._state_lock:
+            if name in (self.config.get("failover_accounts") or []):
+                self.config["failover_accounts"] = [n for n in self.config["failover_accounts"] if n != name]
+                self._save_config()
+            self.account_blocks.pop(name, None)
         return res
 
     def accounts_overview(self, *, force: bool = False) -> dict[str, Any]:
@@ -817,8 +879,16 @@ class MonitorEngine:
         per = {name: self.providers.snapshot_many(name, ["colab", "google_storage"], force=force) for name in names}
         return {"accounts": per, "totals": aggregate_account_totals(per)}
 
-    def refresh_account_snapshot(self) -> dict[str, Any]:
-        acct_name, st = self._get_account_state()
+    def _hold_account(self) -> str | None:
+        with self._state_lock:
+            return (self.active_hold or {}).get("account") or None
+
+    def refresh_account_snapshot(self, account: str | None = None) -> dict[str, Any]:
+        """Refresh the displayed snapshot: `account`, else the holding account, else the configured one."""
+        acct_name, st = self._get_account_state(account or self._hold_account())
+        return self._refresh_snapshot_for(acct_name, st)
+
+    def _refresh_snapshot_for(self, acct_name: str, st, *, display: bool = True) -> dict[str, Any]:
         sanitized = colab_provider.fetch_account_snapshot(acct_name, st)
         # Keep the provider cache warm so /api/providers reuses this live data.
         try:
@@ -826,33 +896,134 @@ class MonitorEngine:
         except Exception:
             pass
         with self._state_lock:
-            self.account_snapshot = sanitized
-            if self.session_start_ccu is None and isinstance(sanitized["balance"], (int, float)):
-                self.session_start_ccu = float(sanitized["balance"])
+            if display:
+                self.account_snapshot = sanitized
+            if isinstance(sanitized.get("balance"), (int, float)):
+                self.session_start_ccu.setdefault(acct_name, float(sanitized["balance"]))
         return sanitized
 
-    def emergency_stop_all(self) -> dict[str, Any]:
+    def _block_account(self, acct_name: str, status: str) -> None:
+        secs = ACCOUNT_BLOCK_SECONDS.get(status)
+        if secs:
+            with self._state_lock:
+                self.account_blocks[acct_name] = (_now_ts() + secs, status)
+
+    def _select_probe_account(self, explicit: str | None = None):
+        """(name, State, snapshot) for the next probe / grab, applying failover when enabled.
+
+        Returns None when every candidate is temporarily blocked (failover on). Must be called
+        with `_probe_lock` held: the chosen (name, State) is used for the whole cycle.
+        """
+        if explicit:
+            name, st = self._get_account_state(self.accounts.require_existing(explicit))
+            snap = self._refresh_snapshot_for(name, st)
+            with self._state_lock:
+                self.probe_account, self.failover_note = name, ""
+            return name, st, snap
+
+        primary, primary_st = self._get_account_state()
+        states: dict[str, Any] = {primary: primary_st}
+        with self._state_lock:
+            failover_on = bool(self.config.get("failover_on"))
+            backups = list(self.config.get("failover_accounts") or [])
+            threshold = float(self.config.get("min_ccu_threshold") or 0.0)
+            now = _now_ts()
+            blocked = {k: v[0] for k, v in self.account_blocks.items() if v[0] > now}
+
+        def snapshot_of(name: str):
+            if name not in states:
+                states[name] = self._get_account_state(name)[1]
+            return self._refresh_snapshot_for(name, states[name], display=False)
+
+        name, snap, note = choose_probe_account(
+            primary, backups, failover_on=failover_on, threshold=threshold,
+            blocked_until=blocked, now=now, snapshot_of=snapshot_of,
+        )
+        with self._state_lock:
+            self.failover_note = note
+            if name is None:
+                # Every candidate is blocked: wait until the first one frees up.
+                self.rate_limit_until_ts = max(self.rate_limit_until_ts, min(blocked.values(), default=now + 60.0))
+                return None
+            self.probe_account = name
+            if snap is not None:
+                self.account_snapshot = snap
+        if note:
+            print(f"[{_now_iso()}] [gpu_monitor] 多账号切换：{note}", flush=True)
+        if snap is None:
+            raise RuntimeError(f"无法读取账号 {name} 的 CCU 额度")
+        return name, states[name], snap
+
+    def emergency_stop_all(self, *, all_accounts: bool = False, accounts: list[str] | None = None) -> dict[str, Any]:
+        """Kill every VM (incl. orphans) on the target accounts and verify 0 remain.
+
+        Default targets: the account holding a GPU (if any) + the configured account + the account
+        the last probe used. `all_accounts=True` covers every registered profile; `accounts`
+        names an explicit list (Accounts Hub per-account stop).
+        """
         # Stop any running drama subprocess first so it doesn't race
         self._terminate_job_proc_only()
         with self._probe_lock:
-            acct_name, st = self._get_account_state()
-            killed, remaining = colab_meter._terminate_account_sessions(
-                acct_name=acct_name,
-                st=st,
-                target_session=None,
-                kill_orphans=True,
-            )
-            snap = self.refresh_account_snapshot()
+            hold_acct = self._hold_account()
             with self._state_lock:
-                if not remaining:
-                    self.critical_alert = None
+                legacy_hold = self.active_hold is not None and not hold_acct
+            if legacy_hold:  # hold record without an account field: it belongs to the configured account
+                hold_acct = self._get_account_state()[0]
+            if accounts:
+                targets = [(n, self._get_account_state(self.accounts.require_existing(n))[1]) for n in accounts]
+            elif all_accounts:
+                targets = colab_meter._iter_states(None)
+            else:
+                targets = []
+                for n in (hold_acct, None, self.probe_account):
+                    try:
+                        name, st = self._get_account_state(n)
+                    except Exception:
+                        continue
+                    if name not in [t[0] for t in targets]:
+                        targets.append((name, st))
+
+            per: list[dict[str, Any]] = []
+            killed_total = remaining_total = 0
+            hold_cleared = False
+            for acct_name, st in targets:
+                try:
+                    killed, remaining = colab_meter._terminate_account_sessions(
+                        acct_name=acct_name,
+                        st=st,
+                        target_session=None,
+                        kill_orphans=True,
+                    )
+                    per.append({"account": acct_name, "killed": killed, "remaining_count": len(remaining)})
+                    killed_total += killed
+                    remaining_total += len(remaining)
+                    if acct_name == hold_acct and not remaining:
+                        hold_cleared = True
+                except Exception as exc:
+                    per.append({"account": acct_name, "error": str(exc)[:300]})
+                self.providers.invalidate(acct_name)
+
+            with self._state_lock:
+                if hold_cleared:
                     self.active_hold = None
                     self._save_hold_state_locked()
+                still_holding = self.active_hold is not None
+                failed = [p["account"] for p in per if "error" in p]
+                if remaining_total:
+                    self.critical_alert = f"⚠️ 强杀后仍有 {remaining_total} 个残留 VM，请再次点击紧急强杀！"
+                elif not still_holding and not failed:
+                    self.critical_alert = None
+            try:
+                snap = self.refresh_account_snapshot()
+            except Exception as exc:
+                snap = {"usage_error": str(exc)}
             self.broadcast_state()
             return {
-                "account": acct_name,
-                "killed": killed,
-                "remaining_count": len(remaining),
+                "account": ", ".join(p["account"] for p in per),
+                "accounts": per,
+                "killed": killed_total,
+                "remaining_count": remaining_total,
+                "failed_accounts": failed,
                 "snapshot": snap,
             }
 
@@ -1165,7 +1336,7 @@ class MonitorEngine:
                 "detail": summary,
             }
 
-    def grab_gpu_now(self, gpu_id: str, hold_minutes: int | None = None) -> dict[str, Any]:
+    def grab_gpu_now(self, gpu_id: str, hold_minutes: int | None = None, account: str | None = None) -> dict[str, Any]:
         """Immediately attempt a single-shot allocation of `gpu_id` and lock + auto-mount if available."""
         gpu_id = str(gpu_id or "").strip().upper()
         if gpu_id not in GPU_META_BY_ID:
@@ -1180,8 +1351,10 @@ class MonitorEngine:
                 self.probing = True
             self.broadcast_state()
             try:
-                acct_name, st = self._get_account_state()
-                snap = self.refresh_account_snapshot()
+                picked = self._select_probe_account(account)
+                if picked is None:
+                    raise ValueError("所有可用账号都在冷却中（429 / 实例上限 / 授权失效），请稍后再试")
+                acct_name, st, snap = picked
                 rec = self.probe_single_gpu(
                     gpu_id,
                     snap,
@@ -1191,6 +1364,8 @@ class MonitorEngine:
                     force_hold=True,
                     hold_minutes_override=hold_minutes,
                 )
+                if rec.get("status") in ACCOUNT_BLOCK_SECONDS:
+                    self._block_account(acct_name, rec["status"])
                 return rec
             finally:
                 with self._state_lock:
@@ -1509,7 +1684,9 @@ class MonitorEngine:
                     status = "RATE_LIMITED"
                     detail = "429 Too Many Requests (触发限流，已自动拉长冷却)"
                     with self._state_lock:
-                        self.rate_limit_until_ts = _now_ts() + 180.0
+                        # With failover on, only this account cools down; the next cycle can use a backup.
+                        if not self.config.get("failover_on"):
+                            self.rate_limit_until_ts = _now_ts() + 180.0
                 elif http_code == 412:
                     status = "LIMIT_REACHED"
                     detail = "412 实例数量已达账号上限"
@@ -1671,8 +1848,11 @@ class MonitorEngine:
 
             results: list[dict[str, Any]] = []
             try:
-                acct_name, st = self._get_account_state()
-                snap = self.refresh_account_snapshot()
+                picked = self._select_probe_account()
+                if picked is None:
+                    print(f"[{_now_iso()}] [gpu_monitor] {self.failover_note}", flush=True)
+                    return results
+                acct_name, st, snap = picked
                 active_vms = snap.get("assignments") or []
 
                 with self._state_lock:
@@ -1715,12 +1895,16 @@ class MonitorEngine:
                     if rec.get("released") == 2:
                         # Locked a GPU! Stop probing remaining GPUs immediately.
                         break
-                    if rec["status"] == "RATE_LIMITED":
+                    if rec["status"] in ACCOUNT_BLOCK_SECONDS:
+                        self._block_account(acct_name, rec["status"])
                         break
 
                 if any_hit:
-                    # Post-hit refresh to update live balance & active VM list
-                    self.refresh_account_snapshot()
+                    # Post-hit refresh (holding account if we just locked, else the probed one)
+                    if self._hold_account():
+                        self.refresh_account_snapshot()
+                    else:
+                        self._refresh_snapshot_for(acct_name, st)
             except Exception as exc:
                 print(f"[{_now_iso()}] [gpu_monitor] Probe cycle error: {exc}", file=sys.stderr, flush=True)
             finally:
@@ -1785,8 +1969,15 @@ class MonitorEngine:
             next_ts = self.next_probe_ts
             rl_until = self.rate_limit_until_ts
             cooldowns = dict(self.cooldown_until)
-            start_ccu = self.session_start_ccu
+            start_ccu = self.session_start_ccu.get(str(snap.get("account") or ""))
             started_ts = self.started_ts
+            probe_account = self.probe_account
+            failover_note = self.failover_note
+            blocks = {
+                k: {"remaining_s": int(v[0] - now), "reason": v[1]}
+                for k, v in self.account_blocks.items()
+                if v[0] > now
+            }
             crit = self.critical_alert
             hold_copy = dict(self.active_hold) if self.active_hold else None
             last_job_status = self.last_job_status
@@ -1851,6 +2042,10 @@ class MonitorEngine:
             "rate_limit_remaining_s": max(0, int(rl_until - now)),
             "critical_alert": crit,
             "account": snap,
+            "primary_account": self._primary_name_safe(),
+            "probe_account": probe_account,
+            "failover_note": failover_note,
+            "account_blocks": blocks,
             "active_hold": hold_copy,
             "last_job_status": last_job_status,
             "last_job_log_path": last_job_log,
@@ -2074,7 +2269,7 @@ def make_handler(engine: MonitorEngine):
                 gpu = body.get("gpu")
                 hold_mins = body.get("hold_minutes")
                 try:
-                    rec = engine.grab_gpu_now(gpu, hold_minutes=hold_mins)
+                    rec = engine.grab_gpu_now(gpu, hold_minutes=hold_mins, account=body.get("account") or None)
                     self._send_json({"ok": True, "record": rec, "locked": rec.get("released") == 2})
                 except ValueError as exc:
                     self._send_json({"error": str(exc)}, status=400)
@@ -2192,7 +2387,11 @@ def make_handler(engine: MonitorEngine):
 
             if path == "/api/stop-all":
                 try:
-                    res = engine.emergency_stop_all()
+                    names = body.get("accounts")
+                    res = engine.emergency_stop_all(
+                        all_accounts=bool(body.get("all_accounts")),
+                        accounts=[str(n) for n in names] if isinstance(names, list) and names else None,
+                    )
                     self._send_json({"ok": True, **res})
                 except Exception as exc:
                     self._send_json({"error": str(exc)}, status=500)
