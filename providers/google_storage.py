@@ -49,6 +49,17 @@ class _TokenCache:
             self._items.pop(key, None)
 
 
+def refresh_failure_reason(exc: Exception) -> str | None:
+    """User-facing reason when a stored DriveFS refresh token can no longer mint a token."""
+    text = str(exc)
+    if "invalid_scope" in text:
+        # The consent was granted without the Drive scope (checkbox left unticked).
+        return "云盘授权缺少 Google Drive 权限，请点「重新授权云盘」并在 Google 授权页勾选 Drive 访问权限"
+    if "invalid_grant" in text:
+        return "云盘授权已失效或被撤销，请点「重新授权云盘」"
+    return None
+
+
 def parse_storage_quota(about: dict[str, Any]) -> list[Metric]:
     q = about.get("storageQuota") or {}
 
@@ -107,7 +118,13 @@ class GoogleStorageProvider(QuotaProvider):
         return token, drive_acct
 
     def snapshot(self, account: str) -> ProviderSnapshot:
-        token, drive_acct = self._access_token(account)
+        try:
+            token, drive_acct = self._access_token(account)
+        except Exception as exc:  # noqa: BLE001 - google.auth RefreshError and friends
+            reason = refresh_failure_reason(exc)
+            if reason is None:
+                raise
+            return ProviderSnapshot(provider=self.id, account=account, status=UNAUTHORIZED, error=reason)
         extra: dict[str, Any] = {"drive_account": drive_acct}
         if not token:
             return ProviderSnapshot(

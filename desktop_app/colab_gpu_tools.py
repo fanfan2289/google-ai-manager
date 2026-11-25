@@ -29,7 +29,8 @@ APP_TITLE = "Colab GPU Tools"
 BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 8765
 BACKEND_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}"
-EXPECTED_VERSION = "2.1-m1"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
+EXPECTED_VERSION = "2.1-m2"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
+OAUTH_URL_PREFIXES = ("https://accounts.google.com/",)
 
 APP_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = APP_DIR.parent
@@ -257,6 +258,14 @@ class DesktopController:
             return {"ok": True}
         return {"ok": False, "error": "drama_config.json not found"}
 
+    def open_external_url(self, url: str) -> dict[str, Any]:
+        """Open a Google OAuth consent page in the user's default browser (allow-listed)."""
+        url = str(url or "").strip()
+        if not url.startswith(OAUTH_URL_PREFIXES) or any(c in url for c in '\r\n"<> '):
+            return {"ok": False, "error": "only Google sign-in links can be opened"}
+        os.startfile(url)  # ShellExecute: no WinForms access, safe off the UI thread
+        return {"ok": True}
+
     def minimize_to_tray(self) -> dict[str, Any]:
         if self.window:
             self.window.hide()
@@ -410,6 +419,9 @@ class JsBridge:
 
     def minimize_to_tray(self) -> dict[str, Any]:
         return self._ctrl.minimize_to_tray()
+
+    def open_external_url(self, url: str) -> dict[str, Any]:
+        return self._ctrl.open_external_url(url)
 
     def on_gpu_locked(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         return self._ctrl.on_gpu_locked(payload)

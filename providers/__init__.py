@@ -109,3 +109,9 @@ class ProviderHub:
     def put(self, snap: ProviderSnapshot) -> None:
         """Seed the cache with a snapshot produced elsewhere (e.g. the monitor engine)."""
         self._cache[(snap.provider, snap.account)] = (time.time(), snap)
+
+    def invalidate(self, account: str | None = None) -> None:
+        """Drop cached snapshots (for one account, or all) after its credentials changed."""
+        for key in list(self._cache):
+            if account is None or key[1] == account:
+                self._cache.pop(key, None)

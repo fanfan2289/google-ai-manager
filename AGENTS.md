@@ -19,6 +19,13 @@ This repository (`google-ai-manager`) is collaboratively developed by multiple A
   - `netcfg.py`: the single source of truth for proxy settings (`auto` / `manual` / `off`), stored in `~/.google-ai-manager/settings.json` (`0600`). Python code calls `netcfg.apply_proxy_env()`; shell scripts run `eval "$(python3 providers/netcfg.py shell-env)"`. Never hard-code proxy ports elsewhere.
   - `paths.py`: user-private app home `~/.google-ai-manager/` (override with `GAM_HOME`). All user settings / labels / future credentials go here, never into the repo.
   - REST: `GET /api/providers[?account=&refresh=1]`, `GET /api/settings`, `POST /api/settings/proxy`, `POST /api/settings/proxy/test`.
+- **Accounts Hub (`providers/accounts_hub.py`)**
+  - Reads colab-ext's registry in-process (offline); every write (OAuth `--url-only` / `--code`, DriveFS consent, removal) goes through the public `colab` CLI in a subprocess — the app never handles tokens.
+  - "Current account" is the monitor's own `config["account"]` (`None` = follow the CLI's active account). Never call `colab account use` from the app: the CLI's global active account is shared with other tools / older backends.
+  - Switching is refused while a hold or cloud job is active and waits for `_probe_lock` (probe cycles bind `(account, State)` once). Removal is refused for the current account, a holding account, or one with live VMs; unverifiable accounts need an explicit second confirmation.
+  - Labels / notes / tags / colour: `~/.google-ai-manager/accounts.json` (`0600`).
+  - REST: `GET /api/accounts`, `GET /api/accounts/overview[?refresh=1]`, `POST /api/accounts/{add-start,login-start,login-finish,drive-start,drive-finish,use,remove,meta}`. All POSTs reject cross-origin browser requests (`Origin` ≠ `Host`).
+  - `release_hold()` kills on `hold["account"]`, never on whatever account is configured now.
 - **Cloud Workflow Runner (`scripts/wsl_run_h3.sh`, `cloud_workstation/`)**
   - Supports `--reuse-session` to take over an already-locked Colab session without stopping/re-allocating it, skipping `colab dfs mount` when `/content/drive/MyDrive` is already mounted.
 

@@ -46,7 +46,10 @@ def read_json(path: Path, default: Any = None) -> Any:
 
 def write_private_json(path: Path, data: Any) -> Path:
     """Atomically write `data` as JSON with `0600` permissions."""
-    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.parent == app_home():
+        ensure_app_home()  # keep the app home itself 0700
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:

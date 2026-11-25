@@ -44,7 +44,7 @@ DB_PATH = LOGS_DIR / "gpu_monitor.db"
 CONFIG_PATH = LOGS_DIR / "gpu_monitor_config.json"
 HOLD_STATE_PATH = LOGS_DIR / "active_hold.json"
 UI_HTML_PATH = SCRIPT_DIR / "monitor_ui.html"
-APP_VERSION = "2.1-m1"
+APP_VERSION = "2.1-m2"
 
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
@@ -121,6 +121,7 @@ import colab_meter  # noqa: E402
 from providers import PLANNED_PROVIDERS, ProviderHub  # noqa: E402
 from providers import colab as colab_provider  # noqa: E402
 from providers.google_storage import GoogleStorageProvider  # noqa: E402
+from providers.accounts_hub import AccountsError, AccountsHub, aggregate_account_totals  # noqa: E402
 
 
 GPU_CATALOG: list[dict[str, Any]] = [
@@ -545,6 +546,7 @@ class MonitorEngine:
         self.providers = ProviderHub(ttl_seconds=120)
         self.providers.register(colab_provider.ColabProvider())
         self.providers.register(GoogleStorageProvider())
+        self.accounts = AccountsHub(colab_bin=self._colab_bin(), env=self._colab_env)
         self._state_lock = threading.Lock()
         self._probe_lock = threading.Lock()
         self._stop_event = threading.Event()
@@ -725,9 +727,95 @@ class MonitorEngine:
             "planned": PLANNED_PROVIDERS,
         }
 
-    def _get_account_state(self):
-        states = colab_meter._iter_states(self.config.get("account"))
+    def _get_account_state(self, account: str | None = None):
+        """(name, State) for `account`, defaulting to the configured / CLI-active account."""
+        states = colab_meter._iter_states(account or self.config.get("account"))
         return states[0]
+
+    # ------------------------------------------------------------------ Accounts Hub (M2)
+    def _job_running(self) -> bool:
+        proc = self._job_proc
+        return proc is not None and proc.poll() is None
+
+    def accounts_payload(self) -> dict[str, Any]:
+        listing = self.accounts.list_accounts()
+        with self._state_lock:
+            hold = dict(self.active_hold) if self.active_hold else None
+        return {
+            **listing,
+            "current": self.current_account_name(),
+            "pinned": self.config.get("account"),
+            "hold_account": hold.get("account") if hold else None,
+            "job_running": self._job_running(),
+        }
+
+    def use_account(self, name: str | None) -> dict[str, Any]:
+        """Point monitoring / grabbing at `name` (None = follow the CLI's active account).
+
+        Only this app's config changes; the colab CLI's global active account is left alone
+        because other tools (and older backends) follow it.
+        """
+        name = (str(name).strip() or None) if name is not None else None
+        if name is not None:
+            name = self.accounts.require_existing(name)
+        with self._hold_lock:
+            with self._state_lock:
+                if self.active_hold is not None:
+                    raise AccountsError("当前有锁定中的 GPU 实例，请先释放后再切换账号")
+            if self._job_running():
+                raise AccountsError("云端任务运行中，请结束后再切换账号")
+            # Wait for an in-flight probe cycle: it binds (account, State) once per cycle.
+            if not self._probe_lock.acquire(timeout=45):
+                raise AccountsError("探测进行中，请稍后再试")
+            try:
+                if name is None:
+                    self.config.pop("account", None)
+                else:
+                    self.config["account"] = name
+                self._save_config()
+                with self._state_lock:
+                    self.session_start_ccu = None
+                    self.cooldown_until.clear()
+                    self.account_snapshot = {**self.account_snapshot, "account": name or "loading..."}
+            finally:
+                self._probe_lock.release()
+        try:
+            self.refresh_account_snapshot()
+        except Exception as exc:
+            print(f"[{_now_iso()}] [gpu_monitor] 切换账号后刷新失败: {exc}", file=sys.stderr, flush=True)
+        self.broadcast_state()
+        return {"ok": True, "current": self.current_account_name(), "pinned": self.config.get("account")}
+
+    def remove_account(self, name: str, *, confirm: str, allow_unverified: bool = False) -> dict[str, Any]:
+        name = self.accounts.require_existing(name)
+        if str(confirm or "").strip() != name:
+            raise AccountsError("确认名称不匹配")
+        if name == self.current_account_name():
+            raise AccountsError("不能删除当前正在使用的账号，请先切换到其他账号")
+        with self._state_lock:
+            if self.active_hold and self.active_hold.get("account") == name:
+                raise AccountsError("该账号有锁定中的 GPU 实例，请先释放")
+        snap = self.providers.snapshot("colab", name, force=True).to_dict()
+        if snap.get("status") == "ok":
+            vms = next((m.get("used") for m in snap.get("metrics", []) if m.get("key") == "active_vms"), 0) or 0
+            if vms > 0:
+                raise AccountsError(f"该账号仍有 {int(vms)} 个运行中的 Colab VM，请先强杀后再删除")
+        elif not allow_unverified:
+            return {
+                "ok": False,
+                "needs_confirm": True,
+                "detail": "无法确认该账号是否还有运行中的 VM（" + str(snap.get("error") or snap.get("status")) + "）。"
+                "删除后本工具将无法再管理它的实例。",
+            }
+        res = self.accounts.remove(name)
+        self.providers.invalidate(name)
+        return res
+
+    def accounts_overview(self, *, force: bool = False) -> dict[str, Any]:
+        """Per-account Colab + storage snapshots and de-duplicated totals."""
+        names = self.accounts.names()
+        per = {name: self.providers.snapshot_many(name, ["colab", "google_storage"], force=force) for name in names}
+        return {"accounts": per, "totals": aggregate_account_totals(per)}
 
     def refresh_account_snapshot(self) -> dict[str, Any]:
         acct_name, st = self._get_account_state()
@@ -1023,7 +1111,7 @@ class MonitorEngine:
                 return {"ok": True, "released": False, "detail": "当前无锁定实例"}
 
             self._terminate_job_proc_only()
-            acct_name, st = self._get_account_state()
+            acct_name, st = self._get_account_state(hold.get("account"))
             with self._probe_lock:
                 killed, remaining = colab_meter._terminate_account_sessions(
                     acct_name=acct_name,
@@ -1852,6 +1940,21 @@ def make_handler(engine: MonitorEngine):
                 self._send_json({"proxy": netcfg.public_view(), "version": APP_VERSION})
                 return
 
+            if path == "/api/accounts":
+                try:
+                    self._send_json(engine.accounts_payload())
+                except Exception as exc:
+                    self._send_json({"error": str(exc)}, status=500)
+                return
+
+            if path == "/api/accounts/overview":
+                force = (qs.get("refresh") or ["0"])[0] in ("1", "true", "yes")
+                try:
+                    self._send_json(engine.accounts_overview(force=force))
+                except Exception as exc:
+                    self._send_json({"error": str(exc)}, status=500)
+                return
+
             if path == "/api/job/log":
                 tail = int((qs.get("tail") or ["32768"])[0])
                 self._send_json(engine.get_job_log(tail_bytes=max(2048, min(262144, tail))))
@@ -1900,13 +2003,62 @@ def make_handler(engine: MonitorEngine):
 
             self._send_json({"error": "Not found"}, status=404)
 
+        def _cross_origin(self) -> bool:
+            """Browsers attach Origin to cross-site POSTs; only accept our own page (or none)."""
+            origin = self.headers.get("Origin")
+            if not origin:  # desktop shell / CLI clients (urllib) send no Origin
+                return False
+            host = (self.headers.get("Host") or "").strip().lower()
+            netloc = urllib.parse.urlparse(origin).netloc.lower()
+            return not host or netloc != host
+
         def do_POST(self) -> None:
             parsed = urllib.parse.urlparse(self.path)
             path = parsed.path
+            if self._cross_origin():
+                self._send_json({"error": "cross-origin request refused"}, status=403)
+                return
             try:
                 body = self._read_json_body()
             except Exception as exc:
                 self._send_json({"error": f"Invalid JSON: {exc}"}, status=400)
+                return
+
+            if path.startswith("/api/accounts/"):
+                action = path[len("/api/accounts/"):]
+                hub = engine.accounts
+                name = str(body.get("name") or "").strip()
+                try:
+                    if action == "add-start":
+                        res = hub.start_add(name, body.get("email"))
+                    elif action == "login-start":
+                        res = hub.start_login(name)
+                    elif action == "login-finish":
+                        res = hub.finish_login(name, str(body.get("code") or ""))
+                        engine.providers.invalidate(name)
+                    elif action == "drive-start":
+                        res = hub.start_drive(name)
+                    elif action == "drive-finish":
+                        res = hub.finish_drive(name, str(body.get("code") or ""))
+                        engine.providers.invalidate(name)
+                    elif action == "use":
+                        res = engine.use_account(body.get("name") or None)
+                    elif action == "remove":
+                        res = engine.remove_account(
+                            name,
+                            confirm=str(body.get("confirm") or ""),
+                            allow_unverified=bool(body.get("allow_unverified")),
+                        )
+                    elif action == "meta":
+                        res = {"ok": True, "meta": hub.set_meta(name, body.get("meta") or {})}
+                    else:
+                        self._send_json({"error": "Not found"}, status=404)
+                        return
+                    self._send_json(res)
+                except AccountsError as exc:
+                    self._send_json({"error": str(exc)}, status=400)
+                except Exception as exc:
+                    self._send_json({"error": str(exc)}, status=500)
                 return
 
             if path == "/api/probe-now":

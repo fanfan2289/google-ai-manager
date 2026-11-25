@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT))
 from providers import ProviderHub  # noqa: E402
 from providers import netcfg, paths  # noqa: E402
 from providers.base import ERROR, Metric, OK, ProviderSnapshot, QuotaProvider  # noqa: E402
-from providers.google_storage import parse_storage_quota  # noqa: E402
+from providers.google_storage import parse_storage_quota, refresh_failure_reason  # noqa: E402
 
 PROXY_KEYS = netcfg.PROXY_VARS + netcfg.NO_PROXY_VARS + (netcfg.INHERITED_MARK,)
 
@@ -115,6 +115,13 @@ class StorageParseTests(unittest.TestCase):
         total = parse_storage_quota({"storageQuota": {"usage": "100"}})[0]
         self.assertIsNone(total.total)
         self.assertEqual(total.detail, "无上限")
+
+
+class StorageRefreshTests(unittest.TestCase):
+    def test_refresh_failures_map_to_reauth_hints(self) -> None:
+        self.assertIn("Drive", refresh_failure_reason(RuntimeError("('invalid_scope: Bad Request', {})")))
+        self.assertIn("失效", refresh_failure_reason(RuntimeError("invalid_grant: Token has been revoked")))
+        self.assertIsNone(refresh_failure_reason(RuntimeError("timed out")))
 
 
 class _FakeProvider(QuotaProvider):

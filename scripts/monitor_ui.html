@@ -757,6 +757,68 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
+  /* Accounts Hub */
+  .acct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .acct-card {
+    background: rgba(10, 13, 20, 0.45);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+  .acct-card.current { border-color: var(--accent-border); box-shadow: 0 0 0 1px var(--accent-border) inset; }
+  .acct-card-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .acct-dot { width: 9px; height: 9px; border-radius: 50%; background: #64748b; flex: none; }
+  .acct-dot.blue { background: #60a5fa; } .acct-dot.emerald { background: #34d399; }
+  .acct-dot.amber { background: #fbbf24; } .acct-dot.crimson { background: #f87171; }
+  .acct-dot.violet { background: #a78bfa; } .acct-dot.slate { background: #cbd5e1; }
+  .acct-title { font-weight: 700; color: #f8fafc; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acct-sub { font-size: 11.5px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acct-badges { display: flex; flex-wrap: wrap; gap: 5px; }
+  .acct-badges .pill { padding: 1px 7px; font-size: 10.5px; }
+  .acct-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .acct-stat { background: rgba(148, 163, 184, 0.06); border-radius: 7px; padding: 6px 8px; min-width: 0; }
+  .acct-stat b { display: block; font-family: var(--mono); font-size: 13px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .acct-stat span { font-size: 10.5px; color: var(--text-dim); }
+  .acct-note { font-size: 11.5px; color: var(--text-muted); white-space: pre-wrap; word-break: break-word; }
+  .acct-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+  .acct-agg { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 12px; color: var(--text-muted);
+              margin: -4px 0 12px; padding: 8px 10px; border-radius: 8px; background: rgba(148, 163, 184, 0.06); }
+  .acct-agg b { font-family: var(--mono); color: #f8fafc; }
+  .acct-agg a { color: #93c5fd; cursor: pointer; margin-left: auto; text-decoration: none; }
+  .acct-mini { cursor: pointer; }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(2, 6, 15, 0.66); display: none; align-items: center; justify-content: center; z-index: 900; }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    width: min(540px, calc(100vw - 40px));
+    max-height: calc(100vh - 60px);
+    overflow: auto;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .modal h3 { margin: 0; font-size: 15px; color: #f8fafc; }
+  .modal p { margin: 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.6; }
+  .modal label.fld { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--text-muted); }
+  .modal input[type="text"], .modal textarea, .modal select { width: 100%; box-sizing: border-box; }
+  textarea {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border-strong); border-radius: 7px;
+    padding: 6px 10px; font-size: 12.5px; font-family: var(--sans); outline: none; resize: vertical;
+  }
+  .oauth-url { font-family: var(--mono); font-size: 11px; word-break: break-all; background: var(--bg); border: 1px solid var(--border);
+               border-radius: 7px; padding: 8px; max-height: 84px; overflow: auto; color: var(--text-muted); user-select: all; }
+  .modal-steps { display: flex; gap: 6px; flex-wrap: wrap; }
+  .modal-steps .pill { padding: 1px 8px; font-size: 10.5px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  .modal-err { font-size: 12px; color: #fca5a5; word-break: break-word; }
+
   @media (max-width: 960px) {
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
     .sidebar { width: 196px; }
@@ -790,6 +852,10 @@
         <span>⚡</span><span>GPU 监控与抢卡</span>
         <span id="navHoldBadge" class="nav-badge amber" style="display:none;">占卡中</span>
       </div>
+      <div class="nav-item" data-view="accounts">
+        <span>👤</span><span>账号管理</span>
+        <span id="navAcctBadge" class="nav-badge" style="display:none;"></span>
+      </div>
       <div class="nav-item" data-view="runner">
         <span>🎬</span><span>占卡与短剧接管</span>
       </div>
@@ -806,7 +872,7 @@
 
     <div class="sidebar-spacer"></div>
 
-    <div class="acct-mini">
+    <div class="acct-mini" title="点击打开账号管理" onclick="switchView('accounts')">
       <div class="acct-mini-top">
         <span id="acctName">账号加载中...</span>
         <span id="acctVmBadge" class="pill" style="padding:1px 7px;font-size:10.5px;">0 VM</span>
@@ -921,6 +987,7 @@
             </div>
             <button class="btn btn-sm" onclick="loadProviders(true)">🔄 刷新额度</button>
           </div>
+          <div id="acctAgg" class="acct-agg" style="display:none;"></div>
           <div id="provGrid" class="prov-grid"><div class="card-sub">额度加载中...</div></div>
         </div>
 
@@ -929,6 +996,53 @@
       </section>
 
       <!-- VIEW 2: RUNNER & HOLD CONTROL -->
+      <!-- VIEW: ACCOUNTS HUB -->
+      <section id="view-accounts" class="view">
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Google 账号</div>
+            <div id="kpiAcctCount" class="kpi-value">--</div>
+            <div id="kpiAcctCountFoot" class="kpi-foot">--</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Colab CCU 合计</div>
+            <div id="kpiAcctCcu" class="kpi-value">--</div>
+            <div id="kpiAcctCcuFoot" class="kpi-foot">--</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">实时消耗合计</div>
+            <div id="kpiAcctRate" class="kpi-value">--</div>
+            <div id="kpiAcctRateFoot" class="kpi-foot">--</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">云端存储合计</div>
+            <div id="kpiAcctStorage" class="kpi-value">--</div>
+            <div id="kpiAcctStorageFoot" class="kpi-foot">--</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">👤 Google 账号</div>
+              <div class="card-sub">账号凭据由 colab-ext 保存在 WSL 本机（0600）；显示名称 / 标签 / 备注保存在 ~/.google-ai-manager/，均不进仓库</div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm" onclick="loadAccounts(true)">🔄 刷新额度</button>
+              <button class="btn btn-primary btn-sm" onclick="openAddAccount()">➕ 添加账号</button>
+            </div>
+          </div>
+          <div class="form-row" style="padding-top:0;margin-bottom:12px;">
+            <div>
+              <div class="form-title">监控与抢卡使用的账号</div>
+              <div class="form-desc">只修改本工具的设置，不会改动 colab 命令行的全局默认账号；占卡或云端任务进行中时不可切换</div>
+            </div>
+            <select id="acctPinSelect" onchange="useAccount(this.value)" style="min-width:220px;"></select>
+          </div>
+          <div id="acctGrid" class="acct-grid"><div class="card-sub">账号加载中...</div></div>
+        </div>
+      </section>
+
       <section id="view-runner" class="view">
         <div class="card">
           <div class="card-header">
@@ -1178,6 +1292,7 @@
 </div>
 
 <div id="toastStack" class="toast-stack"></div>
+<div id="acctModalBackdrop" class="modal-backdrop"><div id="acctModal" class="modal" role="dialog" aria-modal="true"></div></div>
 
 <script>
 let appState = null;
@@ -1247,6 +1362,7 @@ async function apiPost(path, body = {}) {
 // Navigation
 const VIEW_TITLES = {
   dashboard: "GPU 监控与自动抢占",
+  accounts: "Google 账号管理中心",
   runner: "占卡与 MiniMax-H3 短剧接管",
   analytics: "24 小时放卡规律分析",
   history: "探测与占卡历史记录",
@@ -1268,7 +1384,8 @@ function switchView(view) {
   if (view === "history") loadHistory();
   if (view === "runner") refreshJobLog();
   if (view === "settings") loadProxySettings();
-  if (view === "dashboard") loadProviders(false);
+  if (view === "dashboard") { loadProviders(false); loadAccountAggregate(false); }
+  if (view === "accounts") loadAccounts(false);
 }
 
 function renderState(st) {
@@ -1909,6 +2026,378 @@ async function testProxy() {
   }
 }
 
+// ---------------------------------------------------------------- Accounts Hub (M2)
+let acctData = null;      // GET /api/accounts
+let acctOverview = null;  // GET /api/accounts/overview
+let acctLoading = false;
+let acctWizard = null;    // {mode, name, step, url, busy, error}
+
+function metricOf(snap, key) {
+  if (!snap || snap.status !== "ok") return null;
+  return (snap.metrics || []).find(m => m.key === key) || null;
+}
+
+function fmtCcu(v) { return typeof v === "number" ? v.toFixed(2) : "--"; }
+
+async function loadAccountAggregate(force = false) {
+  const box = document.getElementById("acctAgg");
+  try {
+    const res = await fetch(`/api/accounts/overview${force ? "?refresh=1" : ""}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    acctOverview = data;
+    const t = data.totals || {};
+    if ((t.accounts || 0) < 2) { box.style.display = "none"; return; }
+    box.innerHTML = `<span>全部 <b>${t.accounts}</b> 个账号</span>
+      <span>CCU 合计 <b>${fmtCcu(t.ccu_balance)}</b></span>
+      <span>消耗 <b>${(t.burn_rate || 0).toFixed(2)}</b> CCU/hr</span>
+      <span>运行中 VM <b>${t.active_vms || 0}</b></span>
+      ${t.storage_total ? `<span>存储 <b>${fmtBytes(t.storage_used)}</b> / ${fmtBytes(t.storage_total)}</span>` : ""}
+      <a onclick="switchView('accounts')">管理账号 →</a>`;
+    box.style.display = "flex";
+  } catch (_) {
+    box.style.display = "none";
+  }
+}
+
+async function loadAccounts(force = false) {
+  if (acctLoading) return;
+  acctLoading = true;
+  try {
+    const res = await fetch("/api/accounts");
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    acctData = data;
+    renderAccounts();
+    const ov = await fetch(`/api/accounts/overview${force ? "?refresh=1" : ""}`);
+    const ovData = await ov.json();
+    if (ov.ok) { acctOverview = ovData; renderAccounts(); }
+    if (force) showToast("账号额度已刷新", "emerald");
+  } catch (e) {
+    document.getElementById("acctGrid").innerHTML = `<div class="prov-err">账号加载失败：${escHtml(e.message)}</div>`;
+  } finally {
+    acctLoading = false;
+  }
+}
+
+function renderAccountKpis() {
+  const rows = acctData?.accounts || [];
+  const t = acctOverview?.totals;
+  const authed = rows.filter(r => r.auth?.ready === true).length;
+  const drives = rows.filter(r => r.drive?.ready).length;
+  document.getElementById("kpiAcctCount").textContent = rows.length;
+  document.getElementById("kpiAcctCountFoot").textContent = `Colab 已授权 ${authed} · 云盘已授权 ${drives}`;
+  document.getElementById("kpiAcctCcu").textContent = t ? fmtCcu(t.ccu_balance) : "--";
+  document.getElementById("kpiAcctCcuFoot").textContent = t ? `${t.ccu_accounts} 个账号可查询` : "查询中...";
+  document.getElementById("kpiAcctRate").textContent = t ? `${(t.burn_rate || 0).toFixed(2)}` : "--";
+  document.getElementById("kpiAcctRateFoot").textContent = t ? `CCU/hr · 运行中 VM ${t.active_vms}` : "查询中...";
+  document.getElementById("kpiAcctStorage").textContent = t && t.storage_total ? fmtBytes(t.storage_used) : "--";
+  document.getElementById("kpiAcctStorageFoot").textContent = t && t.storage_total
+    ? `共 ${fmtBytes(t.storage_total)} · ${t.storage_accounts} 个云盘（共享云盘不重复计）` : "需要云盘授权";
+  const badge = document.getElementById("navAcctBadge");
+  badge.textContent = rows.length;
+  badge.style.display = rows.length ? "inline-block" : "none";
+}
+
+function renderAccountCard(r) {
+  const cur = acctData.current === r.name;
+  const meta = r.meta || {};
+  const snaps = (acctOverview?.accounts || {})[r.name] || {};
+  const bal = metricOf(snaps.colab, "ccu_balance");
+  const burn = metricOf(snaps.colab, "burn_rate");
+  const vms = metricOf(snaps.colab, "active_vms");
+  const stor = metricOf(snaps.google_storage, "storage_total");
+  const colabErr = snaps.colab && snaps.colab.status !== "ok" ? (snaps.colab.error || snaps.colab.status) : "";
+  const b = [];
+  if (cur) b.push(`<span class="pill blue">当前使用</span>`);
+  if (r.cli_active) b.push(`<span class="pill" title="colab 命令行的全局默认账号">CLI 默认</span>`);
+  if (acctData.hold_account === r.name) b.push(`<span class="pill amber">🔒 占卡中</span>`);
+  const a = r.auth || {};
+  if (a.ready === true) b.push(`<span class="pill emerald">Colab 已授权</span>`);
+  else if (a.pending) b.push(`<span class="pill amber">登录待完成</span>`);
+  else if (a.ready === null || a.ready === undefined) b.push(`<span class="pill amber" title="${escHtml(a.storage || "")}">Colab 状态未知</span>`);
+  else b.push(`<span class="pill crimson">Colab 未登录</span>`);
+  const d = r.drive || {};
+  const storBad = snaps.google_storage && snaps.google_storage.status === "unauthorized";
+  if (d.ready && storBad) b.push(`<span class="pill crimson" title="${escHtml(snaps.google_storage.error || "")}">云盘需重新授权</span>`);
+  else if (d.ready) b.push(`<span class="pill emerald">${d.shared ? `云盘 → ${escHtml(d.account)}` : "云盘已授权"}</span>`);
+  else if (d.pending) b.push(`<span class="pill amber">云盘授权待完成</span>`);
+  else b.push(`<span class="pill">云盘未授权</span>`);
+  if ((r.sessions || []).length) b.push(`<span class="pill amber" title="${escHtml(r.sessions.join(", "))}">${r.sessions.length} 个本地会话</span>`);
+  (meta.tags || []).forEach(t => b.push(`<span class="pill">#${escHtml(t)}</span>`));
+  const loading = !acctOverview;
+  const stats = `<div class="acct-stats">
+      <div class="acct-stat"><b>${loading ? "…" : bal ? fmtCcu(bal.remaining) : "--"}</b><span>CCU 余额</span></div>
+      <div class="acct-stat"><b>${loading ? "…" : vms ? `${vms.used} VM` : "--"}</b><span>${burn && burn.used ? `${burn.used.toFixed(2)} CCU/hr` : "运行中实例"}</span></div>
+      <div class="acct-stat"><b>${loading ? "…" : stor ? fmtBytes(stor.used) : "--"}</b><span>${stor && stor.total ? `/ ${fmtBytes(stor.total)}` : "云端存储"}</span></div>
+    </div>`;
+  const nm = escHtml(r.name);
+  return `<div class="acct-card${cur ? " current" : ""}">
+    <div class="acct-card-head">
+      <span class="acct-dot ${escHtml(meta.color || "")}"></span>
+      <div style="min-width:0;">
+        <div class="acct-title">${escHtml(meta.label || r.name)}</div>
+        <div class="acct-sub">${meta.label ? nm + " · " : ""}${escHtml(r.email || "邮箱未知")}</div>
+      </div>
+    </div>
+    <div class="acct-badges">${b.join("")}</div>
+    ${stats}
+    ${colabErr && !loading ? `<div class="prov-err">Colab：${escHtml(colabErr)}</div>` : ""}
+    ${storBad && !loading ? `<div class="prov-err">云盘：${escHtml(snaps.google_storage.error || "")}</div>` : ""}
+    ${meta.note ? `<div class="acct-note">${escHtml(meta.note)}</div>` : ""}
+    <div class="acct-actions">
+      <button class="btn btn-sm btn-primary" data-act="use" data-name="${nm}" ${cur ? "disabled" : ""}>设为当前</button>
+      <button class="btn btn-sm" data-act="login" data-name="${nm}">${a.ready === true ? "重新登录" : "登录 Colab"}</button>
+      <button class="btn btn-sm" data-act="drive" data-name="${nm}">${d.ready ? "重新授权云盘" : "授权云盘"}</button>
+      <button class="btn btn-sm" data-act="meta" data-name="${nm}">编辑</button>
+      <button class="btn btn-sm btn-danger" data-act="remove" data-name="${nm}" ${cur ? "disabled title=\"当前使用中的账号不能删除\"" : ""}>删除</button>
+    </div>
+  </div>`;
+}
+
+function renderAccounts() {
+  if (!acctData) return;
+  renderAccountKpis();
+  const rows = acctData.accounts || [];
+  document.getElementById("acctGrid").innerHTML = rows.length
+    ? rows.map(renderAccountCard).join("")
+    : `<div class="card-sub">还没有账号，点击右上角「添加账号」。</div>`;
+  const sel = document.getElementById("acctPinSelect");
+  const opts = [`<option value="">跟随 CLI 默认（${escHtml(acctData.cli_active || "-")}）</option>`]
+    .concat(rows.map(r => `<option value="${escHtml(r.name)}">${escHtml(r.meta?.label ? `${r.meta.label}（${r.name}）` : r.name)}</option>`));
+  sel.innerHTML = opts.join("");
+  sel.value = acctData.pinned || "";
+  sel.disabled = !!acctData.hold_account || !!acctData.job_running;
+}
+
+document.getElementById("acctGrid").addEventListener("click", e => {
+  const btn = e.target.closest("button[data-act]");
+  if (!btn || btn.disabled) return;
+  const name = btn.dataset.name;
+  const act = btn.dataset.act;
+  if (act === "use") useAccount(name);
+  else if (act === "login") startOAuth("login", name);
+  else if (act === "drive") startOAuth("drive", name);
+  else if (act === "meta") openMetaEditor(name);
+  else if (act === "remove") openRemoveAccount(name);
+});
+
+async function useAccount(name) {
+  try {
+    const r = await apiPost("/api/accounts/use", { name: name || null });
+    showToast(`已切换到账号「${r.current}」`, "emerald");
+    providersLoading = false;
+    loadProviders(true);
+  } catch (e) {
+    showToast("切换失败: " + e.message, "crimson");
+  }
+  loadAccounts(false);
+}
+
+function openExternal(url) {
+  if (window.pywebview?.api?.open_external_url) {
+    window.pywebview.api.open_external_url(url).then(r => {
+      if (!r?.ok) showToast(r?.error || "无法打开浏览器", "crimson");
+    });
+  } else {
+    window.open(url, "_blank", "noopener");
+  }
+}
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); showToast("已复制授权链接", "emerald"); }
+  catch (_) { showToast("复制失败，请手动选中链接复制", "amber"); }
+}
+
+// ---- modal plumbing
+function acctModalOpen(html) {
+  document.getElementById("acctModal").innerHTML = html;
+  document.getElementById("acctModalBackdrop").classList.add("open");
+  const first = document.querySelector("#acctModal input, #acctModal textarea");
+  if (first) setTimeout(() => first.focus(), 30);
+}
+function acctModalClose() {
+  document.getElementById("acctModalBackdrop").classList.remove("open");
+  document.getElementById("acctModal").innerHTML = "";
+  const changed = acctWizard?.changed;
+  acctWizard = null;
+  if (changed) { loadAccounts(true); loadAccountAggregate(true); }
+}
+document.getElementById("acctModalBackdrop").addEventListener("click", e => {
+  if (e.target.id === "acctModalBackdrop" && !acctWizard?.busy) acctModalClose();
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && document.getElementById("acctModalBackdrop").classList.contains("open") && !acctWizard?.busy) acctModalClose();
+});
+
+function wizardSteps(active) {
+  const steps = acctWizard.mode === "add" ? [["name", "1 账号名"], ["login", "2 登录 Colab"], ["drive", "3 授权云盘"]]
+    : acctWizard.mode === "login" ? [["login", "登录 Colab"]] : [["drive", "授权云盘"]];
+  return `<div class="modal-steps">${steps.map(([k, t]) => `<span class="pill ${k === active ? "blue" : ""}">${t}</span>`).join("")}</div>`;
+}
+
+function renderWizard() {
+  const w = acctWizard;
+  const err = w.error ? `<div class="modal-err">${escHtml(w.error)}</div>` : "";
+  const dis = w.busy ? "disabled" : "";
+  let body = "";
+  if (w.step === "name") {
+    body = `<h3>添加 Google 账号</h3>${wizardSteps("name")}
+      <p>为这个账号起一个本地名字（仅字母、数字、. _ -，例如 main、backup2）。邮箱可选，用于在 Google 登录页预选账号。</p>
+      <label class="fld">账号名<input type="text" id="wzName" maxlength="32" placeholder="backup" value="${escHtml(w.name || "")}" /></label>
+      <label class="fld">Google 邮箱（可选）<input type="text" id="wzEmail" maxlength="254" placeholder="name@example.com" value="${escHtml(w.email || "")}" /></label>
+      ${err}
+      <div class="modal-actions"><button class="btn" onclick="acctModalClose()" ${dis}>取消</button>
+        <button class="btn btn-primary" onclick="wizardStartAdd()" ${dis}>${w.busy ? "生成中..." : "获取授权链接"}</button></div>`;
+  } else if (w.step === "code") {
+    const what = w.kind === "drive" ? "Google Drive 云盘（静默挂盘 + 存储额度）" : "Google Colab";
+    body = `<h3>${w.kind === "drive" ? "授权云盘" : "登录 Colab"} · ${escHtml(w.name)}</h3>${wizardSteps(w.kind)}
+      <p>① 在浏览器打开下面的链接，用 <b>${escHtml(w.name)}</b> 对应的 Google 账号授权 ${what}；<br>② 授权完成后 Google 会显示一段授权码，复制回来粘贴到下面。</p>
+      <div class="oauth-url">${escHtml(w.url)}</div>
+      <div class="modal-actions" style="justify-content:flex-start;">
+        <button class="btn btn-primary btn-sm" onclick="openExternal(acctWizard.url)">🌐 在浏览器打开</button>
+        <button class="btn btn-sm" onclick="copyText(acctWizard.url)">📋 复制链接</button></div>
+      <label class="fld">授权码<input type="text" id="wzCode" placeholder="4/0A..." autocomplete="off" spellcheck="false" /></label>
+      ${err}
+      <div class="modal-actions"><button class="btn" onclick="acctModalClose()" ${dis}>${w.kind === "drive" && w.mode === "add" ? "跳过，稍后授权" : "取消"}</button>
+        <button class="btn btn-primary" onclick="wizardFinish()" ${dis}>${w.busy ? "验证中..." : "完成授权"}</button></div>`;
+  } else if (w.step === "offer-drive") {
+    body = `<h3>✅ Colab 登录成功 · ${escHtml(w.name)}</h3>${wizardSteps("drive")}
+      <p>建议继续授权 Google Drive：抢到 GPU 后可自动静默挂载云盘，并能在总览里看到这个账号的存储额度。</p>
+      ${err}
+      <div class="modal-actions"><button class="btn" onclick="acctModalClose()" ${dis}>以后再说</button>
+        <button class="btn btn-primary" onclick="wizardStartDrive()" ${dis}>${w.busy ? "生成中..." : "授权云盘"}</button></div>`;
+  }
+  acctModalOpen(body);
+  const code = document.getElementById("wzCode");
+  if (code) code.addEventListener("keydown", e => { if (e.key === "Enter") wizardFinish(); });
+}
+
+async function wizardCall(fn) {
+  acctWizard.busy = true; acctWizard.error = "";
+  renderWizard();
+  try { await fn(); }
+  catch (e) { acctWizard.error = e.message; }
+  finally { if (acctWizard) { acctWizard.busy = false; renderWizard(); } }
+}
+
+function openAddAccount() {
+  acctWizard = { mode: "add", step: "name", name: "", email: "" };
+  renderWizard();
+}
+
+async function wizardStartAdd() {
+  acctWizard.name = document.getElementById("wzName").value.trim();
+  acctWizard.email = document.getElementById("wzEmail").value.trim();
+  await wizardCall(async () => {
+    const r = await apiPost("/api/accounts/add-start", { name: acctWizard.name, email: acctWizard.email });
+    Object.assign(acctWizard, { step: "code", kind: "login", url: r.url, changed: true });
+  });
+}
+
+async function startOAuth(kind, name) {
+  acctWizard = { mode: kind, step: "code", kind, name, url: "", busy: true };
+  acctModalOpen(`<h3>正在生成授权链接...</h3><p>${escHtml(name)}</p>`);
+  try {
+    const r = await apiPost(`/api/accounts/${kind}-start`, { name });
+    acctWizard.url = r.url;
+    acctWizard.busy = false;
+    renderWizard();
+  } catch (e) {
+    acctWizard = null;
+    acctModalClose();
+    showToast("生成授权链接失败: " + e.message, "crimson");
+  }
+}
+
+async function wizardStartDrive() {
+  await wizardCall(async () => {
+    const r = await apiPost("/api/accounts/drive-start", { name: acctWizard.name });
+    Object.assign(acctWizard, { step: "code", kind: "drive", url: r.url });
+  });
+}
+
+async function wizardFinish() {
+  const code = document.getElementById("wzCode")?.value.trim();
+  if (!code) { acctWizard.error = "请先粘贴授权码"; renderWizard(); return; }
+  const kind = acctWizard.kind;
+  await wizardCall(async () => {
+    await apiPost(`/api/accounts/${kind}-finish`, { name: acctWizard.name, code });
+    acctWizard.changed = true;
+    if (kind === "login") {
+      const row = (acctData?.accounts || []).find(r => r.name === acctWizard.name);
+      if (acctWizard.mode === "add" || !(row && row.drive && row.drive.ready)) {
+        acctWizard.step = "offer-drive";
+        return;
+      }
+    }
+    showToast(kind === "drive" ? "云盘授权成功" : "Colab 登录成功", "emerald");
+    acctWizard.busy = false;
+    acctModalClose();
+  });
+}
+
+// ---- metadata editor
+const ACCT_COLORS = [["", "默认"], ["blue", "蓝"], ["emerald", "绿"], ["amber", "琥珀"], ["crimson", "红"], ["violet", "紫"], ["slate", "灰白"]];
+function openMetaEditor(name) {
+  const r = (acctData?.accounts || []).find(x => x.name === name);
+  if (!r) return;
+  const m = r.meta || {};
+  acctWizard = { mode: "meta", name };
+  acctModalOpen(`<h3>编辑账号 · ${escHtml(name)}</h3>
+    <label class="fld">显示名称<input type="text" id="mtLabel" maxlength="40" value="${escHtml(m.label || "")}" placeholder="${escHtml(name)}" /></label>
+    <label class="fld">标签（逗号分隔，最多 8 个）<input type="text" id="mtTags" value="${escHtml((m.tags || []).join(", "))}" placeholder="主号, Pro" /></label>
+    <label class="fld">颜色<select id="mtColor">${ACCT_COLORS.map(([v, t]) => `<option value="${v}" ${v === (m.color || "") ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+    <label class="fld">备注<textarea id="mtNote" rows="3" maxlength="500">${escHtml(m.note || "")}</textarea></label>
+    <div id="mtErr" class="modal-err"></div>
+    <div class="modal-actions"><button class="btn" onclick="acctModalClose()">取消</button>
+      <button class="btn btn-primary" onclick="saveMeta()">保存</button></div>`);
+}
+
+async function saveMeta() {
+  try {
+    await apiPost("/api/accounts/meta", { name: acctWizard.name, meta: {
+      label: document.getElementById("mtLabel").value,
+      tags: document.getElementById("mtTags").value,
+      color: document.getElementById("mtColor").value,
+      note: document.getElementById("mtNote").value,
+    }});
+    acctModalClose();
+    showToast("已保存", "emerald");
+    loadAccounts(false);
+  } catch (e) {
+    document.getElementById("mtErr").textContent = e.message;
+  }
+}
+
+// ---- removal
+function openRemoveAccount(name, detail = "") {
+  acctWizard = { mode: "remove", name, unverified: !!detail };
+  acctModalOpen(`<h3>删除账号 · ${escHtml(name)}</h3>
+    <p>将删除这个账号在本机的 Colab 登录凭据、云盘授权与会话记录（colab-ext 的 profile），不会影响 Google 账号本身。
+       有运行中 VM 或本地会话时会被拒绝。</p>
+    ${detail ? `<div class="modal-err">⚠️ ${escHtml(detail)}</div>` : ""}
+    <label class="fld">请输入账号名 <b>${escHtml(name)}</b> 确认<input type="text" id="rmConfirm" autocomplete="off" /></label>
+    <div id="rmErr" class="modal-err"></div>
+    <div class="modal-actions"><button class="btn" onclick="acctModalClose()">取消</button>
+      <button class="btn btn-danger" onclick="confirmRemoveAccount()">${detail ? "仍然删除" : "删除"}</button></div>`);
+}
+
+async function confirmRemoveAccount() {
+  const w = acctWizard;
+  try {
+    const r = await apiPost("/api/accounts/remove", {
+      name: w.name, confirm: document.getElementById("rmConfirm").value.trim(), allow_unverified: w.unverified,
+    });
+    if (r.needs_confirm) { openRemoveAccount(w.name, r.detail); return; }
+    acctWizard.changed = true;
+    acctModalClose();
+    showToast(`账号「${w.name}」已删除`, "emerald");
+  } catch (e) {
+    document.getElementById("rmErr").textContent = e.message;
+  }
+}
+
 // SSE Connection
 function connectSSE() {
   if (eventSource) eventSource.close();
@@ -1948,11 +2437,15 @@ setInterval(() => {
   }
 }, 3000);
 
-setInterval(() => { if (currentView === "dashboard") loadProviders(false); }, 120000);
+setInterval(() => {
+  if (currentView === "dashboard") { loadProviders(false); loadAccountAggregate(false); }
+  if (currentView === "accounts") loadAccounts(false);
+}, 120000);
 
 fetch("/api/state").then(r => r.json()).then(renderState).catch(() => {});
 connectSSE();
 loadProviders(false);
+loadAccountAggregate(false);
 </script>
 </body>
 </html>
