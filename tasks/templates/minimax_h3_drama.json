@@ -1,0 +1,14 @@
+{
+  "id": "minimax_h3_drama",
+  "name": "MiniMax-H3 短剧渲染",
+  "description": "示例模板：在已锁定并挂好云盘的 GPU 上启动 ComfyUI，运行 cloud_workstation/ 中的短剧工作流，跑完拉取视频到 outputs/ 并自动关机。",
+  "order": 10,
+  "ui_extras": ["outputs_folder", "drama_config"],
+  "args": [],
+  "params": [
+    {"key": "workflow_dir", "label": "远端工作流目录", "flag": "--workflow-dir", "type": "path",
+     "default": "/content/drive/MyDrive/AI_Workstation/workflows/02_eastern_fantasy_xianxia"},
+    {"key": "workflow", "label": "工作流文件", "flag": "--workflow", "type": "path", "default": "workflow_h3_fl2va_turbo.json"},
+    {"key": "config", "label": "剧本配置", "flag": "--config", "type": "path", "default": "drama_config.json"}
+  ]
+}

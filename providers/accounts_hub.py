@@ -240,6 +240,15 @@ class AccountsHub:
     def names(self) -> list[str]:
         return list((self.registry().get("accounts") or {}).keys())
 
+    def email_of(self, name: str) -> str | None:
+        """Google e-mail recorded by colab-ext for a profile (links it to Antigravity / Gemini CLI)."""
+        try:
+            meta = (self.registry().get("accounts") or {}).get(name) or {}
+        except Exception:
+            return None
+        email = meta.get("email") or meta.get("dfs_email") if isinstance(meta, dict) else None
+        return email if isinstance(email, str) and "@" in email else None
+
     def require_existing(self, name: str) -> str:
         name = str(name or "").strip()
         if not name or name not in self.names():

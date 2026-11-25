@@ -1,12 +1,25 @@
 # Google AI Manager
 
 > **Disclaimer**: Unofficial open-source community tool. Not affiliated with, endorsed by, or sponsored by Google LLC.
+>
+> [English README](./README.en.md)
 
 **Google AI Manager** 是一款面向 Google AI 生态的原生桌面算力与额度管理工具（Windows Edge WebView2 + 系统托盘常驻），目前已完成 **Colab GPU 余量监控、自动抢卡锁卡、静默挂载 Google Drive、超时自动关机防扣费** 以及 **云端工作流一键接管** 核心能力，并正持续演进为支持**多 Google 账号**与**多服务额度聚合**（Colab CCU、Google Drive 容量、Gemini / AI Studio API、GCP / Vertex 等）的统一管理面板。
 
 ---
 
-## 核心特性（v2.0-hold 当前已实现）
+## v2.2 新增：多账号与 Google AI Pro 额度中心（Phase 1）
+
+- **👤 多 Google 账号中心**：图形化添加 / 重新登录 / 云盘授权（复制授权码即可，无需命令行）、标签备注、切换、带保护的删除；全部账号 CCU / 实时消耗 / VM / 存储聚合看板。
+- **🔁 多账号自动切换**：主号 CCU 低于阈值、429 限流、实例数上限或授权失效时，探测与抢卡自动改用备用号；占卡、看门狗、释放与紧急强杀始终按「占卡的那个账号」执行，支持按账号 / 全部账号强杀。
+- **🎁 Pro 权益中心**：Google One 存储、Colab CCU、Antigravity 5 小时 / 每周窗口、Gemini CLI 等实时额度，以及 Flow 积分、AI 积分、Cloud 赠金、Firebase Studio 等官方入口。
+- **🛸 Antigravity 额度**：只读 Antigravity Tools 本地缓存，按邮箱关联账号，**不读取、不使用任何令牌**。
+- **🧩 远端任务模板**：`tasks/templates/*.json` 描述在已锁定 GPU 上运行的任务（短剧流水线只是其中一个示例模板）；模板无法关闭自动关机看门狗。
+- **🌐 可视化代理**与 **🩺 首次启动环境自检**（Colab CLI、账号授权、云盘权限、网络、目录权限等，附修复建议）。
+
+---
+
+## 核心特性（v2.0-hold 起已实现）
 
 - **原生轻量桌面端 + 系统托盘常驻**（`desktop_app/colab_gpu_tools.py`）
   - 基于 Windows 原生 Edge WebView2（`pywebview`）+ `pystray`，无浏览器地址栏、无黑框控制台、支持单实例唤醒。
@@ -28,13 +41,13 @@
 ## 路线图（Roadmap）
 
 - [x] **v2.0**：Colab GPU 余量监控、命中即占卡、自动静默挂盘、15 分钟超时自动关机、Edge WebView2 原生桌面端 + 系统托盘
-- [ ] **Phase 1（多账号与通用化）**：
+- [x] **Phase 1（多账号与通用化，v2.2）**：
   - [x] **M1** `providers/` 额度插件层（Colab CCU、Google One 存储容量）+ 可视化网络代理设置（自动探测 / 手动 / 直连，配置保存在 `~/.google-ai-manager/`）
   - [x] **M2** 图形化多 Google 账号中心（添加 / 切换 / 删除 / 标签备注 / OAuth + 云盘授权引导）+ 多账号额度聚合看板
   - [x] **M3** 指定账号抢卡 + 主号 CCU 不足 / 限流 / 实例上限 / 授权失效时自动切换备用号 + 按账号 / 全部账号强杀
-  - [ ] **M4** Antigravity / Gemini CLI 额度、Pro 权益中心、远端任务模板、首次启动环境自检
+  - [x] **M4** Antigravity / Gemini CLI 额度、Pro 权益中心、远端任务模板、首次启动环境自检、中英文 README
 - [ ] **Phase 2（多服务额度插件生态）**：
-  - `providers/` 插件抽象：接入 Gemini / AI Studio API Key 池、GCP / Vertex AI 配额等其他 Google AI 额度
+  - 接入 Jules 任务数、Flow 积分（实验性）、Gemini / AI Studio API Key 池、GCP / Vertex AI 配额等其他 Google AI 额度
   - 核心监控与抢卡脱离 WSL2 强依赖，支持纯原生 Windows / macOS / Linux 运行与自动构建安装包
 
 ---
@@ -43,7 +56,9 @@
 
 ```text
 google-ai-manager/
-├── providers/                    # 额度插件层：colab / google_storage / accounts_hub(多账号) / netcfg(代理) / paths(~/.google-ai-manager)
+├── providers/                    # 额度插件层：colab / google_storage / antigravity / gemini_cli / accounts_hub(多账号)
+│                                 #   benefits(权益中心) / selfcheck / task_templates / netcfg(代理) / paths
+├── tasks/templates/              # 远端任务模板（JSON，见 tasks/README.md）
 ├── tests/                        # 离线单元测试（python -m unittest discover -s tests）
 ├── desktop_app/
 │   ├── colab_gpu_tools.py        # Windows 原生 Edge WebView2 桌面外壳 + 系统托盘
@@ -59,7 +74,7 @@ google-ai-manager/
 │   ├── sync_workstation_to_drive.py
 │   ├── pull_latest_outputs.py
 │   └── Invoke-ColabH3.ps1        # PowerShell 统一调用入口
-├── cloud_workstation/            # 示例云端工作流脚本与配置模板
+├── cloud_workstation/            # 示例云端工作流（MiniMax-H3 短剧模板使用）
 ├── 0_下载模型到云盘_DownloadModels.bat
 ├── 1_首次授权_Auth.bat
 ├── 2_一键运行短剧_RunH3.bat
@@ -87,12 +102,14 @@ google-ai-manager/
   ```
 
 ### 2. 首次授权 Google 账号
-双击运行 `1_首次授权_Auth.bat`（或运行 `.\scripts\Invoke-ColabH3.ps1 auth`）：
+推荐：启动桌面客户端后打开「👤 账号管理 → 添加账号」，按向导在浏览器授权并粘贴授权码即可（可添加多个账号）。
+
+命令行方式：双击运行 `1_首次授权_Auth.bat`（或运行 `.\scripts\Invoke-ColabH3.ps1 auth`）：
 1. 完成 Colab CLI 的 Google OAuth 登录（凭据仅保存在本机 WSL `~/.config/colab-cli/`，权限 `0600`，不会上传仓库）。
 2. 完成 `colab dfs consent` 云盘静默挂载授权（如出现权限复选框请勾选 Drive 文件访问权限）。
 
 ### 3. 启动桌面客户端
-双击 **`5_显卡余量监控看板_Monitor.bat`** 即可启动原生桌面客户端（传入 `--web` 参数可回退至浏览器模式 `http://127.0.0.1:8765`）。
+双击 **`5_显卡余量监控看板_Monitor.bat`** 即可启动原生桌面客户端（传入 `--web` 参数可回退至浏览器模式 `http://127.0.0.1:8765`）。首次启动后可在「🩺 环境自检」查看环境是否就绪。
 
 ---
 
@@ -110,4 +127,6 @@ google-ai-manager/
 ## 安全与隐私说明
 
 - 所有 OAuth Token、Drive 凭据、运行日志（`logs/`）、SQLite 探测库（`*.db`）、锁卡状态（`active_hold.json`）均已被 `.gitignore` 严格排除，**请勿将任何凭据或日志文件提交至公开仓库**。
+- 账号凭据由 colab-ext 保存在 WSL 本机；本工具自身的设置、账号备注保存在 `~/.google-ai-manager/`（目录 0700 / 文件 0600），不进仓库。
+- Antigravity / Gemini CLI 仅读取本地缓存与状态文件，从不读取或使用它们的令牌；本地接口拒绝跨站请求。
 - 欢迎通过 Issue / PR 共建多账号与多 Google AI 额度模块。

@@ -31,6 +31,11 @@ This repository (`google-ai-manager`) is collaboratively developed by multiple A
   - `emergency_stop_all()` targets hold account + configured account + last probe account by default; `{"all_accounts": true}` covers every profile; `{"accounts": [...]}` an explicit list. The hold record is cleared only when *its* account verifies 0 remaining VMs.
   - Failover (`failover_on`, ordered `failover_accounts`, `min_ccu_threshold`): `choose_probe_account()` (pure, in `accounts_hub.py`) picks the account per probe cycle / grab under `_probe_lock`. 429 / 412 / 401-403 block only that account (`ACCOUNT_BLOCK_SECONDS`); the global back-off applies only when failover is off or every candidate is blocked.
   - Engine tests with mocked Colab: `tests/test_engine_accounts.py` (run with the google-colab-cli venv python in WSL; skipped elsewhere).
+- **M4: more providers, benefits center, self-check, task templates**
+  - `antigravity.py` reads the Antigravity Tools cache (`<Windows home>/.antigravity_tools`, found via `paths.windows_home()`); the per-account `token` block is dropped on load and must never be used. `gemini_cli.py` only checks install / login *file presence* — never open another tool's credential files.
+  - `benefits.py`: static Pro catalog + `EXTERNAL_URL_PREFIXES`, which must equal the desktop shell's allow-list (`JsBridge.open_external_url`; a test enforces it).
+  - `selfcheck.py` + `MonitorEngine.self_check()` → `GET /api/selfcheck`; `GET /api/benefits`.
+  - `task_templates.py` + `tasks/templates/*.json` → `GET /api/tasks`, `POST /api/tasks/start`. The runner owns session / GPU / account / `--fallback-gpu none` / `--max-minutes`; templates may never set those or `--keep-alive`.
 - **Cloud Workflow Runner (`scripts/wsl_run_h3.sh`, `cloud_workstation/`)**
   - Supports `--reuse-session` to take over an already-locked Colab session without stopping/re-allocating it, skipping `colab dfs mount` when `/content/drive/MyDrive` is already mounted.
 

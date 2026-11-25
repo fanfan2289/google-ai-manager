@@ -44,7 +44,7 @@ DB_PATH = LOGS_DIR / "gpu_monitor.db"
 CONFIG_PATH = LOGS_DIR / "gpu_monitor_config.json"
 HOLD_STATE_PATH = LOGS_DIR / "active_hold.json"
 UI_HTML_PATH = SCRIPT_DIR / "monitor_ui.html"
-APP_VERSION = "2.1-m3"
+APP_VERSION = "2.2"
 
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
@@ -121,6 +121,12 @@ import colab_meter  # noqa: E402
 from providers import PLANNED_PROVIDERS, ProviderHub  # noqa: E402
 from providers import colab as colab_provider  # noqa: E402
 from providers.google_storage import GoogleStorageProvider  # noqa: E402
+from providers import benefits as benefits_catalog  # noqa: E402
+from providers import paths as app_paths  # noqa: E402
+from providers import selfcheck  # noqa: E402
+from providers import task_templates  # noqa: E402
+from providers.antigravity import AntigravityProvider  # noqa: E402
+from providers.gemini_cli import GeminiCliProvider  # noqa: E402
 from providers.accounts_hub import (  # noqa: E402
     AccountsError,
     AccountsHub,
@@ -575,6 +581,9 @@ class MonitorEngine:
         self.providers.register(colab_provider.ColabProvider())
         self.providers.register(GoogleStorageProvider())
         self.accounts = AccountsHub(colab_bin=self._colab_bin(), env=self._colab_env)
+        self.providers.register(AntigravityProvider(email_of=self.accounts.email_of))
+        self.providers.register(GeminiCliProvider(email_of=self.accounts.email_of))
+        self._selfcheck_cache: tuple[float, dict[str, Any]] | None = None
         self._state_lock = threading.Lock()
         self._probe_lock = threading.Lock()
         self._stop_event = threading.Event()
@@ -873,10 +882,141 @@ class MonitorEngine:
             self.account_blocks.pop(name, None)
         return res
 
+    # ------------------------------------------------------------------ Pro benefits center (M4)
+    def benefits_payload(self, account: str | None = None, *, force: bool = False) -> dict[str, Any]:
+        acct = (account or "").strip() or self.primary_account_name()
+        ids = [pid for pid in benefits_catalog.tracked_provider_ids() if pid in self.providers.ids()]
+        snaps = self.providers.snapshot_many(acct, ids, force=force)
+        items = []
+        for b in benefits_catalog.catalog():
+            b["snapshot"] = snaps.get(b.get("provider") or "")
+            items.append(b)
+        ag = self.providers.get("antigravity")
+        known = {(self.accounts.email_of(n) or "").lower() for n in self.accounts.names()}
+        ag_rows = []
+        for snap in ag.all_accounts():
+            snap["in_hub"] = str((snap.get("extra") or {}).get("email") or "").lower() in known
+            ag_rows.append(snap)
+        return {"account": acct, "plans_url": benefits_catalog.PLANS_URL, "items": items, "antigravity_accounts": ag_rows}
+
+    # ------------------------------------------------------------------ first-run self check (M4)
+    def self_check(self, *, force: bool = False) -> dict[str, Any]:
+        cached = self._selfcheck_cache
+        if cached and not force and time.time() - cached[0] < 60:
+            return cached[1]
+        import importlib.metadata as md
+
+        def colab_cli():
+            try:
+                return selfcheck.OK, f"google-colab-cli {md.version('google-colab-cli')}"
+            except md.PackageNotFoundError:
+                return selfcheck.WARN, "已可导入 colab_cli，但未找到包版本信息"
+
+        def colab_ext():
+            from colab_ext import accounts as _acc  # noqa: F401
+
+            return selfcheck.OK, "colab-ext 多账号扩展已安装"
+
+        def accounts():
+            rows = self.accounts.list_accounts()["accounts"]
+            ready = [r for r in rows if r["auth"]["ready"] is True]
+            if not ready:
+                return selfcheck.FAIL, f"{len(rows)} 个账号，均未完成 Colab 授权", "打开「账号管理」→ 添加账号 / 登录 Colab"
+            return selfcheck.OK, f"{len(ready)}/{len(rows)} 个账号已授权 Colab"
+
+        def drive():
+            rows = self.accounts.list_accounts()["accounts"]
+            ready = [r["name"] for r in rows if r["drive"]["ready"]]
+            bad = [n for n in ready if self.providers.snapshot("google_storage", n).status == "unauthorized"]
+            if not ready:
+                return selfcheck.WARN, "没有账号授权 Google Drive（抢卡后无法自动挂盘）", "「账号管理」→ 授权云盘"
+            if bad:
+                return selfcheck.WARN, f"{len(bad)} 个账号的云盘授权缺少 Drive 权限", "在账号卡片点「重新授权云盘」并勾选 Drive 权限"
+            return selfcheck.OK, f"{len(ready)}/{len(rows)} 个账号已授权云盘"
+
+        def network():
+            r = netcfg.resolve_proxy()
+            res = netcfg.test_proxy(r["url"])
+            via = r["detail"] or ("直连" if not r["url"] else r["url"])
+            if res.get("ok"):
+                return selfcheck.OK, f"可访问 Google（{via}，{res.get('latency_ms', '-')} ms）"
+            return selfcheck.FAIL, f"无法访问 Google（{via}）：{res.get('error') or '未知错误'}", "「设置」→ 网络代理：切换模式或填写手动代理后点测试"
+
+        def colab_api():
+            with self._state_lock:
+                snap = dict(self.account_snapshot)
+            if snap.get("usage_error"):
+                return selfcheck.WARN, f"Colab 额度查询失败：{snap['usage_error']}", "检查代理或重新登录该账号"
+            if isinstance(snap.get("balance"), (int, float)):
+                return selfcheck.OK, f"账号 {snap.get('account')} 余额 {float(snap['balance']):.2f} CCU"
+            return selfcheck.INFO, "Colab 额度尚未加载（后端刚启动时属正常）"
+
+        def app_home():
+            home = app_paths.ensure_app_home()
+            if os.name != "posix":
+                return selfcheck.OK, str(home)
+            mode = os.stat(home).st_mode & 0o777
+            if mode & 0o077:
+                return selfcheck.WARN, f"{home} 权限为 {oct(mode)}，其他用户可读", f"chmod 700 {home}"
+            return selfcheck.OK, f"{home}（0700）"
+
+        def logs_dir():
+            LOGS_DIR.mkdir(parents=True, exist_ok=True)
+            probe = LOGS_DIR / ".write_test"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink()
+            return selfcheck.OK, "logs/ 可写（探测记录、配置与占卡状态）"
+
+        def win_home():
+            h = app_paths.windows_home()
+            if h:
+                return selfcheck.OK, f"Windows 用户目录：{h}"
+            return selfcheck.INFO, "未检测到 Windows 用户目录（非 WSL 环境时可忽略）", "可设置环境变量 GAM_WIN_HOME"
+
+        def antigravity():
+            ok, reason = self.providers.get("antigravity").availability()
+            if ok:
+                n = len(self.providers.get("antigravity").list_accounts())
+                return selfcheck.OK, f"Antigravity Tools 本地缓存可读（{n} 个账号）"
+            return selfcheck.INFO, reason, "可选：安装并登录 Antigravity Tools 以显示 Antigravity 额度"
+
+        def gemini():
+            p = self.providers.get("gemini_cli")
+            if p.installed():
+                return selfcheck.OK, "已安装 Gemini CLI" + ("，已登录" if p.login_home() else "，未登录")
+            return selfcheck.INFO, "未安装 Gemini CLI" + ("（检测到旧登录记录）" if p.login_home() else ""), "可选：npm install -g @google/gemini-cli"
+
+        def hold_state():
+            with self._state_lock:
+                hold = dict(self.active_hold) if self.active_hold else None
+            if hold:
+                return selfcheck.INFO, f"有占卡中的实例：{hold.get('gpu')}（账号 {hold.get('account') or '-'}），看门狗守护中"
+            return selfcheck.OK, "当前无占卡实例"
+
+        result = selfcheck.run_checks([
+            ("colab_cli", "google-colab-cli", colab_cli),
+            ("colab_ext", "colab-ext 多账号扩展", colab_ext),
+            ("accounts", "Colab 账号授权", accounts),
+            ("drive", "Google Drive 云盘授权", drive),
+            ("network", "网络与代理", network),
+            ("colab_api", "Colab 额度接口", colab_api),
+            ("app_home", "用户私有目录", app_home),
+            ("logs", "本地数据目录", logs_dir),
+            ("win_home", "Windows 用户目录", win_home),
+            ("antigravity", "Antigravity Tools（可选）", antigravity),
+            ("gemini_cli", "Gemini CLI（可选）", gemini),
+            ("hold", "占卡与防扣费守护", hold_state),
+        ])
+        result["version"] = APP_VERSION
+        result["probe_disabled"] = self.probe_disabled
+        self._selfcheck_cache = (time.time(), result)
+        return result
+
     def accounts_overview(self, *, force: bool = False) -> dict[str, Any]:
         """Per-account Colab + storage snapshots and de-duplicated totals."""
         names = self.accounts.names()
-        per = {name: self.providers.snapshot_many(name, ["colab", "google_storage"], force=force) for name in names}
+        per = {name: self.providers.snapshot_many(name, ["colab", "google_storage", "antigravity"], force=force)
+               for name in names}
         return {"accounts": per, "totals": aggregate_account_totals(per)}
 
     def _hold_account(self) -> str | None:
@@ -1392,11 +1532,30 @@ class MonitorEngine:
         config_file: str | None = None,
         max_minutes: int = 180,
     ) -> dict[str, Any]:
-        """Claim the active locked GPU (or start fresh) and launch `wsl_run_h3.sh --reuse-session`."""
+        """Backward-compatible entry point: the MiniMax-H3 drama template."""
+        params = {k: v for k, v in (("workflow", workflow), ("config", config_file)) if v}
+        return self.start_task("minimax_h3_drama", params, max_minutes=max_minutes)
+
+    def task_templates_payload(self) -> dict[str, Any]:
+        templates, errors = task_templates.load_templates()
+        return {"templates": templates, "errors": errors}
+
+    def start_task(self, template_id: str, params: dict[str, Any] | None = None, *, max_minutes: int = 180) -> dict[str, Any]:
+        """Claim the locked GPU and run a task template via `wsl_run_h3.sh --reuse-session`.
+
+        The runner always sets session / GPU / account / `--fallback-gpu none` / `--max-minutes`
+        itself, so no template can disable the auto-shutdown watchdog.
+        """
+        templates, _errors = task_templates.load_templates()
+        template = next((t for t in templates if t["id"] == template_id), None)
+        if template is None:
+            raise ValueError(f"未找到任务模板：{template_id}")
+        extra_args = task_templates.build_args(template, params or {})
+        max_minutes = max(30, min(360, int(max_minutes)))
         with self._state_lock:
             hold = dict(self.active_hold) if self.active_hold else None
             if self._job_proc is not None and self._job_proc.poll() is None:
-                raise ValueError("已有短剧推理任务正在运行中")
+                raise ValueError("已有云端任务正在运行中")
             if not hold:
                 raise ValueError("当前没有已锁定的 GPU 实例，请先抢到/锁定 G4 或 A100 后再一键接管")
 
@@ -1405,7 +1564,7 @@ class MonitorEngine:
             raise ValueError(f"未找到推理脚本: {run_script}")
 
         ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-        job_log = LOGS_DIR / f"desktop_drama_{ts}.log"
+        job_log = LOGS_DIR / f"desktop_task_{template['id']}_{ts}.log"
         LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
         cmd = [
@@ -1419,14 +1578,11 @@ class MonitorEngine:
             "--fallback-gpu",
             "none",
             "--max-minutes",
-            str(max(30, min(360, int(max_minutes)))),
+            str(max_minutes),
         ]
         if hold.get("account"):
             cmd.extend(["-a", str(hold["account"])])
-        if workflow:
-            cmd.extend(["--workflow", str(workflow)])
-        if config_file:
-            cmd.extend(["--config", str(config_file)])
+        cmd.extend(extra_args)
 
         log_fh = open(job_log, "w", encoding="utf-8", buffering=1)
         proc = subprocess.Popen(
@@ -1447,12 +1603,14 @@ class MonitorEngine:
                 self.active_hold["job_pid"] = proc.pid
                 self.active_hold["job_log_path"] = str(job_log)
                 self.active_hold["job_status"] = "RUNNING"
+                self.active_hold["task_template"] = template["id"]
+                self.active_hold["task_name"] = template["name"]
                 self.active_hold["expires_at_ts"] = _now_ts() + max_minutes * 60.0
                 self.active_hold["expires_at_iso"] = _now_iso(self.active_hold["expires_at_ts"])
                 self._save_hold_state_locked()
             hold_copy = dict(self.active_hold) if self.active_hold else None
 
-        print(f"[{_now_iso()}] [gpu_monitor] 已接管 {hold['gpu']} 启动短剧任务 (PID={proc.pid}, log={job_log})", flush=True)
+        print(f"[{_now_iso()}] [gpu_monitor] 已接管 {hold['gpu']} 启动任务「{template['name']}」(PID={proc.pid}, log={job_log})", flush=True)
         self.broadcast_state()
         return {"ok": True, "pid": proc.pid, "log_path": str(job_log), "hold": hold_copy}
 
@@ -2142,12 +2300,27 @@ def make_handler(engine: MonitorEngine):
                     self._send_json({"error": str(exc)}, status=500)
                 return
 
+            if path in ("/api/benefits", "/api/selfcheck"):
+                force = (qs.get("refresh") or ["0"])[0] in ("1", "true", "yes")
+                try:
+                    if path == "/api/benefits":
+                        self._send_json(engine.benefits_payload((qs.get("account") or [None])[0], force=force))
+                    else:
+                        self._send_json(engine.self_check(force=force))
+                except Exception as exc:
+                    self._send_json({"error": str(exc)}, status=500)
+                return
+
             if path == "/api/accounts/overview":
                 force = (qs.get("refresh") or ["0"])[0] in ("1", "true", "yes")
                 try:
                     self._send_json(engine.accounts_overview(force=force))
                 except Exception as exc:
                     self._send_json({"error": str(exc)}, status=500)
+                return
+
+            if path == "/api/tasks":
+                self._send_json(engine.task_templates_payload())
                 return
 
             if path == "/api/job/log":
@@ -2307,6 +2480,20 @@ def make_handler(engine: MonitorEngine):
                 try:
                     res = engine.release_hold(reason=str(body.get("reason") or "用户手动释放锁定实例"))
                     self._send_json(res)
+                except Exception as exc:
+                    self._send_json({"error": str(exc)}, status=500)
+                return
+
+            if path == "/api/tasks/start":
+                try:
+                    res = engine.start_task(
+                        str(body.get("template") or ""),
+                        body.get("params") if isinstance(body.get("params"), dict) else {},
+                        max_minutes=int(body.get("max_minutes", 180)),
+                    )
+                    self._send_json(res)
+                except ValueError as exc:
+                    self._send_json({"error": str(exc)}, status=400)
                 except Exception as exc:
                     self._send_json({"error": str(exc)}, status=500)
                 return

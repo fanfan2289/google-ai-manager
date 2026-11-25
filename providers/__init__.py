@@ -23,10 +23,6 @@ __all__ = [
 
 # Roadmap entries shown in the UI so users can see what is coming (no code behind them yet).
 PLANNED_PROVIDERS: list[dict[str, Any]] = [
-    {"id": "antigravity", "label": "Google Antigravity", "category": "ai_quota", "official_api": False,
-     "description": "5 小时 / 每周双窗口剩余额度（Gemini 与 Claude/GPT 分组）", "milestone": "M4"},
-    {"id": "gemini_cli", "label": "Gemini CLI / Code Assist", "category": "ai_quota", "official_api": False,
-     "description": "每日请求额度（Pro 1500 次/天，与 Code Assist 共享）", "milestone": "M4"},
     {"id": "jules", "label": "Jules", "category": "ai_quota", "official_api": True,
      "description": "滚动 24 小时任务数（官方 API 无剩余额度字段，按任务数统计）", "milestone": "Phase 2"},
     {"id": "flow_credits", "label": "Google Flow 积分", "category": "ai_quota", "official_api": False,

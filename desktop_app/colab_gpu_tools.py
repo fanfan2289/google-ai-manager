@@ -29,8 +29,21 @@ APP_TITLE = "Colab GPU Tools"
 BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 8765
 BACKEND_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}"
-EXPECTED_VERSION = "2.1-m3"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
-OAUTH_URL_PREFIXES = ("https://accounts.google.com/",)
+EXPECTED_VERSION = "2.2"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
+# Google pages the UI may open in the default browser (keep in sync with providers/benefits.py).
+EXTERNAL_URL_PREFIXES = (
+    "https://accounts.google.com/",
+    "https://one.google.com/",
+    "https://colab.research.google.com/",
+    "https://antigravity.google/",
+    "https://github.com/google-gemini/",
+    "https://labs.google/",
+    "https://console.cloud.google.com/",
+    "https://studio.firebase.google.com/",
+    "https://jules.google.com/",
+    "https://gemini.google.com/",
+    "https://notebooklm.google.com/",
+)
 
 APP_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = APP_DIR.parent
@@ -259,10 +272,10 @@ class DesktopController:
         return {"ok": False, "error": "drama_config.json not found"}
 
     def open_external_url(self, url: str) -> dict[str, Any]:
-        """Open a Google OAuth consent page in the user's default browser (allow-listed)."""
+        """Open an allow-listed Google page (OAuth consent, benefit pages) in the default browser."""
         url = str(url or "").strip()
-        if not url.startswith(OAUTH_URL_PREFIXES) or any(c in url for c in '\r\n"<> '):
-            return {"ok": False, "error": "only Google sign-in links can be opened"}
+        if not url.startswith(EXTERNAL_URL_PREFIXES) or any(c in url for c in '\r\n"<> '):
+            return {"ok": False, "error": "only allow-listed Google pages can be opened"}
         os.startfile(url)  # ShellExecute: no WinForms access, safe off the UI thread
         return {"ok": True}
 

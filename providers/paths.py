@@ -12,7 +12,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import subprocess
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -66,3 +69,45 @@ def write_private_json(path: Path, data: Any) -> Path:
             pass
         raise
     return path
+
+
+_win_home_lock = threading.Lock()
+_win_home_cache: list[Path | None] = []
+
+
+def _wsl_path(win_path: str) -> Path | None:
+    m = re.match(r"^([A-Za-z]):[\\/](.*)$", win_path.strip())
+    if not m:
+        return None
+    return Path(f"/mnt/{m.group(1).lower()}/{m.group(2).replace(chr(92), '/')}")
+
+
+def windows_home() -> Path | None:
+    """The Windows user's home folder (where desktop tools such as Antigravity Tools store data).
+
+    Native Windows: `Path.home()`. Inside WSL: `%USERPROFILE%` mapped to /mnt/<drive>/...
+    (asked once via cmd.exe, cached). Override with `GAM_WIN_HOME`. None when unknown.
+    """
+    raw = os.environ.get("GAM_WIN_HOME")
+    if raw:
+        return Path(raw).expanduser()
+    if os.name == "nt":
+        return Path.home()
+    with _win_home_lock:
+        if _win_home_cache:
+            return _win_home_cache[0]
+        found: Path | None = None
+        if Path("/mnt/c").is_dir():
+            try:
+                out = subprocess.run(
+                    ["cmd.exe", "/d", "/c", "echo %USERPROFILE%"],
+                    capture_output=True, text=True, timeout=8, cwd="/mnt/c", stdin=subprocess.DEVNULL,
+                ).stdout
+                lines = [ln.strip() for ln in (out or "").splitlines() if ln.strip()]
+                cand = _wsl_path(lines[-1]) if lines else None
+                if cand and cand.is_dir():
+                    found = cand
+            except (OSError, subprocess.SubprocessError):
+                found = None
+        _win_home_cache.append(found)
+        return found

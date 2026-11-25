@@ -757,6 +757,31 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
+  /* Benefits center + self-check */
+  .bn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .bn-tile { background: rgba(10, 13, 20, 0.45); border: 1px solid var(--border); border-radius: 10px; padding: 12px 13px;
+             display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+  .bn-tile.planned { border-style: dashed; opacity: 0.7; }
+  .bn-allow { font-family: var(--mono); font-size: 16px; font-weight: 700; color: #fff; }
+  .bn-allow span { font-size: 11px; color: var(--text-dim); font-weight: 500; margin-left: 4px; font-family: var(--sans); }
+  .bn-live { font-size: 12px; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px; }
+  .bn-live b { font-family: var(--mono); color: #f8fafc; }
+  .bn-actions { display: flex; gap: 6px; margin-top: auto; }
+  .ag-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .ag-table th { text-align: left; color: var(--text-dim); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .ag-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); color: var(--text-muted); vertical-align: top; }
+  .ag-table td b { font-family: var(--mono); color: #f8fafc; }
+  .ag-cell-sub { font-size: 10.5px; color: var(--text-dim); }
+  .sc-row { display: grid; grid-template-columns: 22px 190px 1fr; gap: 10px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .sc-row:last-child { border-bottom: none; }
+  .sc-icon { font-size: 14px; line-height: 1.3; }
+  .sc-label { font-weight: 600; color: var(--text); font-size: 12.5px; }
+  .sc-detail { font-size: 12px; color: var(--text-muted); word-break: break-word; }
+  .sc-fix { font-size: 11.5px; color: #93c5fd; margin-top: 3px; }
+  .info-banner { display: none; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px;
+                 border-radius: var(--radius); background: var(--amber-soft); border: 1px solid var(--amber-border); color: #fde68a; font-size: 12.5px; }
+  .info-banner.show { display: flex; }
+
   /* Accounts Hub */
   .acct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
   .acct-card {
@@ -856,8 +881,15 @@
         <span>👤</span><span>账号管理</span>
         <span id="navAcctBadge" class="nav-badge" style="display:none;"></span>
       </div>
+      <div class="nav-item" data-view="benefits">
+        <span>🎁</span><span>Pro 权益中心</span>
+      </div>
+      <div class="nav-item" data-view="selfcheck">
+        <span>🩺</span><span>环境自检</span>
+        <span id="navCheckBadge" class="nav-badge amber" style="display:none;"></span>
+      </div>
       <div class="nav-item" data-view="runner">
-        <span>🎬</span><span>占卡与短剧接管</span>
+        <span>🧩</span><span>占卡与任务模板</span>
       </div>
       <div class="nav-item" data-view="analytics">
         <span>📊</span><span>放卡规律热力图</span>
@@ -911,6 +943,13 @@
 
     <div class="content-scroll">
       <!-- Critical Alert -->
+      <div id="checkBanner" class="info-banner">
+        <span id="checkBannerText">环境自检发现问题</span>
+        <span style="display:flex;gap:8px;">
+          <button class="btn btn-sm" onclick="switchView('selfcheck')">查看详情</button>
+          <button class="btn btn-sm" onclick="dismissCheckBanner()">忽略</button>
+        </span>
+      </div>
       <div id="criticalBanner" class="critical-banner">
         <span id="criticalText">⚠️ 检测到异常残留实例！</span>
         <button class="btn btn-danger btn-sm" onclick="emergencyStopAll()">立即强制清理</button>
@@ -944,7 +983,7 @@
           </div>
 
           <div class="hold-actions">
-            <button id="btnHeroRunDrama" class="btn btn-emerald" onclick="runDramaOnHold()">🎬 接管运行 MiniMax-H3 短剧</button>
+            <button id="btnHeroRunDrama" class="btn btn-emerald" onclick="switchView('runner')">🧩 接管运行任务模板</button>
             <button id="btnHeroClaimManual" class="btn btn-primary" onclick="claimManual()">🛠 认领手动使用（转 120m 兜底）</button>
             <button id="btnHeroExtend10" class="btn btn-amber" onclick="extendHold(10)">⏱ +10 分钟续期</button>
             <button id="btnHeroExtend20" class="btn btn-amber" onclick="extendHold(20)">⏱ +20 分钟</button>
@@ -1045,30 +1084,72 @@
         </div>
       </section>
 
+      <!-- VIEW: PRO BENEFITS CENTER -->
+      <section id="view-benefits" class="view">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🎁 Google AI Pro 权益</div>
+              <div id="bnSub" class="card-sub">额度以 Google 官方页面为准；带「实时」标记的项目会读取当前账号的实际用量</div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm" onclick="openExternal(benefitsData?.plans_url || 'https://one.google.com/about/google-ai-plans/')">📄 官方方案说明</button>
+              <button class="btn btn-sm" onclick="loadBenefits(true)">🔄 刷新</button>
+            </div>
+          </div>
+          <div id="bnGrid" class="bn-grid"><div class="card-sub">加载中...</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🛸 Antigravity 账号额度</div>
+              <div class="card-sub">读取 Antigravity Tools 本地缓存（不使用任何令牌）；数据新鲜度取决于 Antigravity Tools 上次刷新时间</div>
+            </div>
+          </div>
+          <div id="agTable"><div class="card-sub">加载中...</div></div>
+        </div>
+      </section>
+
+      <!-- VIEW: SELF CHECK -->
+      <section id="view-selfcheck" class="view">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🩺 环境自检</div>
+              <div id="scSub" class="card-sub">检查 Colab 命令行、账号授权、网络代理与本地目录是否就绪</div>
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="loadSelfCheck(true)">🔄 重新检查</button>
+          </div>
+          <div id="scList"><div class="card-sub">检查中...</div></div>
+        </div>
+      </section>
+
       <section id="view-runner" class="view">
         <div class="card">
           <div class="card-header">
             <div>
-              <div class="card-title">🎬 MiniMax-H3 短剧一键接管控制台</div>
-              <div class="card-sub">复用已锁定并挂好云盘的 Colab GPU（跳过重新抢卡），跑完自动拉取视频到本地 outputs/ 并强杀关机</div>
+              <div class="card-title">🧩 远端任务模板</div>
+              <div class="card-sub">复用已锁定并挂好云盘的 Colab GPU（跳过重新抢卡）运行任务模板；结束后自动关机对账，超时由看门狗强杀。模板位于 tasks/templates/</div>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button class="btn btn-sm" onclick="openOutputsFolder()">📂 打开 outputs 成品目录</button>
-              <button class="btn btn-sm" onclick="openDramaConfig()">📝 编辑剧本 drama_config.json</button>
+              <button id="btnOpenOutputs" class="btn btn-sm" onclick="openOutputsFolder()">📂 打开 outputs 成品目录</button>
+              <button id="btnOpenDramaCfg" class="btn btn-sm" onclick="openDramaConfig()">📝 编辑剧本 drama_config.json</button>
             </div>
           </div>
 
+          <div class="form-row" style="padding-top:0;">
+            <div style="min-width:0;">
+              <div class="form-title">任务模板</div>
+              <div id="tplDesc" class="form-desc">加载中...</div>
+            </div>
+            <select id="tplSelect" onchange="renderTemplateForm()" style="min-width:220px;"></select>
+          </div>
+          <div id="tplParams" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:10px 0 12px;"></div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
-            <label style="font-size:12px;color:var(--text-muted);">工作流：
-              <input id="inpWorkflow" type="text" value="workflow_h3_fl2va_turbo.json" style="width:230px;margin-left:4px;" />
-            </label>
-            <label style="font-size:12px;color:var(--text-muted);">剧本配置：
-              <input id="inpConfig" type="text" value="drama_config.json" style="width:170px;margin-left:4px;" />
-            </label>
             <label style="font-size:12px;color:var(--text-muted);">最大兜底(分)：
               <input id="inpMaxMin" type="number" value="180" min="30" max="360" style="width:76px;margin-left:4px;" />
             </label>
-            <button id="btnStartDrama" class="btn btn-emerald" onclick="runDramaOnHold()">▶ 接管锁定 GPU 跑短剧</button>
+            <button id="btnStartDrama" class="btn btn-emerald" onclick="runTaskOnHold()">▶ 接管锁定 GPU 运行</button>
             <button id="btnStopDrama" class="btn btn-danger" onclick="stopDramaJob()">⏹ 中止并强杀 GPU</button>
           </div>
 
@@ -1076,10 +1157,10 @@
             <span id="jobLogMeta" style="font-size:11.5px;color:var(--text-dim);font-family:var(--mono);">日志路径: 等待任务启动...</span>
             <button class="btn btn-sm" onclick="refreshJobLog()">🔄 刷新日志</button>
           </div>
-          <div id="jobLogBox" class="log-box">暂无运行中的短剧任务日志。
+          <div id="jobLogBox" class="log-box">暂无运行中的云端任务日志。
 提示：
 1. 开启「命中即占卡」后，一旦抢到 G4 或 A100，系统会自动占住 15 分钟并静默挂载 Google Drive。
-2. 收到通知后，点击「接管运行 MiniMax-H3 短剧」即可直接复用该机器开始渲染。
+2. 收到通知后，在这里选择任务模板并点「接管锁定 GPU 运行」，即可直接复用该机器。
 3. 如果超过设定时间你未操作，后台看门狗会自动强杀实例，绝不白扣 CCU。</div>
         </div>
       </section>
@@ -1398,7 +1479,9 @@ async function apiPost(path, body = {}) {
 const VIEW_TITLES = {
   dashboard: "GPU 监控与自动抢占",
   accounts: "Google 账号管理中心",
-  runner: "占卡与 MiniMax-H3 短剧接管",
+  benefits: "Google AI Pro 权益中心",
+  selfcheck: "环境自检",
+  runner: "占卡与远端任务模板",
   analytics: "24 小时放卡规律分析",
   history: "探测与占卡历史记录",
   settings: "系统与防幽灵计费设置",
@@ -1417,10 +1500,12 @@ function switchView(view) {
   document.getElementById("topbarTitle").textContent = VIEW_TITLES[view] || "Colab GPU Tools";
   if (view === "analytics") loadAnalytics();
   if (view === "history") loadHistory();
-  if (view === "runner") refreshJobLog();
+  if (view === "runner") { refreshJobLog(); loadTemplates(); }
   if (view === "settings") loadProxySettings();
   if (view === "dashboard") { loadProviders(false); loadAccountAggregate(false); }
   if (view === "accounts") loadAccounts(false);
+  if (view === "benefits") loadBenefits(false);
+  if (view === "selfcheck") loadSelfCheck(false);
 }
 
 function renderState(st) {
@@ -1534,7 +1619,7 @@ function renderState(st) {
       document.getElementById("holdCountdownLabel").textContent = "最大兜底保护倒计时";
     } else {
       tag.className = "pill emerald";
-      tag.textContent = "🎬 短剧推理运行中";
+      tag.textContent = `🧩 ${hold.task_name || "云端任务"}运行中`;
       document.getElementById("holdCountdownLabel").textContent = "任务最大保护时长";
     }
     document.getElementById("holdGpuTitle").textContent = `${hold.gpu}${hold.gpu_model ? " · " + hold.gpu_model : ""}`;
@@ -1752,22 +1837,67 @@ async function releaseHold() {
   }
 }
 
-async function runDramaOnHold() {
+// ---------------------------------------------------------------- Task templates (M4)
+let taskTemplates = [];
+async function loadTemplates() {
+  if (taskTemplates.length) return;
   try {
-    const workflow = document.getElementById("inpWorkflow").value.trim() || "workflow_h3_fl2va_turbo.json";
-    const config = document.getElementById("inpConfig").value.trim() || "drama_config.json";
+    const data = await (await fetch("/api/tasks")).json();
+    taskTemplates = data.templates || [];
+    const sel = document.getElementById("tplSelect");
+    sel.innerHTML = taskTemplates.map(t => `<option value="${escHtml(t.id)}">${escHtml(t.name)}</option>`).join("");
+    const last = localStorage.getItem("gamLastTemplate");
+    if (last && taskTemplates.find(t => t.id === last)) sel.value = last;
+    renderTemplateForm();
+    if ((data.errors || []).length) showToast(`有 ${data.errors.length} 个模板无效：${data.errors[0]}`, "amber");
+  } catch (e) {
+    document.getElementById("tplDesc").textContent = "模板加载失败：" + e.message;
+  }
+}
+
+function currentTemplate() {
+  return taskTemplates.find(t => t.id === document.getElementById("tplSelect").value);
+}
+
+function renderTemplateForm() {
+  const t = currentTemplate();
+  const box = document.getElementById("tplParams");
+  if (!t) { box.innerHTML = ""; document.getElementById("tplDesc").textContent = "没有可用模板"; return; }
+  localStorage.setItem("gamLastTemplate", t.id);
+  document.getElementById("tplDesc").textContent = t.description;
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(`gamTpl_${t.id}`) || "{}"); } catch (_) {}
+  box.innerHTML = t.params.map(p => {
+    const v = saved[p.key] ?? p.default ?? "";
+    const input = p.type === "shell"
+      ? `<textarea data-k="${escHtml(p.key)}" rows="3" style="width:520px;max-width:100%;font-family:var(--mono);">${escHtml(v)}</textarea>`
+      : `<input data-k="${escHtml(p.key)}" type="${p.type === "number" ? "number" : "text"}" value="${escHtml(v)}"
+           ${p.min != null ? `min="${p.min}"` : ""} ${p.max != null ? `max="${p.max}"` : ""}
+           style="width:${p.type === "path" && String(v).length > 30 ? 380 : 220}px;" />`;
+    return `<label style="font-size:12px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;">${escHtml(p.label)}${p.required ? " *" : ""}${input}</label>`;
+  }).join("") || `<span class="form-desc">该模板无需参数</span>`;
+  document.getElementById("btnOpenDramaCfg").style.display = t.ui_extras.includes("drama_config") ? "" : "none";
+  document.getElementById("btnOpenOutputs").style.display = t.ui_extras.includes("outputs_folder") ? "" : "none";
+}
+
+async function runTaskOnHold() {
+  const t = currentTemplate();
+  if (!t) return showToast("请先选择任务模板", "amber");
+  const params = {};
+  document.querySelectorAll("#tplParams [data-k]").forEach(el => { params[el.dataset.k] = el.value; });
+  localStorage.setItem(`gamTpl_${t.id}`, JSON.stringify(params));
+  try {
     const max_minutes = Number(document.getElementById("inpMaxMin").value || 180);
-    await apiPost("/api/hold/run-drama", { workflow, config, max_minutes });
-    showToast("🎬 已接管锁定 GPU 启动短剧渲染，跑完将自动关机！", "emerald");
-    switchView("runner");
+    await apiPost("/api/tasks/start", { template: t.id, params, max_minutes });
+    showToast(`🧩 已接管锁定 GPU 启动「${t.name}」，结束后将自动关机！`, "emerald");
     refreshJobLog();
   } catch (e) {
-    showToast("启动短剧失败: " + e.message, "crimson");
+    showToast("启动任务失败: " + e.message, "crimson");
   }
 }
 
 async function stopDramaJob() {
-  if (!confirm("确定中止当前短剧任务并立即强杀云端 GPU 吗？")) return;
+  if (!confirm("确定中止当前云端任务并立即强杀 GPU 吗？")) return;
   try {
     const res = await apiPost("/api/job/stop", {});
     showToast(res.detail || "已中止并回收 GPU", "emerald");
@@ -2020,7 +2150,12 @@ function renderProviderTile(desc, snap) {
   let body = "";
   if (snap && snap.status === "ok") {
     const primary = metrics[0];
-    if (primary && primary.total != null && primary.used != null) {
+    if (primary && primary.unit === "%") {
+      metrics.forEach(m => { body += renderPctLine(m); });
+    } else if (primary && primary.total != null && primary.used == null) {
+      body += `<div class="prov-big">${fmtMetricVal(primary, primary.total).replace(/ (\S+)$/, "<span>$1</span>")}<span>${escHtml(primary.label)}</span></div>`;
+      if (primary.detail) body += `<div class="prov-foot">${escHtml(primary.detail)}</div>`;
+    } else if (primary && primary.total != null && primary.used != null) {
       const frac = primary.total > 0 ? primary.used / primary.total : 0;
       const cls = frac >= 0.95 ? "crit" : frac >= 0.8 ? "warn" : "";
       body += `<div class="prov-big">${fmtMetricVal(primary, primary.used)}<span>/ ${fmtMetricVal(primary, primary.total)} · ${(frac * 100).toFixed(1)}%</span></div>
@@ -2029,14 +2164,15 @@ function renderProviderTile(desc, snap) {
       const v = primary.remaining != null ? primary.remaining : primary.used;
       body += `<div class="prov-big">${fmtMetricVal(primary, v).replace(/ (\S+)$/, "<span>$1</span>")}</div>`;
     }
-    metrics.slice(1).forEach(m => {
+    metrics.slice(1).filter(m => m.unit !== "%").forEach(m => {
       const v = m.remaining != null && m.used == null ? m.remaining : m.used;
       body += `<div class="prov-line"><span>${escHtml(m.label)}</span><b>${fmtMetricVal(m, v)}</b></div>`;
     });
   } else if (snap) {
     body += `<div class="prov-err">${escHtml(snap.error || txt)}</div>`;
   }
-  const when = snap?.updated_at_iso ? `更新于 ${new Date(snap.updated_at_iso).toLocaleTimeString()}` : "";
+  const src = snap?.extra?.last_updated_iso || snap?.updated_at_iso;
+  const when = src ? `${snap?.extra?.last_updated_iso ? "缓存更新于" : "更新于"} ${fmtWhen(src)}` : "";
   return `<div class="prov-tile">
     <div class="prov-head"><span class="prov-name">${escHtml(desc.label)}</span>
       <span style="display:flex;gap:5px;">${badge}<span class="pill ${tone}" style="padding:1px 7px;font-size:10.5px;">${txt}</span></span></div>
@@ -2258,6 +2394,7 @@ function renderAccountCard(r) {
     </div>
     <div class="acct-badges">${b.join("")}</div>
     ${stats}
+    ${agLine(snaps.antigravity)}
     ${colabErr && !loading ? `<div class="prov-err">Colab：${escHtml(colabErr)}</div>` : ""}
     ${storBad && !loading ? `<div class="prov-err">云盘：${escHtml(snaps.google_storage.error || "")}</div>` : ""}
     ${meta.note ? `<div class="acct-note">${escHtml(meta.note)}</div>` : ""}
@@ -2517,6 +2654,177 @@ async function confirmRemoveAccount() {
   }
 }
 
+// ---------------------------------------------------------------- Percentage windows / time helpers (M4)
+function fmtWhen(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return "--";
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff >= 0 && diff < 86400) return fmtRelTime(d.getTime() / 1000);
+  return d.toLocaleString();
+}
+
+function fmtReset(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  const s = Math.round((d.getTime() - Date.now()) / 1000);
+  if (s <= 0) return "已重置";
+  if (s < 3600) return `${Math.ceil(s / 60)} 分钟后重置`;
+  if (s < 86400) return `${Math.floor(s / 3600)} 小时 ${Math.ceil((s % 3600) / 60)} 分后重置`;
+  return `${Math.floor(s / 86400)} 天 ${Math.floor((s % 86400) / 3600)} 小时后重置`;
+}
+
+function pctOf(m) { return typeof m?.remaining_fraction === "number" ? m.remaining_fraction * 100 : null; }
+
+function renderPctLine(m) {
+  const pct = pctOf(m);
+  const cls = pct == null ? "" : pct <= 5 ? "crit" : pct <= 20 ? "warn" : "";
+  return `<div class="prov-line"><span>${escHtml(m.label)}</span><b>${pct == null ? "--" : pct.toFixed(pct >= 99.95 || pct === 0 ? 0 : 1) + "%"}</b></div>
+    <div class="meter" title="${escHtml(fmtReset(m.reset_at_iso))}"><i class="${cls}" style="width:${pct == null ? 0 : Math.min(100, pct).toFixed(1)}%"></i></div>
+    ${m.reset_at_iso ? `<div class="prov-foot">${escHtml(fmtReset(m.reset_at_iso))}${m.detail ? " · " + escHtml(m.detail) : ""}</div>` : ""}`;
+}
+
+function agLine(snap) {
+  if (!snap || snap.status !== "ok") return "";
+  const parts = (snap.metrics || []).filter(m => /^Gemini Models/.test(m.label) || /Claude/.test(m.label)).slice(0, 4)
+    .map(m => `${escHtml(m.label.replace("Gemini Models", "Gemini").replace("Claude and GPT models", "Claude/GPT"))} <b>${(pctOf(m) ?? 0).toFixed(0)}%</b>`);
+  return parts.length ? `<div class="acct-note" title="Antigravity 剩余额度（本地缓存）">🛸 ${parts.join(" · ")}</div>` : "";
+}
+
+// ---------------------------------------------------------------- Pro benefits center (M4)
+let benefitsData = null;
+const BN_STATUS = { tracked: ["emerald", "实时"], manual: ["", "需在官方页面查看"], planned: ["", "规划中"] };
+
+function benefitLive(b) {
+  const s = b.snapshot;
+  if (!s) return b.note ? `<div class="prov-foot">${escHtml(b.note)}</div>` : "";
+  if (s.status !== "ok") return `<div class="prov-err">${escHtml(s.error || s.status)}</div>`;
+  const ms = s.metrics || [];
+  if (ms[0]?.unit === "%") return `<div class="bn-live">${ms.slice(0, 4).map(renderPctLine).join("")}</div>`;
+  if (b.provider === "google_storage") {
+    const t = ms.find(m => m.key === "storage_total");
+    return t ? `<div class="bn-live"><span>已用 <b>${fmtBytes(t.used)}</b>${t.total ? ` / ${fmtBytes(t.total)}` : ""}</span>
+      ${t.total ? `<div class="meter"><i style="width:${Math.min(100, t.used / t.total * 100).toFixed(1)}%"></i></div>` : ""}</div>` : "";
+  }
+  if (b.provider === "colab") {
+    const bal = ms.find(m => m.key === "ccu_balance");
+    return bal ? `<div class="bn-live"><span>当前余额 <b>${fmtCcu(bal.remaining)}</b> CCU</span></div>` : "";
+  }
+  if (b.provider === "gemini_cli") {
+    const ex = s.extra || {};
+    return `<div class="bn-live"><span>${ex.installed ? "已安装" : "未安装"} · ${ex.logged_in ? "已登录" : "未登录"}</span>
+      ${(ex.notes || []).map(n => `<span class="prov-foot">${escHtml(n)}</span>`).join("")}</div>`;
+  }
+  return "";
+}
+
+async function loadBenefits(force = false) {
+  const grid = document.getElementById("bnGrid");
+  try {
+    const res = await fetch(`/api/benefits${force ? "?refresh=1" : ""}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    benefitsData = data;
+    document.getElementById("bnSub").textContent = `额度以 Google 官方页面为准；「实时」项目显示账号「${data.account}」的实际用量`;
+    grid.innerHTML = (data.items || []).map(b => {
+      const [tone, txt] = BN_STATUS[b.status] || ["", b.status];
+      return `<div class="bn-tile ${b.status === "planned" ? "planned" : ""}">
+        <div class="prov-head"><span class="prov-name">${escHtml(b.name)}</span><span class="pill ${tone}" style="padding:1px 7px;font-size:10.5px;">${txt}</span></div>
+        <div class="bn-allow">${escHtml(b.allowance)}${b.period ? `<span>${escHtml(b.period)}</span>` : ""}</div>
+        ${benefitLive(b)}
+        <div class="bn-actions"><button class="btn btn-sm" data-url="${escHtml(b.url)}">↗ 打开官方页面</button></div>
+      </div>`;
+    }).join("");
+    renderAgTable(data.antigravity_accounts || []);
+    if (force) showToast("权益数据已刷新", "emerald");
+  } catch (e) {
+    grid.innerHTML = `<div class="prov-err">加载失败：${escHtml(e.message)}</div>`;
+  }
+}
+
+document.getElementById("bnGrid").addEventListener("click", e => {
+  const btn = e.target.closest("button[data-url]");
+  if (btn) openExternal(btn.dataset.url);
+});
+
+function renderAgTable(rows) {
+  const box = document.getElementById("agTable");
+  if (!rows.length) {
+    box.innerHTML = `<div class="card-sub">未检测到 Antigravity Tools 本地数据。安装并登录 Antigravity Tools 后即可在这里看到每个账号的 5 小时 / 每周额度。</div>`;
+    return;
+  }
+  const cols = [];
+  rows.forEach(r => (r.metrics || []).forEach(m => { if (!cols.find(c => c.key === m.key)) cols.push({ key: m.key, label: m.label }); }));
+  const head = `<tr><th>账号</th><th>订阅</th>${cols.map(c => `<th>${escHtml(c.label)}</th>`).join("")}<th>缓存更新</th></tr>`;
+  const body = rows.map(r => {
+    const ex = r.extra || {};
+    const cells = cols.map(c => {
+      const m = (r.metrics || []).find(x => x.key === c.key);
+      if (!m) return `<td>--</td>`;
+      const pct = pctOf(m);
+      return `<td><b style="color:${pct <= 5 ? "#fca5a5" : pct <= 20 ? "#fcd34d" : "#f8fafc"}">${pct.toFixed(pct >= 99.95 || pct === 0 ? 0 : 1)}%</b><div class="ag-cell-sub">${escHtml(fmtReset(m.reset_at_iso))}</div></td>`;
+    }).join("");
+    const err = r.status !== "ok" ? `<div class="ag-cell-sub" style="color:#fca5a5;">${escHtml(r.error || r.status)}</div>` : "";
+    return `<tr><td><div style="color:var(--text);">${escHtml(ex.email || r.account)}</div>
+        <div class="ag-cell-sub">${ex.in_hub || r.in_hub ? "✓ 已在账号管理中" : "仅 Antigravity"}${ex.current_in_tools ? " · Tools 当前账号" : ""}</div>${err}</td>
+      <td>${escHtml(ex.tier || "-")}</td>${cells}
+      <td><span class="ag-cell-sub" style="color:${ex.stale ? "#fcd34d" : "inherit"}">${ex.last_updated_iso ? fmtWhen(ex.last_updated_iso) : "--"}${ex.stale ? "（较旧）" : ""}</span></td></tr>`;
+  }).join("");
+  box.innerHTML = `<div style="overflow:auto;"><table class="ag-table">${head}${body}</table></div>`;
+}
+
+// ---------------------------------------------------------------- Self check (M4)
+const SC_ICON = { ok: "✅", warn: "⚠️", fail: "❌", info: "ℹ️" };
+let selfCheckLoading = false;
+
+async function loadSelfCheck(force = false) {
+  if (selfCheckLoading) return;
+  selfCheckLoading = true;
+  const list = document.getElementById("scList");
+  if (force) list.innerHTML = `<div class="card-sub">检查中...</div>`;
+  try {
+    const res = await fetch(`/api/selfcheck${force ? "?refresh=1" : ""}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    renderSelfCheck(data);
+  } catch (e) {
+    list.innerHTML = `<div class="prov-err">自检失败：${escHtml(e.message)}</div>`;
+  } finally {
+    selfCheckLoading = false;
+  }
+}
+
+function renderSelfCheck(data) {
+  const c = data.counts || {};
+  document.getElementById("scSub").textContent =
+    `后端 ${data.version}${data.probe_disabled ? "（只读模式）" : ""} · 通过 ${c.ok || 0} · 警告 ${c.warn || 0} · 失败 ${c.fail || 0} · 提示 ${c.info || 0}`;
+  document.getElementById("scList").innerHTML = (data.checks || []).map(r => `<div class="sc-row">
+      <div class="sc-icon">${SC_ICON[r.status] || "•"}</div>
+      <div class="sc-label">${escHtml(r.label)}</div>
+      <div><div class="sc-detail">${escHtml(r.detail)}</div>${r.fix ? `<div class="sc-fix">👉 ${escHtml(r.fix)}</div>` : ""}</div>
+    </div>`).join("");
+  const problems = (c.fail || 0) + (c.warn || 0);
+  const badge = document.getElementById("navCheckBadge");
+  badge.textContent = problems;
+  badge.style.display = problems ? "inline-block" : "none";
+  const banner = document.getElementById("checkBanner");
+  const sig = (data.checks || []).filter(r => r.status === "fail").map(r => r.id).join(",");
+  if (c.fail && localStorage.getItem("gamCheckDismissed") !== sig) {
+    document.getElementById("checkBannerText").textContent =
+      `⚠️ 环境自检发现 ${c.fail} 个问题：${(data.checks || []).filter(r => r.status === "fail").map(r => r.label).join("、")}`;
+    banner.dataset.sig = sig;
+    banner.classList.add("show");
+  } else {
+    banner.classList.remove("show");
+  }
+}
+
+function dismissCheckBanner() {
+  const banner = document.getElementById("checkBanner");
+  localStorage.setItem("gamCheckDismissed", banner.dataset.sig || "");
+  banner.classList.remove("show");
+}
+
 // SSE Connection
 function connectSSE() {
   if (eventSource) eventSource.close();
@@ -2565,6 +2873,7 @@ fetch("/api/state").then(r => r.json()).then(renderState).catch(() => {});
 connectSSE();
 loadProviders(false);
 loadAccountAggregate(false);
+setTimeout(() => loadSelfCheck(false), 2500);
 </script>
 </body>
 </html>
