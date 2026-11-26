@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Colab GPU Tools</title>
+<title>Google AI Manager</title>
 <style>
   :root {
     --bg: #0a0d14;
@@ -782,6 +782,42 @@
                  border-radius: var(--radius); background: var(--amber-soft); border: 1px solid var(--amber-border); color: #fde68a; font-size: 12.5px; }
   .info-banner.show { display: flex; }
 
+  /* Overview (v2.6) */
+  .ov-hero { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .ov-hero h2 { margin: 0; font-size: 17px; color: var(--text); }
+  .ov-hero .ov-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .ov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .ov-card { background: rgba(10, 13, 20, 0.45); border: 1px solid var(--border); border-radius: 12px; padding: 14px;
+             display: flex; flex-direction: column; gap: 6px; cursor: pointer; transition: border-color .15s, transform .15s; min-height: 150px; }
+  .ov-card:hover { border-color: rgba(96, 165, 250, 0.5); transform: translateY(-1px); }
+  .ov-head { display: flex; align-items: center; gap: 8px; }
+  .ov-icon { font-size: 18px; }
+  .ov-name { font-weight: 600; color: var(--text); font-size: 13px; flex: 1; }
+  .ov-big { font-family: var(--mono); font-size: 26px; font-weight: 700; color: #f8fafc; line-height: 1.15; }
+  .ov-big span { font-size: 12px; color: var(--text-dim); font-weight: 500; margin-left: 4px; font-family: var(--sans); }
+  .ov-big.dim { font-size: 17px; color: var(--text-muted); font-family: var(--sans); }
+  .ov-line { font-size: 12px; color: var(--text-muted); }
+  .ov-foot { font-size: 11px; color: var(--text-dim); margin-top: auto; }
+  .ov-bars { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 8px; align-items: center; font-size: 11.5px; color: var(--text-muted); }
+  .ov-bars b { font-family: var(--mono); color: #f8fafc; font-weight: 600; text-align: right; }
+  .todo-list { display: flex; flex-direction: column; gap: 8px; }
+  .todo-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px; border: 1px solid var(--border);
+               background: rgba(10, 13, 20, 0.35); font-size: 12.5px; color: var(--text); }
+  .todo-item .todo-txt { flex: 1; min-width: 0; }
+  .todo-item.warn { border-color: var(--amber-border); background: var(--amber-soft); }
+  .todo-item.crit { border-color: rgba(239, 68, 68, 0.45); background: rgba(239, 68, 68, 0.08); }
+  .mini-rows { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 11.5px; color: var(--text-dim); margin: 6px 0 4px; }
+  .mini-rows b { font-family: var(--mono); color: #f8fafc; text-align: right; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .colab-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .colab-bar .spacer { flex: 1; }
+  .set-section { font-size: 11px; font-weight: 600; letter-spacing: .8px; color: var(--text-dim); margin: 18px 2px 8px; }
+  .set-section:first-child { margin-top: 0; }
+  .bn-other { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .bn-other-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-muted); padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .bn-other-row:last-child { border-bottom: none; }
+  .bn-other-row b { color: var(--text); font-weight: 600; min-width: 210px; }
+  details.bn-details summary { cursor: pointer; font-weight: 600; color: var(--text); font-size: 13px; }
+
   /* Colab session manager */
   .sess-acct { margin-bottom: 16px; }
   .sess-acct-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 8px; font-size: 12.5px; color: var(--text-muted); }
@@ -875,7 +911,7 @@
         </svg>
       </div>
       <div>
-        <div class="brand-title">Colab GPU Tools</div>
+        <div class="brand-title">Google AI Manager</div>
         <div class="brand-sub">
           <span id="sidebarDot" class="status-dot"></span>
           <span id="sidebarStatusTxt">正在连接...</span>
@@ -884,50 +920,57 @@
     </div>
 
     <div class="nav-group">
-      <div class="nav-label">工作台</div>
-      <div class="nav-item active" data-view="dashboard">
-        <span>⚡</span><span>GPU 监控与抢卡</span>
-        <span id="navHoldBadge" class="nav-badge amber" style="display:none;">占卡中</span>
+      <div class="nav-label">概览</div>
+      <div class="nav-item active" data-view="overview">
+        <span>🏠</span><span>总览</span>
+        <span id="navTodoBadge" class="nav-badge amber" style="display:none;"></span>
       </div>
       <div class="nav-item" data-view="accounts">
         <span>👤</span><span>账号管理</span>
         <span id="navAcctBadge" class="nav-badge" style="display:none;"></span>
       </div>
+      <div class="nav-label">Colab 算力</div>
+      <div class="nav-item" data-view="dashboard">
+        <span>⚡</span><span>抢卡与锁卡</span>
+        <span id="navHoldBadge" class="nav-badge amber" style="display:none;">占卡中</span>
+      </div>
       <div class="nav-item" data-view="sessions">
-        <span>☁️</span><span>Colab 会话</span>
+        <span>☁️</span><span>会话管理</span>
         <span id="navSessBadge" class="nav-badge" style="display:none;"></span>
       </div>
-      <div class="nav-item" data-view="benefits">
-        <span>🎁</span><span>Pro 权益中心</span>
+      <div class="nav-item" data-view="runner">
+        <span>⌨</span><span>运行命令</span>
       </div>
+      <div class="nav-item" data-view="stats">
+        <span>📊</span><span>探测统计</span>
+      </div>
+      <div class="nav-label">AI 额度</div>
+      <div class="nav-item" data-view="benefits">
+        <span>🎁</span><span>权益明细</span>
+      </div>
+      <div class="nav-label">系统</div>
       <div class="nav-item" data-view="selfcheck">
         <span>🩺</span><span>环境自检</span>
         <span id="navCheckBadge" class="nav-badge amber" style="display:none;"></span>
       </div>
-      <div class="nav-item" data-view="runner">
-        <span>⌨</span><span>占卡后运行命令</span>
-      </div>
-      <div class="nav-item" data-view="analytics">
-        <span>📊</span><span>放卡规律热力图</span>
-      </div>
-      <div class="nav-item" data-view="history">
-        <span>🧾</span><span>探测与占卡记录</span>
-      </div>
       <div class="nav-item" data-view="settings">
-        <span>⚙️</span><span>设置与防扣费</span>
+        <span>⚙️</span><span>设置</span>
       </div>
     </div>
 
     <div class="sidebar-spacer"></div>
 
-    <div class="acct-mini" title="点击打开账号管理" onclick="switchView('accounts')">
+    <div class="acct-mini" title="点击打开总览" onclick="switchView('overview')">
       <div class="acct-mini-top">
         <span id="acctName">账号加载中...</span>
         <span id="acctVmBadge" class="pill" style="padding:1px 7px;font-size:10.5px;">0 VM</span>
       </div>
-      <div class="acct-ccu">
-        <span id="acctBalance" style="font-size:19px;color:#fff;">--</span>
-        <span>CCU</span>
+      <div class="mini-rows">
+        <span>⚡ Colab</span><b><span id="acctBalance">--</span> CCU</b>
+        <span>🎬 Flow</span><b id="miniFlow">--</b>
+        <span>☁️ 赠金</span><b id="miniGcp">--</b>
+        <span>💾 云盘</span><b id="miniDrive">--</b>
+        <span>🛸 反重力</span><b id="miniAg">--</b>
       </div>
       <div class="acct-meta">
         <span id="acctRate">0.00 CCU/hr</span>
@@ -945,15 +988,12 @@
   <main class="main-area">
     <header class="topbar">
       <div class="topbar-left">
-        <div id="topbarTitle" class="page-title">GPU 监控与自动抢占</div>
-        <span id="topModePill" class="pill amber">命中即占卡 · 15m</span>
-        <span id="topNextPill" class="pill">下次探测 --</span>
+        <div id="topbarTitle" class="page-title">总览</div>
         <span id="topAcctPill" class="pill" style="display:none;cursor:pointer;" onclick="switchView('accounts')"></span>
         <span id="topReadonlyPill" class="pill blue" style="display:none;" title="后端以 --no-probe 启动：禁用探测与抢卡">👁 只读模式</span>
       </div>
       <div class="topbar-right">
-        <button id="btnProbeNow" class="btn btn-primary btn-sm" onclick="probeNow()">🔍 立即探测</button>
-        <button id="btnTogglePause" class="btn btn-sm" onclick="togglePause()">⏸ 暂停监控</button>
+        <button class="btn btn-sm" onclick="refreshAllQuotas()" title="重新读取所有账号的各项额度">🔄 刷新全部额度</button>
       </div>
     </header>
 
@@ -971,8 +1011,37 @@
         <button class="btn btn-danger btn-sm" onclick="emergencyStopAll()">立即强制清理</button>
       </div>
 
-      <!-- VIEW 1: DASHBOARD -->
-      <section id="view-dashboard" class="view active">
+      <!-- VIEW: OVERVIEW (v2.6) -->
+      <section id="view-overview" class="view active">
+        <div class="ov-hero">
+          <div>
+            <h2>👋 Google AI Pro 额度总览</h2>
+            <div class="ov-sub">账号 <b id="ovAcct">-</b> · 五项每月发放的额度；点卡片查看详情</div>
+          </div>
+          <div id="ovAcctSwitch"></div>
+        </div>
+        <div id="ovCards" class="ov-grid"><div class="card-sub">加载中...</div></div>
+        <div id="acctAgg" class="acct-agg" style="display:none;margin-bottom:14px;"></div>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">📌 需要处理</div>
+              <div class="card-sub">锁卡、自检问题、未领取的赠金和未连接的额度来源</div>
+            </div>
+          </div>
+          <div id="ovTodo" class="todo-list"><div class="card-sub">检查中...</div></div>
+        </div>
+      </section>
+
+      <!-- VIEW: COLAB GRAB & HOLD -->
+      <section id="view-dashboard" class="view">
+        <div class="colab-bar">
+          <span id="topModePill" class="pill amber">命中即占卡 · 15m</span>
+          <span id="topNextPill" class="pill">下次探测 --</span>
+          <span class="spacer"></span>
+          <button id="btnProbeNow" class="btn btn-primary btn-sm" onclick="probeNow()">🔍 立即探测</button>
+          <button id="btnTogglePause" class="btn btn-sm" onclick="togglePause()">⏸ 暂停监控</button>
+        </div>
         <!-- Active Hold Hero Banner -->
         <div id="holdHero" class="hold-hero">
           <div class="hold-hero-top">
@@ -1032,19 +1101,6 @@
               <span>锁卡后自动挂载 Google Drive</span>
             </label>
           </div>
-        </div>
-
-        <!-- Provider quota overview -->
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <div class="card-title">📦 账号额度概览</div>
-              <div id="provSub" class="card-sub">当前账号的 Google AI Pro 各项额度（只读查询）</div>
-            </div>
-            <button class="btn btn-sm" onclick="loadProviders(true)">🔄 刷新额度</button>
-          </div>
-          <div id="acctAgg" class="acct-agg" style="display:none;"></div>
-          <div id="provGrid" class="prov-grid"><div class="card-sub">额度加载中...</div></div>
         </div>
 
         <!-- GPU Cards -->
@@ -1180,8 +1236,8 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <div class="card-title">🎁 Google AI Pro 权益</div>
-              <div id="bnSub" class="card-sub">额度以 Google 官方页面为准；带「实时」标记的项目会读取当前账号的实际用量</div>
+              <div class="card-title">🎁 每月额度（实时）</div>
+              <div id="bnSub" class="card-sub">额度以 Google 官方页面为准；以下五项会读取当前账号的实际用量</div>
             </div>
             <div style="display:flex;gap:8px;">
               <button class="btn btn-sm" onclick="openExternal(benefitsData?.plans_url || 'https://one.google.com/about/google-ai-plans/')">📄 官方方案说明</button>
@@ -1189,6 +1245,12 @@
             </div>
           </div>
           <div id="bnGrid" class="bn-grid"><div class="card-sub">加载中...</div></div>
+        </div>
+        <div class="card">
+          <details class="bn-details">
+            <summary>📎 其他权益（开通即可使用，没有额度需要统计）</summary>
+            <div id="bnOther" class="bn-other"></div>
+          </details>
         </div>
         <div class="card">
           <div class="card-header">
@@ -1252,7 +1314,15 @@
       </section>
 
       <!-- VIEW 3: ANALYTICS -->
-      <section id="view-analytics" class="view">
+      <!-- VIEW: COLAB PROBE STATS (heatmap + history) -->
+      <section id="view-stats" class="view">
+        <div class="colab-bar">
+          <div class="seg-group" id="statsTabs">
+            <button class="seg-btn active" data-tab="analytics" onclick="setStatsTab('analytics')">📊 放卡规律热力图</button>
+            <button class="seg-btn" data-tab="history" onclick="setStatsTab('history')">🧾 探测与占卡记录</button>
+          </div>
+        </div>
+        <div id="statsAnalytics">
         <div class="kpi-grid">
           <div class="kpi-card">
             <div class="kpi-label">24 小时总探测次数</div>
@@ -1290,10 +1360,8 @@
           </div>
           <div id="heatmapContainer"></div>
         </div>
-      </section>
-
-      <!-- VIEW 4: HISTORY -->
-      <section id="view-history" class="view">
+      </div>
+        <div id="statsHistory" style="display:none;">
         <div class="card">
           <div class="card-header">
             <div class="card-title">探测与占卡历史记录</div>
@@ -1331,10 +1399,49 @@
             </table>
           </div>
         </div>
+      </div>
       </section>
 
       <!-- VIEW 5: SETTINGS -->
       <section id="view-settings" class="view">
+        <div class="set-section">通用</div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🔔 通知与维护</div>
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">Windows 桌面通知弹窗</div>
+              <div class="form-desc">抢到卡或超时自动释放时弹出系统通知</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="cfgToast" checked onchange="updateCfg({windows_toast: this.checked})" />
+              <span class="switch-track"></span>
+            </label>
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">面板提示音</div>
+              <div class="form-desc">抢到卡并锁定时播放醒目提示音</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="cfgSound" checked onchange="updateCfg({browser_sound: this.checked})" />
+              <span class="switch-track"></span>
+            </label>
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">调试与维护</div>
+              <div class="form-desc">测试通知提醒，或清空历史探测记录</div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm" onclick="testAlert()">🔔 测试提醒</button>
+              <button class="btn btn-sm btn-danger" onclick="clearHistory()">🗑 清空探测记录</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="set-section">网络代理</div>
         <div class="card">
           <div class="card-header">
             <div>
@@ -1383,71 +1490,10 @@
           </div>
         </div>
 
+        <div class="set-section">Colab 与防扣费</div>
         <div class="card">
           <div class="card-header">
-            <div>
-              <div class="card-title">🧪 实验功能</div>
-              <div class="card-sub">使用非官方接口，可能随时失效；关闭后不再读取，也不影响其他功能</div>
-            </div>
-          </div>
-          <div class="form-row">
-            <div>
-              <div class="form-title">Google Flow 积分</div>
-              <div class="form-desc">桌面端为每个账号准备一个专用 Edge 配置，在 flow.google.com 页面内读取余额（与 Flow 头像菜单显示的一致），每 30 分钟刷新；登录令牌不离开浏览器页面。开启后在「账号管理」的账号卡片上点「连接 Flow」</div>
-            </div>
-            <label class="switch">
-              <input type="checkbox" id="cfgFlowOn" onchange="updateCfg({flow_credits_on: this.checked}).then(() => setTimeout(() => loadAccounts(false), 800))" />
-              <span class="switch-track"></span>
-            </label>
-          </div>
-          <div class="form-row">
-            <div>
-              <div class="form-title">Google Cloud 赠金（开发者计划）</div>
-              <div class="form-desc">用同一个专用浏览器配置读取开发者计划权益页与 Cloud 结算「赠送金额」页：显示每月 $10 赠金是否已领取、剩余多少（只回传状态与金额，不回传结算账号信息），每 6 小时刷新</div>
-            </div>
-            <label class="switch">
-              <input type="checkbox" id="cfgGcpOn" onchange="updateCfg({gcp_credits_on: this.checked}).then(() => setTimeout(() => loadAccounts(false), 800))" />
-              <span class="switch-track"></span>
-            </label>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <div class="card-title">🔁 多账号自动切换</div>
-              <div class="card-sub">主号 CCU 低于阈值、触发 429 限流、实例数达上限或授权失效时，探测与抢卡自动改用下面勾选的备用号（按顺序尝试）</div>
-            </div>
-          </div>
-          <div class="form-row">
-            <div>
-              <div class="form-title">启用自动切换</div>
-              <div class="form-desc">关闭时只使用「账号管理」里选定的账号（与之前行为一致）</div>
-            </div>
-            <label class="switch">
-              <input type="checkbox" id="cfgFailoverOn" onchange="updateCfg({failover_on: this.checked})" />
-              <span class="switch-track"></span>
-            </label>
-          </div>
-          <div class="form-row">
-            <div>
-              <div class="form-title">主号 CCU 最低阈值</div>
-              <div class="form-desc">余额低于该值时切换到备用号；备用号同样需要高于该值才会被使用</div>
-            </div>
-            <input id="cfgCcuThreshold" type="number" min="0" max="10000" step="1" value="5" style="width:90px;" onchange="updateCfg({min_ccu_threshold: Number(this.value)})" />
-          </div>
-          <div class="form-row" style="align-items:flex-start;">
-            <div>
-              <div class="form-title">备用号（按顺序）</div>
-              <div id="failoverStatus" class="form-desc">--</div>
-            </div>
-            <div id="failoverList" style="display:flex;flex-direction:column;gap:6px;min-width:220px;"></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">监控与占卡安全设置</div>
+            <div class="card-title">⚡ Colab 监控与防扣费</div>
           </div>
           <div class="form-row">
             <div>
@@ -1486,37 +1532,71 @@
               <span class="switch-track"></span>
             </label>
           </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🔁 多账号自动切换</div>
+              <div class="card-sub">主号 CCU 低于阈值、触发 429 限流、实例数达上限或授权失效时，探测与抢卡自动改用下面勾选的备用号（按顺序尝试）</div>
+            </div>
+          </div>
           <div class="form-row">
             <div>
-              <div class="form-title">Windows 桌面通知弹窗</div>
-              <div class="form-desc">抢到卡或超时自动释放时弹出系统通知</div>
+              <div class="form-title">启用自动切换</div>
+              <div class="form-desc">关闭时只使用「账号管理」里选定的账号（与之前行为一致）</div>
             </div>
             <label class="switch">
-              <input type="checkbox" id="cfgToast" checked onchange="updateCfg({windows_toast: this.checked})" />
+              <input type="checkbox" id="cfgFailoverOn" onchange="updateCfg({failover_on: this.checked})" />
               <span class="switch-track"></span>
             </label>
           </div>
           <div class="form-row">
             <div>
-              <div class="form-title">面板提示音</div>
-              <div class="form-desc">抢到卡并锁定时播放醒目提示音</div>
+              <div class="form-title">主号 CCU 最低阈值</div>
+              <div class="form-desc">余额低于该值时切换到备用号；备用号同样需要高于该值才会被使用</div>
             </div>
-            <label class="switch">
-              <input type="checkbox" id="cfgSound" checked onchange="updateCfg({browser_sound: this.checked})" />
-              <span class="switch-track"></span>
-            </label>
+            <input id="cfgCcuThreshold" type="number" min="0" max="10000" step="1" value="5" style="width:90px;" onchange="updateCfg({min_ccu_threshold: Number(this.value)})" />
           </div>
-          <div class="form-row">
+          <div class="form-row" style="align-items:flex-start;">
             <div>
-              <div class="form-title">调试与维护</div>
-              <div class="form-desc">测试通知提醒，或清空历史探测记录</div>
+              <div class="form-title">备用号（按顺序）</div>
+              <div id="failoverStatus" class="form-desc">--</div>
             </div>
-            <div style="display:flex;gap:8px;">
-              <button class="btn btn-sm" onclick="testAlert()">🔔 测试提醒</button>
-              <button class="btn btn-sm btn-danger" onclick="clearHistory()">🗑 清空探测记录</button>
-            </div>
+            <div id="failoverList" style="display:flex;flex-direction:column;gap:6px;min-width:220px;"></div>
           </div>
         </div>
+
+        <div class="set-section">实验功能</div>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🧪 实验功能</div>
+              <div class="card-sub">使用非官方接口，可能随时失效；关闭后不再读取，也不影响其他功能</div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">Google Flow 积分</div>
+              <div class="form-desc">桌面端为每个账号准备一个专用 Edge 配置，在 flow.google.com 页面内读取余额（与 Flow 头像菜单显示的一致），每 30 分钟刷新；登录令牌不离开浏览器页面。开启后在「账号管理」的账号卡片上点「连接 Flow」</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="cfgFlowOn" onchange="updateCfg({flow_credits_on: this.checked}).then(() => setTimeout(() => loadAccounts(false), 800))" />
+              <span class="switch-track"></span>
+            </label>
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">Google Cloud 赠金（开发者计划）</div>
+              <div class="form-desc">用同一个专用浏览器配置读取开发者计划权益页与 Cloud 结算「赠送金额」页：显示每月 $10 赠金是否已领取、剩余多少（只回传状态与金额，不回传结算账号信息），每 6 小时刷新</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="cfgGcpOn" onchange="updateCfg({gcp_credits_on: this.checked}).then(() => setTimeout(() => loadAccounts(false), 800))" />
+              <span class="switch-track"></span>
+            </label>
+          </div>
+        </div>
+
       </section>
     </div>
   </main>
@@ -1528,7 +1608,7 @@
 <script>
 let appState = null;
 let serverOffsetMs = 0;
-let currentView = "dashboard";
+let currentView = "overview";
 let eventSource = null;
 
 function fmtMMSS(sec) {
@@ -1592,15 +1672,17 @@ async function apiPost(path, body = {}) {
 
 // Navigation
 const VIEW_TITLES = {
-  dashboard: "GPU 监控与自动抢占",
-  accounts: "Google 账号管理中心",
-  benefits: "Google AI Pro 权益中心",
+  overview: "总览",
+  dashboard: "Colab 抢卡与锁卡",
+  stats: "Colab 探测统计",
+  accounts: "Google 账号管理",
+  benefits: "AI 额度权益明细",
   selfcheck: "环境自检",
   runner: "在锁定的 GPU 上运行命令",
   sessions: "Colab 会话管理",
   analytics: "24 小时放卡规律分析",
   history: "探测与占卡历史记录",
-  settings: "系统与防幽灵计费设置",
+  settings: "设置",
 };
 document.querySelectorAll(".nav-item").forEach(el => {
   el.addEventListener("click", () => {
@@ -1610,15 +1692,16 @@ document.querySelectorAll(".nav-item").forEach(el => {
 });
 
 function switchView(view) {
+  if (view === "analytics" || view === "history") { setStatsTab(view); view = "stats"; }
   currentView = view;
   document.querySelectorAll(".nav-item").forEach(n => n.classList.toggle("active", n.dataset.view === view));
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === `view-${view}`));
-  document.getElementById("topbarTitle").textContent = VIEW_TITLES[view] || "Colab GPU Tools";
-  if (view === "analytics") loadAnalytics();
-  if (view === "history") loadHistory();
+  document.getElementById("topbarTitle").textContent = VIEW_TITLES[view] || "Google AI Manager";
+  if (view === "stats") { statsTab === "history" ? loadHistory() : loadAnalytics(); }
+  if (view === "overview") loadOverview(false);
   if (view === "runner") { refreshJobLog(); loadRunnerForm(); }
   if (view === "settings") loadProxySettings();
-  if (view === "dashboard") { loadProviders(false); loadAccountAggregate(false); }
+
   if (view === "accounts") loadAccounts(false);
   if (view === "benefits") loadBenefits(false);
   if (view === "sessions") loadSessions(false);
@@ -1721,6 +1804,8 @@ function renderState(st) {
   document.getElementById("cfgSkipBusy").checked = Boolean(cfg.skip_when_active_vm);
   document.getElementById("cfgToast").checked = Boolean(cfg.windows_toast);
   document.getElementById("cfgSound").checked = Boolean(cfg.browser_sound);
+
+  if (acctOverview) { renderOverviewTodo(); renderSidebarMini(); }
 
   // Hold Hero Banner
   const hero = document.getElementById("holdHero");
@@ -1956,6 +2041,218 @@ async function releaseHold() {
   } catch (e) {
     showToast("释放失败: " + e.message, "crimson");
   }
+}
+
+// ---------------------------------------------------------------- Overview (v2.6)
+let overviewLoading = false;
+let statsTab = "analytics";
+
+function setStatsTab(tab) {
+  statsTab = tab === "history" ? "history" : "analytics";
+  document.getElementById("statsAnalytics").style.display = statsTab === "analytics" ? "" : "none";
+  document.getElementById("statsHistory").style.display = statsTab === "history" ? "" : "none";
+  document.querySelectorAll("#statsTabs .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === statsTab));
+  if (currentView === "stats") statsTab === "history" ? loadHistory() : loadAnalytics();
+}
+
+async function loadOverview(force = false) {
+  if (overviewLoading) return;
+  overviewLoading = true;
+  try {
+    const [a, o] = await Promise.all([
+      fetch("/api/accounts").then(r => r.json()),
+      fetch(`/api/accounts/overview${force ? "?refresh=1" : ""}`).then(r => r.json()),
+    ]);
+    if (!a.error) acctData = a;
+    if (o.error) throw new Error(o.error);
+    acctOverview = o;
+    if (acctData) await loadFlowStatus((acctData.accounts || []).map(x => x.name));
+    renderOverview();
+    renderAggregateStrip();
+    if (force) showToast("额度已刷新", "emerald");
+  } catch (e) {
+    document.getElementById("ovCards").innerHTML = `<div class="prov-err">额度加载失败：${escHtml(e.message)}</div>`;
+  } finally {
+    overviewLoading = false;
+  }
+}
+
+function refreshAllQuotas() {
+  loadOverview(true);
+  if (currentView === "accounts") loadAccounts(true);
+  if (currentView === "benefits") loadBenefits(true);
+  if (currentView === "sessions") loadSessions(true);
+}
+
+function renderAggregateStrip() {
+  const box = document.getElementById("acctAgg");
+  const t = acctOverview?.totals || {};
+  if ((t.accounts || 0) < 2) { box.style.display = "none"; return; }
+  box.innerHTML = `<span>全部 <b>${t.accounts}</b> 个账号</span>
+    <span>CCU 合计 <b>${fmtCcu(t.ccu_balance)}</b></span>
+    <span>消耗 <b>${(t.burn_rate || 0).toFixed(2)}</b> CCU/hr</span>
+    <span>运行中 VM <b>${t.active_vms || 0}</b></span>
+    ${t.storage_total ? `<span>存储 <b>${fmtBytes(t.storage_used)}</b> / ${fmtBytes(t.storage_total)}</span>` : ""}
+    <a onclick="switchView('accounts')">管理账号 →</a>`;
+  box.style.display = "flex";
+}
+
+function ovAccount() {
+  const names = Object.keys(acctOverview?.accounts || {});
+  const pick = localStorage.getItem("gamOvAccount");
+  if (pick && names.includes(pick)) return pick;
+  const primary = appState?.primary_account || acctData?.current;
+  return names.includes(primary) ? primary : names[0];
+}
+
+function ovSnaps() { return (acctOverview?.accounts || {})[ovAccount()] || {}; }
+
+function ovCard(view, icon, name, pill, big, lines, foot) {
+  return `<div class="ov-card" onclick="switchView('${view}')">
+    <div class="ov-head"><span class="ov-icon">${icon}</span><span class="ov-name">${name}</span>${pill || ""}</div>
+    ${big}${(lines || []).map(l => `<div class="ov-line">${l}</div>`).join("")}
+    ${foot ? `<div class="ov-foot">${foot}</div>` : ""}
+  </div>`;
+}
+
+function ovMeter(frac, warnLow = true) {
+  if (frac == null || isNaN(frac)) return "";
+  const pct = Math.max(0, Math.min(100, frac * 100));
+  const cls = warnLow ? (pct <= 5 ? "crit" : pct <= 20 ? "warn" : "") : (pct >= 95 ? "crit" : pct >= 80 ? "warn" : "");
+  return `<div class="meter"><i class="${cls}" style="width:${pct.toFixed(1)}%"></i></div>`;
+}
+
+function renderOverview() {
+  const s = ovSnaps();
+  const acct = ovAccount();
+  document.getElementById("ovAcct").textContent = acct || "-";
+  const names = Object.keys(acctOverview?.accounts || {});
+  document.getElementById("ovAcctSwitch").innerHTML = names.length > 1
+    ? `<select onchange="localStorage.setItem('gamOvAccount', this.value); renderOverview(); renderSidebarMini();">
+        ${names.map(n => `<option value="${escHtml(n)}" ${n === acct ? "selected" : ""}>${escHtml(n)}</option>`).join("")}</select>` : "";
+  const cfg = appState?.config || {};
+
+  // Colab
+  const bal = metricOf(s.colab, "ccu_balance"), burn = metricOf(s.colab, "burn_rate"), vms = metricOf(s.colab, "active_vms");
+  const hold = appState?.active_hold;
+  const colabPill = hold ? `<span class="pill amber">🔒 ${escHtml(hold.gpu)}</span>`
+    : s.colab && s.colab.status !== "ok" ? `<span class="pill crimson">异常</span>` : "";
+  const colab = ovCard("dashboard", "⚡", "Colab 算力", colabPill,
+    bal ? `<div class="ov-big">${fmtCcu(bal.remaining)}<span>CCU</span></div>` : `<div class="ov-big dim">${s.colab ? escHtml(s.colab.error || "无法读取") : "加载中..."}</div>`,
+    [`消耗 ${burn && burn.used ? burn.used.toFixed(2) : "0.00"} CCU/hr · ${vms ? vms.used : 0} 个实例`,
+     hold ? `锁卡中 · 剩余 ${fmtMMSS(Math.max(0, (hold.expires_at_ts || 0) - Date.now() / 1000))}` : (appState?.paused ? "监控已暂停" : "后台监控中")],
+    "AI Pro 每月 200 CCU");
+
+  // Flow
+  let flow;
+  const fs = s.flow_credits;
+  if (!cfg.flow_credits_on) {
+    flow = ovCard("settings", "🎬", "Flow 积分", `<span class="pill">未开启</span>`, `<div class="ov-big dim">未开启读取</div>`,
+      ["设置 → 实验功能 → Google Flow 积分"], "AI Pro 每月 1000 积分");
+  } else if (fs && fs.status === "ok") {
+    const m = fs.metrics[0];
+    flow = ovCard("accounts", "🎬", "Flow 积分", fs.extra?.stale ? `<span class="pill amber">较旧</span>` : "",
+      `<div class="ov-big">${Math.round(m.remaining)}<span>积分</span></div>${m.total ? ovMeter(m.remaining / m.total) : ""}`,
+      [fs.extra?.checked_at_iso ? `读取于 ${escHtml(fmtWhen(fs.extra.checked_at_iso))}` : ""], "AI Pro 每月 1000 积分 · 按订阅周期发放");
+  } else {
+    const connected = hasFlowBridge() ? Boolean(flowConnected[acct]) : fs && fs.status === "error";
+    flow = ovCard("accounts", "🎬", "Flow 积分", `<span class="pill ${fs?.status === "error" ? "crimson" : ""}">${fs?.status === "error" ? "读取失败" : connected ? "等待读取" : "未连接"}</span>`,
+      `<div class="ov-big dim">${escHtml(fs?.status === "error" ? fs.error || "读取失败" : connected ? "等待首次读取" : "未连接")}</div>`,
+      [connected ? "" : "在账号管理的账号卡片上点「🔗 连接」"], "AI Pro 每月 1000 积分");
+  }
+
+  // Cloud credits
+  let gcp;
+  const gs = s.gcp_credits;
+  if (!cfg.gcp_credits_on) {
+    gcp = ovCard("settings", "☁️", "Cloud 赠金", `<span class="pill">未开启</span>`, `<div class="ov-big dim">未开启读取</div>`,
+      ["设置 → 实验功能 → Google Cloud 赠金"], "开发者计划每月 $10");
+  } else if (gs && gs.status === "ok" && (gs.metrics || []).length) {
+    const m = gs.metrics[0];
+    gcp = ovCard("benefits", "☁️", "Cloud 赠金", "", `<div class="ov-big">${escHtml(m.unit || "$")}${Number(m.remaining).toFixed(2)}<span>剩余</span></div>`,
+      [gs.extra?.checked_at_iso ? `读取于 ${escHtml(fmtWhen(gs.extra.checked_at_iso))}` : ""], "开发者计划每月 $10 · 每笔 12 个月有效");
+  } else if (gs && gs.status === "ok") {
+    gcp = ovCard("benefits", "☁️", "Cloud 赠金", `<span class="pill amber">未领取</span>`, `<div class="ov-big dim">未领取</div>`,
+      [escHtml(gs.extra?.state_text || "")], "开发者计划每月 $10");
+  } else {
+    gcp = ovCard("accounts", "☁️", "Cloud 赠金", `<span class="pill ${gs?.status === "error" ? "crimson" : ""}">${gs?.status === "error" ? "读取失败" : "未读取"}</span>`,
+      `<div class="ov-big dim">${escHtml(gs?.status === "error" ? gs.error || "读取失败" : "等待读取")}</div>`, [], "开发者计划每月 $10");
+  }
+
+  // Drive
+  const st = metricOf(s.google_storage, "storage_total");
+  const drive = ovCard("accounts", "💾", "云盘存储", s.google_storage?.status === "unauthorized" ? `<span class="pill crimson">需重新授权</span>` : "",
+    st ? `<div class="ov-big">${fmtBytes(st.used)}<span>/ ${st.total ? fmtBytes(st.total) : "--"}</span></div>${st.total ? ovMeter(st.used / st.total, false) : ""}`
+       : `<div class="ov-big dim">${escHtml(s.google_storage?.error || "无法读取")}</div>`,
+    [], "Google One · Drive / Gmail / 相册共用");
+
+  // Antigravity
+  const ag = s.antigravity;
+  let agBody;
+  if (ag && ag.status === "ok") {
+    const pick = (re) => (ag.metrics || []).filter(m => re.test(m.label)).slice(0, 2);
+    const rows = [["Gemini", pick(/^Gemini/)], ["Claude/GPT", pick(/Claude/)]]
+      .flatMap(([lbl, ms]) => ms.map(m => `<span>${lbl} · ${escHtml(m.label.split("·").pop().trim())}</span>${ovMeter((pctOf(m) ?? 0) / 100)}<b>${(pctOf(m) ?? 0).toFixed(0)}%</b>`));
+    agBody = `<div class="ov-bars">${rows.join("")}</div>`;
+  } else {
+    agBody = `<div class="ov-big dim">${escHtml(ag?.error || "未检测到 Antigravity Tools")}</div>`;
+  }
+  const agCard = ovCard("benefits", "🛸", "Antigravity 反重力", ag?.extra?.stale ? `<span class="pill amber">较旧</span>` : "", agBody,
+    [ag?.extra?.last_updated_iso ? `缓存更新于 ${escHtml(fmtWhen(ag.extra.last_updated_iso))}` : ""], "5 小时 + 每周双窗口");
+
+  document.getElementById("ovCards").innerHTML = colab + flow + gcp + drive + agCard;
+  renderOverviewTodo();
+  renderSidebarMini();
+}
+
+function renderSidebarMini() {
+  const s = ovSnaps();
+  const cfg = appState?.config || {};
+  const f = s.flow_credits, g = s.gcp_credits, st = metricOf(s.google_storage, "storage_total"), ag = s.antigravity;
+  document.getElementById("miniFlow").textContent = !cfg.flow_credits_on ? "未开启"
+    : f?.status === "ok" ? `${Math.round(f.metrics[0].remaining)}` : f?.status === "error" ? "失败" : "未连接";
+  document.getElementById("miniGcp").textContent = !cfg.gcp_credits_on ? "未开启"
+    : g?.status === "ok" ? ((g.metrics || []).length ? `$${Number(g.metrics[0].remaining).toFixed(2)}` : "未领取") : g?.status === "error" ? "失败" : "--";
+  document.getElementById("miniDrive").textContent = st ? `${fmtBytes(st.used)}${st.total ? " / " + fmtBytes(st.total) : ""}` : "--";
+  const gem = (ag?.metrics || []).find(m => /^Gemini/.test(m.label));
+  document.getElementById("miniAg").textContent = gem ? `${(pctOf(gem) ?? 0).toFixed(0)}%` : "--";
+}
+
+function renderOverviewTodo() {
+  const box = document.getElementById("ovTodo");
+  if (!box) return;
+  const items = [];
+  const add = (tone, text, label, action) => items.push({ tone, text, label, action });
+  const st = appState || {};
+  const cfg = st.config || {};
+  if (st.critical_alert) add("crit", escHtml(st.critical_alert), "立即清理", "emergencyStopAll()");
+  if (st.active_hold) {
+    const h = st.active_hold;
+    add("warn", `🔒 正在锁定 ${escHtml(h.gpu)}（${escHtml(h.account || "-")}），剩余 ${fmtMMSS(Math.max(0, (h.expires_at_ts || 0) - Date.now() / 1000))} 后自动关机`, "查看", "switchView('dashboard')");
+  }
+  const c = lastSelfCheck?.counts || {};
+  if ((c.fail || 0) + (c.warn || 0)) add(c.fail ? "crit" : "warn", `🩺 环境自检：${c.fail || 0} 个失败、${c.warn || 0} 个警告`, "查看", "switchView('selfcheck')");
+  const s = ovSnaps();
+  if (s.google_storage?.status === "unauthorized") add("warn", "💾 云盘授权缺少 Drive 权限，存储额度无法读取", "去授权", "switchView('accounts')");
+  if (cfg.gcp_credits_on && s.gcp_credits?.status === "ok" && !(s.gcp_credits.metrics || []).length) {
+    add("warn", `☁️ ${escHtml(s.gcp_credits.extra?.state_text || "Cloud 赠金未领取")}`, "去领取",
+        `openExternal('${escHtml(s.gcp_credits.extra?.setup_url || "https://developers.google.com/program/my-benefits")}')`);
+  }
+  if (!cfg.flow_credits_on || !cfg.gcp_credits_on) {
+    add("", `🧪 ${[!cfg.flow_credits_on && "Flow 积分", !cfg.gcp_credits_on && "Cloud 赠金"].filter(Boolean).join("、")}读取未开启`, "去开启", "switchView('settings')");
+  } else if (hasFlowBridge() && !flowConnected[ovAccount()]) {
+    add("", "🔗 当前账号还没有连接网页读取（Flow 积分 / Cloud 赠金）", "去连接", "switchView('accounts')");
+  }
+  for (const [k, label] of [["flow_credits", "Flow 积分"], ["gcp_credits", "Cloud 赠金"]]) {
+    if (s[k]?.status === "error") add("warn", `${label}读取失败：${escHtml(s[k].error || "")}`, "重试", "switchView('accounts')");
+  }
+  box.innerHTML = items.length
+    ? items.map(i => `<div class="todo-item ${i.tone}"><span class="todo-txt">${i.text}</span><button class="btn btn-sm" onclick="${i.action}">${i.label}</button></div>`).join("")
+    : `<div class="todo-item"><span class="todo-txt">✅ 一切正常，没有需要处理的事项</span></div>`;
+  const badge = document.getElementById("navTodoBadge");
+  const n = items.filter(i => i.tone).length;
+  badge.textContent = n;
+  badge.style.display = n ? "inline-block" : "none";
 }
 
 // ---------------------------------------------------------------- Colab session manager (v2.3)
@@ -2520,9 +2817,10 @@ function renderProviderTile(desc, snap) {
 
 let providersLoading = false;
 async function loadProviders(force = false) {
+  const grid = document.getElementById("provGrid");
+  if (!grid) return loadOverview(force);  // v2.6: the per-provider tiles moved into the overview cards
   if (providersLoading) return;
   providersLoading = true;
-  const grid = document.getElementById("provGrid");
   try {
     const res = await fetch(`/api/providers${force ? "?refresh=1" : ""}`);
     const data = await res.json();
@@ -3175,7 +3473,11 @@ async function loadBenefits(force = false) {
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     benefitsData = data;
     document.getElementById("bnSub").textContent = `额度以 Google 官方页面为准；「实时」项目显示账号「${data.account}」的实际用量`;
-    grid.innerHTML = (data.items || []).map(b => {
+    const others = (data.items || []).filter(b => b.status !== "tracked");
+    document.getElementById("bnOther").innerHTML = others.map(b => `<div class="bn-other-row">
+        <b>${escHtml(b.name)}</b><span style="flex:1;">${escHtml(b.allowance)}${b.period ? " · " + escHtml(b.period) : ""}${b.note ? " · " + escHtml(b.note) : ""}</span>
+        <button class="btn btn-sm" data-url="${escHtml(b.url)}">↗ 打开</button></div>`).join("") || `<div class="card-sub">无</div>`;
+    grid.innerHTML = (data.items || []).filter(b => b.status === "tracked").map(b => {
       const [tone, txt] = BN_STATUS[b.status] || ["", b.status];
       return `<div class="bn-tile ${b.status === "planned" ? "planned" : ""}">
         <div class="prov-head"><span class="prov-name">${escHtml(b.name)}</span><span class="pill ${tone}" style="padding:1px 7px;font-size:10.5px;">${txt}</span></div>
@@ -3191,10 +3493,12 @@ async function loadBenefits(force = false) {
   }
 }
 
-document.getElementById("bnGrid").addEventListener("click", e => {
-  const btn = e.target.closest("button[data-url]");
-  if (btn) openExternal(btn.dataset.url);
-});
+for (const id of ["bnGrid", "bnOther"]) {
+  document.getElementById(id).addEventListener("click", e => {
+    const btn = e.target.closest("button[data-url]");
+    if (btn) openExternal(btn.dataset.url);
+  });
+}
 
 function renderAgTable(rows) {
   const box = document.getElementById("agTable");
@@ -3243,7 +3547,10 @@ async function loadSelfCheck(force = false) {
   }
 }
 
+let lastSelfCheck = null;
 function renderSelfCheck(data) {
+  lastSelfCheck = data;
+  renderOverviewTodo();
   const c = data.counts || {};
   document.getElementById("scSub").textContent =
     `后端 ${data.version}${data.probe_disabled ? "（只读模式）" : ""} · 通过 ${c.ok || 0} · 警告 ${c.warn || 0} · 失败 ${c.fail || 0} · 提示 ${c.info || 0}`;
@@ -3314,14 +3621,13 @@ setInterval(() => {
 }, 3000);
 
 setInterval(() => {
-  if (currentView === "dashboard") { loadProviders(false); loadAccountAggregate(false); }
+  if (currentView === "overview") loadOverview(false);
   if (currentView === "accounts") loadAccounts(false);
 }, 120000);
 
 fetch("/api/state").then(r => r.json()).then(renderState).catch(() => {});
 connectSSE();
-loadProviders(false);
-loadAccountAggregate(false);
+loadOverview(false);
 setTimeout(() => loadSelfCheck(false), 2500);
 </script>
 </body>

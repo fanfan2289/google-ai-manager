@@ -46,7 +46,7 @@ CONFIG_PATH = LOGS_DIR / "gpu_monitor_config.json"
 HOLD_STATE_PATH = LOGS_DIR / "active_hold.json"
 DOWNLOADS_DIR = PROJECT_DIR / "downloads"
 UI_HTML_PATH = SCRIPT_DIR / "monitor_ui.html"
-APP_VERSION = "2.5"
+APP_VERSION = "2.6"
 
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))

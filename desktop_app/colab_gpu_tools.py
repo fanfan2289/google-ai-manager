@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Colab GPU Tools — Native Windows WebView2 Desktop App + System Tray.
+"""Google AI Manager — Native Windows WebView2 Desktop App + System Tray.
 
 Antigravity Tools-style native desktop shell using Windows built-in Edge WebView2
 (`pywebview`) + System Tray (`pystray`), managing the WSL2 Colab GPU monitor &
@@ -36,11 +36,11 @@ FLOW_REFRESH_SECONDS = 30 * 60
 GCP_REFRESH_SECONDS = 6 * 3600
 _FLOW_LOCK = threading.Lock()
 
-APP_TITLE = "Colab GPU Tools"
+APP_TITLE = "Google AI Manager"
 BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 8765
 BACKEND_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}"
-EXPECTED_VERSION = "2.5"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
+EXPECTED_VERSION = "2.6"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
 # Google pages the UI may open in the default browser (keep in sync with providers/benefits.py).
 EXTERNAL_URL_PREFIXES = (
     "https://accounts.google.com/",
@@ -537,7 +537,7 @@ class DesktopController:
 
     def start_tray(self) -> None:
         menu = pystray.Menu(
-            pystray.MenuItem("打开 Colab GPU Tools", self.show_window, default=True),
+            pystray.MenuItem("打开 Google AI Manager", self.show_window, default=True),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("🔍 立即探测一轮", self._tray_probe_now),
             pystray.MenuItem("⏯ 暂停 / 恢复监控", self._tray_toggle_pause),

@@ -4,12 +4,13 @@
 >
 > [中文说明](./README.md)
 
-**Google AI Manager** is a native Windows desktop app (Edge WebView2 + system tray) with a WSL2 backend
+**Google AI Manager** (v2.6: an overview page of the five monthly Pro allowances — Colab CCU, Flow
+credits, Cloud credits, storage and Antigravity) is a native Windows desktop app (Edge WebView2 + system tray) with a WSL2 backend
 for people who use **Google AI Pro** across one or more Google accounts. It tracks Colab compute units,
 grabs scarce Colab GPUs with strict anti-ghost-billing guards, and puts the quotas of the other Pro
 tools in one place.
 
-## Features (v2.5)
+## Features (v2.6)
 
 - **Colab GPU monitor & auto-hold**: probes `G4 / A100 / H100 / L4 / T4` capacity at zero cost (a
   503 costs nothing), optionally holds a GPU on a hit and shuts the VM down

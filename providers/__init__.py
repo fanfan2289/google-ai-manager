@@ -23,8 +23,6 @@ __all__ = [
 
 # Roadmap entries shown in the UI so users can see what is coming (no code behind them yet).
 PLANNED_PROVIDERS: list[dict[str, Any]] = [
-    {"id": "jules", "label": "Jules", "category": "ai_quota", "official_api": True,
-     "description": "滚动 24 小时任务数（官方 API 无剩余额度字段，按任务数统计）", "milestone": "Phase 2"},
 ]
 
 
