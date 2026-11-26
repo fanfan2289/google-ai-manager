@@ -645,7 +645,7 @@ def main() -> int:
             width=1220,
             height=780,
             min_size=(940, 620),
-            background_color="#0a0d14",
+            background_color="#f5f7fb",
             resizable=True,
         )
         ctrl.window = window
