@@ -1,104 +1,74 @@
 # Google AI Manager
 
-> **Disclaimer**: Unofficial open-source community tool. Not affiliated with, endorsed by, or sponsored by Google LLC.
+> **声明**：非官方开源社区工具，与 Google LLC 无关联，也未获其认可或赞助。
 >
 > [English README](./README.en.md)
 
-**Google AI Manager** 是一款面向 Google AI 生态的原生桌面算力与额度管理工具（Windows Edge WebView2 + 系统托盘常驻），目前已完成 **Colab GPU 余量监控、自动抢卡锁卡、超时自动关机防扣费、在锁定 GPU 上运行命令** 以及 **多账号额度管理** 核心能力，并正持续演进为支持**多 Google 账号**与**多服务额度聚合**（Colab CCU、Google Drive 容量、Gemini / AI Studio API、GCP / Vertex 等）的统一管理面板。
+**Google AI Manager** 是一款给 **Google AI Pro** 用户用的 Windows 桌面应用（Edge WebView2 + 系统托盘，后端运行在 WSL2）。它把一个或多个 Google 账号每月发放的额度集中到一个面板里，同时提供 Colab GPU 抢卡、锁卡和防扣费保护。
+
+当前版本：**v2.9**
 
 ---
 
-## v2.8 变更：Colab 合并入口与额度详情
+## 它能做什么
 
-- **⚡ Colab** 合并为一个入口，页面内用子标签切换：抢卡与锁卡 / 会话 / 运行命令 / 探测统计。
-- **🎬 Flow 积分**：记录每次读到的余额（本机保存 90 天）画出余额曲线，显示近 24 小时 / 7 天用量，按官方价格估算还能生成多少条 Veo 视频（Lite 10 / Fast 20 积分每条）；余额低于阈值（默认 100）时桌面提醒；「打开 Flow（已登录）」直接用专用配置打开。
-- **☁️ Cloud 赠金**：识别新用户 $300 免费试用（可开始 / 试用中），分步引导「开始试用 → 领取开发者计划每月 $10」；领取后列出每笔赠金的剩余 / 原始金额和到期日，到期前 14 天提醒。
-- **⚙️ 设置分页 + 关于**：设置改为「通用 / 网络代理 / Colab 与防扣费 / 实验功能 / 关于」分页；关于页显示版本、作者、仓库与赞赏码。修复顶部导航改版后长页面滚动不到底的问题。
-- **🎨 浅色主题**：默认改为浅色（参考 Antigravity Tools），右上角 🌙 / ☀️ 一键切换深色，选择会被记住。
-- **💾 云盘**：空间构成（云盘文件 / Gmail 与相册 / 回收站）彩色条，回收站超过 1 GB 时提示并提供打开回收站的入口（只读，不删除文件）。
+### 🏠 总览：AI Pro 五项每月额度
+| 额度 | 显示内容 | 数据来源 |
+|---|---|---|
+| ⚡ **Colab 计算单元** | CCU 余额、实时消耗、运行中的实例 | colab 命令行（官方客户端） |
+| 🎬 **Flow 积分** | 余额、近 24 小时 / 7 天用量、余额曲线、还能生成约多少条 Veo 视频 | Flow 网页自身的只读查询（实验性） |
+| ☁️ **Google Cloud 赠金** | $300 免费试用状态、开发者计划每月 $10、每笔剩余金额与到期日 | 开发者计划权益页与 Cloud 结算页（实验性） |
+| 💾 **云盘存储** | 已用 / 总量、云盘文件 / Gmail 与相册 / 回收站构成 | Drive v3 官方接口 |
+| 🛸 **Antigravity（反重力）** | Gemini、Claude / GPT 的 5 小时与每周剩余 | Antigravity Tools 本地缓存（只读） |
 
-## v2.7 变更：一键添加 / 登录 Google 账号
+首页下方的「需要处理」会列出：锁卡中的 GPU、环境自检问题、未领取或快到期的赠金、Flow 余额不足、回收站过大等。
 
-- 「账号管理 → 添加账号 / 重新登录 / 授权云盘」改为一键 OAuth：点「开始 OAuth 授权」后在默认浏览器登录 Google，授权完成后通过本机回调自动完成，不再需要复制粘贴授权码；新账号按邮箱自动命名。
-- 授权码换令牌仍由 colab 官方命令行完成（`colab account login --code`），令牌仍只由 colab-ext 保存；回调端口只监听本机并校验 OAuth state，10 分钟未完成自动关闭。
-- 回调失败时可把浏览器地址栏的网址粘贴回来完成；云盘授权保留授权码方式作为备用。
-- 界面：左侧栏改为顶部横向导航（参考 Antigravity Tools）：图标胶囊导航、右上角额度摘要 / 刷新 / 一键强杀；总览页精简为「你好，xx 👋」+ 一行五张额度卡片，「需要处理」只在有事项时显示。
+### 👤 多账号
+- **一键添加 / 重新登录**：点「开始 OAuth 授权」，在默认浏览器里登录 Google 即自动完成，无需复制授权码；账号名按邮箱自动生成。
+- 云盘授权同样一键完成；支持显示名称、标签、颜色、备注，以及带保护的删除。
+- 多账号额度汇总；抢卡时主号余额不足、被限流或授权失效会自动切换到备用号。
 
-## v2.6 变更：界面重构（从 Colab 工具变为额度管理面板）
+### ⚡ Colab 算力（一个入口，四个子页）
+- **抢卡与锁卡**：探测 G4 / A100 / H100 / L4 / T4 余量（缺货不扣费），命中后可自动锁卡；无人认领到时自动关机。
+- **会话管理**：列出所有账号正在计费的实例（本工具锁卡 / 命令行 / 未跟踪），可在 Colab 网页打开、开终端、看 GPU 状态、上传下载文件、重启内核、单独停止、带自动关机的新建会话。
+- **运行命令**：在锁定的 GPU 上运行一条命令，结束后自动关机对账。
+- **探测统计**：24 小时放卡规律热力图与探测记录。
 
-- 新首页 **🏠 总览**：五张卡片对应 AI Pro 每月发放、值得追踪的五项额度——Colab CCU、Flow 积分、Cloud 赠金、云盘存储、Antigravity（反重力）；下方「需要处理」列出锁卡、自检问题、未领取的赠金、未开启 / 未连接的读取等。
-- 左侧导航按「概览 / Colab 算力 / AI 额度 / 系统」分组；放卡热力图与探测记录合并为「探测统计」；权益明细只保留五项实时额度，其他权益（Jules、NotebookLM 等）折叠为链接列表。
-- 顶栏只保留全局内容（当前账号、刷新全部额度）；「立即探测 / 暂停监控」移到「抢卡与锁卡」页；左下角改为五项迷你摘要；设置分为通用、网络代理、Colab 与防扣费、实验功能四个区。
-- 应用名改为 **Google AI Manager**（窗口标题、托盘、页面标题）。
+### 🛡️ 防扣费保护
+- 探测命中但不锁卡时，实例在 `finally` 中立即释放并复核为 0。
+- 锁卡状态持久化到 `logs/active_hold.json`，由独立的 1 秒看门狗按时关机。
+- 运行命令时另有独立的死人开关看门狗，以及 Bash 信号兜底、Windows 侧二次复核。
+- 右上角 🛑 一键强杀：关闭相关账号下的全部实例（含孤儿实例）并复核。
 
-## v2.5 变更：Google Cloud 赠金（实验性）、去掉 Gemini CLI
-
-- **☁️ Google Cloud 赠金（开发者计划，每月 $10）**：「设置 → 实验功能」开启后，用与 Flow 相同的专用浏览器配置读取开发者计划权益页与 Cloud 结算「赠送金额」页，显示「需先创建结算账号 / 可领取 / 剩余金额」，未领取时提供「去领取」入口；只回传状态与金额，不回传结算账号信息；每 6 小时刷新。Google 没有查询赠金余额的官方接口。
-- **去掉 Gemini CLI**：2026-06-18 起 Google AI Pro 账号已从 Gemini CLI 迁到 Antigravity CLI，原「每天 1500 次」已不适用，相关展示、自检项与插件全部删除（Antigravity 额度仍在权益中心与账号卡片显示）。
-- 修复：桌面端替换旧版后端时等待端口真正释放（旧后端会先完成进行中的探测），避免新后端启动失败。
-
-## v2.4 新增：Google Flow 积分（实验性）
-
-- 「设置 → 实验功能」开启后，在「账号管理」的账号卡片上点「🔗 连接 Flow」：桌面端为该账号打开一个**专用的 Edge 浏览器配置**（`%LOCALAPPDATA%\GoogleAIManager\flow\<账号>`，与你平时的浏览器完全隔离），在其中登录一次 `flow.google.com` 即可。
-- 之后桌面端每 30 分钟在后台无窗口打开 Flow，在**页面内**调用 Flow 自己的只读余额查询（与头像菜单显示的余额一致），只把数字交给后端；登录令牌不离开浏览器页面，本工具不读取、不保存、不记录。登录的 Google 账号与本工具账号不一致时不显示数字。
-- 权益中心与账号卡片显示实时余额；读取失败时保留上次的余额并提示原因。非官方接口，随时可能失效；查询方法参考 [gflow-cli](https://github.com/ffroliva/gflow-cli)（未复用代码）。
-
-## v2.3 变更：Colab 会话管理 + 通用化（不再绑定短剧工作流）
-
-- **☁️ Colab 会话管理**（新页面）：列出所有账号正在运行（正在计费）的 Colab 实例，区分「本工具锁卡 / 命令行 / 未跟踪（网页端或遗留）」；每个会话可在 Colab 网页中打开、打开终端（`colab ssh`，无 SSH 密钥时用 `colab repl`）、查看 GPU / 内存 / 磁盘状态、浏览 / 上传 / 下载文件、查看执行历史、重启内核、单独停止（不影响同账号的其他实例）；新建会话必须设置自动关机时长，并由锁卡看门狗守护。功能设计参考了 [colab-playground](https://github.com/scarletkc/colab-playground) 与 [colab-monitor](https://github.com/hohieuai/colab-monitor)（未复用其代码）。
-- **⌨ 在锁定的 GPU 上运行命令**：取代任务模板，「占卡」页面直接填一条 Shell 命令，命令结束后自动关机对账，超时由看门狗强杀；运行器自己控制会话 / GPU / 账号 / 超时参数，命令无法关闭自动关机。
-- **☁️ 云盘挂载改为按需**：锁卡后默认不再自动挂载 Google Drive，可在锁卡卡片上点「挂载云盘」，或在设置中重新打开自动挂载；从旧版升级时会自动关闭一次。
-- **短剧工作流降级为示例**：`cloud_workstation/`（工作流、剧本与素材）原样保留，改由命令行 `cloud_workstation/run_drama.sh`（或 `2_一键运行短剧_RunH3.bat`）运行；桌面端与后端不再包含任何短剧专用功能。
-- 默认锁卡会话名由 `h3work` 改为 `gpuwork`；`scripts/wsl_run_h3.sh` → `scripts/wsl_run_remote.sh`（通用远端命令运行器），`Invoke-ColabH3.ps1` → `Invoke-GAM.ps1`。
-
-## v2.2 新增：多账号与 Google AI Pro 额度中心（Phase 1）
-
-- **👤 多 Google 账号中心**：图形化添加 / 重新登录 / 云盘授权（复制授权码即可，无需命令行）、标签备注、切换、带保护的删除；全部账号 CCU / 实时消耗 / VM / 存储聚合看板。
-- **🔁 多账号自动切换**：主号 CCU 低于阈值、429 限流、实例数上限或授权失效时，探测与抢卡自动改用备用号；占卡、看门狗、释放与紧急强杀始终按「占卡的那个账号」执行，支持按账号 / 全部账号强杀。
-- **🎁 Pro 权益中心**：Google One 存储、Colab CCU、Antigravity 5 小时 / 每周窗口等实时额度，以及 Flow 积分、AI 积分、Cloud 赠金、Firebase Studio 等官方入口。
-- **🛸 Antigravity 额度**：只读 Antigravity Tools 本地缓存，按邮箱关联账号，**不读取、不使用任何令牌**。
-- **🌐 可视化代理**与 **🩺 首次启动环境自检**（Colab CLI、账号授权、云盘权限、网络、目录权限等，附修复建议）。
+### 其他
+- 浅色 / 深色主题切换；可视化网络代理设置（自动探测 / 手动 / 直连）；首次启动环境自检。
+- 设置分为：通用、网络代理、Colab 与防扣费、实验功能、关于。
 
 ---
 
-## 核心特性（v2.0-hold 起已实现）
+## 快速开始（Windows + WSL2）
 
-- **原生轻量桌面端 + 系统托盘常驻**（`desktop_app/colab_gpu_tools.py`）
-  - 基于 Windows 原生 Edge WebView2（`pywebview`）+ `pystray`，无浏览器地址栏、无黑框控制台、支持单实例唤醒。
-  - 关闭窗口默认最小化到系统托盘继续后台监控；托盘图标随状态变色（绿=监控中、琥珀=已锁卡倒计时、灰=暂停、红=残留告警）。
-- **GPU 余量监控 + 命中即占卡 + 超时自动关机**（`scripts/colab_gpu_monitor.py`）
-  - 支持监控 `G4 (96GB)`、`A100`、`H100`、`L4`、`T4`，503 缺货全程 `0 CCU` 消耗，SQLite 持久化记录并生成 24 小时放卡规律热力图。
-  - 双模式一键切换：**「命中即占卡」** vs **「仅监控秒释（<1s 自动释放，0 扣费）」**。
-  - **按需挂载云盘**：锁卡后可一键执行 `colab dfs mount` 挂载 Google Drive（也可在设置中开启锁卡后自动挂载）。
-  - **无人认领自动关机**：默认 15 分钟倒计时（界面支持 `10 / 15 / 20 / 30 分钟` 一键切换与 `+10 / +20 分钟` 续期），到期未使用由独立后台看门狗强杀并复核 `0` 残留。
-- **三重防幽灵计费守卫**（`scripts/colab_meter.py`）
-  1. 服务端全量枚举强杀（包括网页端/异常断连遗留的 `?` 孤儿实例）并轮询复核至 `0` 活跃会话。
-  2. Bash 全信号兜底（`EXIT / INT / TERM / HUP`）+ Windows `finally` 双重钩子。
-  3. 独立后台死人开关看门狗（`colab_meter.py watch`），防止终端强关或进程异常挂死持续扣 CCU。
-- **远端命令运行器**（`scripts/wsl_run_remote.sh`）
-  - 支持 `--reuse-session` 直接复用已锁定的 GPU 会话执行任意 Shell 命令（可选 `--mount-drive`），跑完自动强杀关机对账。
-  - `cloud_workstation/` 是一个示例工作流（ComfyUI + MiniMax-H3 短剧），通过 `cloud_workstation/run_drama.sh` 调用运行器。
+1. **桌面端**（Windows，Python 3.11+）：
+   ```powershell
+   py -3.12 -m venv .venv-desktop
+   .\.venv-desktop\Scripts\python.exe -m pip install -r requirements-desktop.txt
+   ```
+2. **后端**（WSL2 Ubuntu）：安装 `uv`、`google-colab-cli` 与 `colab-ext`：
+   ```powershell
+   wsl.exe -d Ubuntu -e bash scripts/wsl_setup_env.sh
+   ```
+3. **启动**：双击 `5_显卡余量监控看板_Monitor.bat`（加 `--web` 参数改用浏览器打开 `http://127.0.0.1:8765`）。
+4. **添加账号**：打开「👤 账号管理 → 添加账号 → 开始 OAuth 授权」。
+5. **可选**：在「设置 → 实验功能」打开 Flow 积分与 Cloud 赠金读取，然后在账号卡片上点「🔗 连接」，在弹出的专用 Edge 窗口里登录一次。
 
----
-
-## 路线图（Roadmap）
-
-- [x] **v2.0**：Colab GPU 余量监控、命中即占卡、自动静默挂盘、15 分钟超时自动关机、Edge WebView2 原生桌面端 + 系统托盘
-- [x] **Phase 1（多账号与通用化，v2.2）**：
-  - [x] **M1** `providers/` 额度插件层（Colab CCU、Google One 存储容量）+ 可视化网络代理设置（自动探测 / 手动 / 直连，配置保存在 `~/.google-ai-manager/`）
-  - [x] **M2** 图形化多 Google 账号中心（添加 / 切换 / 删除 / 标签备注 / OAuth + 云盘授权引导）+ 多账号额度聚合看板
-  - [x] **M3** 指定账号抢卡 + 主号 CCU 不足 / 限流 / 实例上限 / 授权失效时自动切换备用号 + 按账号 / 全部账号强杀
-  - [x] **M4** Antigravity 额度、Pro 权益中心、首次启动环境自检、中英文 README
-- [x] **v2.3**：Colab 会话管理页面、去除短剧专用功能（改为示例工作流）、锁卡后运行命令、云盘按需挂载
-- [x] **v2.4**：Google Flow 积分（实验性，专用浏览器配置 + 页面内只读查询）
-- [x] **v2.5**：Google Cloud 赠金领取状态与剩余金额（实验性）、去掉过时的 Gemini CLI 展示
-- [x] **v2.6**：界面重构为额度管理面板（总览首页、分组导航、五项迷你摘要）
-- [x] **v2.7**：一键 OAuth 添加 / 登录账号（本机回调，免复制授权码）
-- [x] **v2.8**：Colab 合并入口、Flow 余额趋势与提醒、Cloud 免费试用与赠金到期、云盘空间构成
-- [ ] **会话管理后续**：余额下限自动停机、端口转发（实例端口映射到本机 127.0.0.1）、一键部署插件
-- [ ] **Phase 2（多服务额度插件生态）**：
-  - Gemini / AI Studio API Key 池、GCP / Vertex AI 配额等其他 Google AI 额度
-  - 核心监控与抢卡脱离 WSL2 强依赖，支持纯原生 Windows / macOS / Linux 运行与自动构建安装包
+### 命令行入口（可选）
+| 入口 | 作用 |
+|---|---|
+| `1_首次授权_Auth.bat` | 命令行方式登录 Colab 与授权云盘（一般用界面的一键授权即可） |
+| `3_紧急强杀与CCU对账_StopAll.bat` | 强杀所有账号的全部 Colab 实例并复核 |
+| `4_查看状态与CCU余额_Status.bat` | 查看各账号的实例与 CCU 余额 |
+| `.\scripts\Invoke-GAM.ps1 run -g L4 -c "nvidia-smi"` | 抢一台 GPU 运行一条命令，跑完自动关机 |
+| `2_一键运行短剧_RunH3.bat` | 示例工作流（见下方 `cloud_workstation/`） |
 
 ---
 
@@ -106,82 +76,74 @@
 
 ```text
 google-ai-manager/
-├── providers/                    # 额度插件层：colab / google_storage / antigravity / gcp_credits / accounts_hub(多账号)
-│                                 #   benefits(权益中心) / selfcheck / remote_runner(运行命令) / colab_sessions(会话管理) / flow_credits / netcfg / paths
-├── tests/                        # 离线单元测试（python -m unittest discover -s tests）
 ├── desktop_app/
-│   ├── colab_gpu_tools.py        # Windows 原生 Edge WebView2 桌面外壳 + 系统托盘
-│   ├── flow_credits.py           # 专用 Edge 配置网页读取：Flow 积分 + Cloud 赠金
-│   └── colab_gpu_tools.ico       # 应用图标
+│   ├── colab_gpu_tools.py      # Windows 桌面外壳：WebView2 窗口 + 系统托盘 + JS 桥
+│   └── flow_credits.py         # 专用 Edge 配置的网页读取（Flow 积分、Cloud 赠金）
 ├── scripts/
-│   ├── colab_gpu_monitor.py      # GPU 探测、命中锁卡、按需挂盘、1s 倒计时看门狗与本地 HTTP/SSE 服务
-│   ├── monitor_ui.html           # 桌面客户端前端界面（左侧边栏 + 多视图仪表盘）
-│   ├── colab_meter.py            # CCU 对账、服务端全量强杀与死人开关看门狗
-│   ├── wsl_run_remote.sh         # 通用远端命令运行器（-c 命令，支持 --reuse-session / --mount-drive）
-│   ├── wsl_auth.sh               # Colab + DriveFS 首次 OAuth 授权脚本
-│   ├── wsl_setup_env.sh          # WSL2 环境初始化脚本
-│   └── Invoke-GAM.ps1            # PowerShell 统一调用入口
-├── cloud_workstation/            # 示例工作流：ComfyUI + MiniMax-H3 短剧（命令行使用）
-│   ├── run_drama.sh              # 同步到云盘 → 调用运行器 → 拉取成片到 outputs/
-│   ├── local/                    # 仅本机运行的辅助脚本（同步、拉取成片、下载模型），不会同步到云盘
-│   ├── scripts/                  # 在 Colab 上运行的脚本（ComfyUI 启动）
-│   └── workflows/                # 工作流、剧本与素材
-├── 0_下载模型到云盘_DownloadModels.bat
-├── 1_首次授权_Auth.bat
-├── 2_一键运行短剧_RunH3.bat
-├── 3_紧急强杀与CCU对账_StopAll.bat
-├── 4_查看状态与CCU余额_Status.bat
-├── 5_显卡余量监控看板_Monitor.bat
-├── requirements-desktop.txt      # Windows 桌面壳 Python 依赖
-├── AGENTS.md / CLAUDE.md         # AI Agent 协作上下文指南
-└── LICENSE
+│   ├── colab_gpu_monitor.py    # 后端：探测、锁卡、看门狗、会话管理、REST + SSE 接口（127.0.0.1:8765）
+│   ├── monitor_ui.html         # 前端界面（单文件）
+│   ├── colab_meter.py          # CCU 对账、全量强杀、死人开关看门狗
+│   ├── gam_oauth_loopback.py   # 一键登录（本机回调）
+│   ├── wsl_run_remote.sh       # 在 GPU 上运行命令的通用运行器
+│   ├── wsl_setup_env.sh / wsl_auth.sh / Invoke-GAM.ps1
+│   └── static/                 # 关于页图片
+├── providers/                  # 额度插件：colab / google_storage / antigravity / flow_credits / gcp_credits
+│                               #   accounts_hub(多账号) / colab_sessions / remote_runner / benefits / selfcheck / netcfg / paths
+├── cloud_workstation/          # 示例工作流：ComfyUI + MiniMax-H3 短剧（与应用本身无关，可删除）
+├── tests/                      # 单元测试
+└── *.bat                       # 命令行快捷入口
 ```
 
 ---
 
-## 快速开始（Windows + WSL2）
+## 安全与隐私
 
-### 1. 环境准备
-- **Windows 侧**：安装 Python 3.11+（系统自带 Microsoft Edge WebView2 Runtime），创建桌面端虚拟环境：
-  ```powershell
-  py -3.12 -m venv .venv-desktop
-  .\.venv-desktop\Scripts\python.exe -m pip install -r requirements-desktop.txt
-  ```
-- **WSL2 侧（Ubuntu）**：初始化 `uv` + `google-colab-cli` + `colab-ext`：
-  ```powershell
-  wsl.exe -d Ubuntu -e bash scripts/wsl_setup_env.sh
-  ```
-
-### 2. 首次授权 Google 账号
-推荐：启动桌面客户端后打开「👤 账号管理 → 添加账号」，点「开始 OAuth 授权」在浏览器登录即可自动完成（可添加多个账号）。
-
-命令行方式：双击运行 `1_首次授权_Auth.bat`（或运行 `.\scripts\Invoke-GAM.ps1 auth`）：
-1. 完成 Colab CLI 的 Google OAuth 登录（凭据仅保存在本机 WSL `~/.config/colab-cli/`，权限 `0600`，不会上传仓库）。
-2. 完成 `colab dfs consent` 云盘静默挂载授权（如出现权限复选框请勾选 Drive 文件访问权限）。
-
-### 3. 启动桌面客户端
-双击 **`5_显卡余量监控看板_Monitor.bat`** 即可启动原生桌面客户端（传入 `--web` 参数可回退至浏览器模式 `http://127.0.0.1:8765`）。首次启动后可在「🩺 环境自检」查看环境是否就绪。
+- **令牌**：Google 账号凭据由 colab-ext 保存在 WSL 本机（权限 0600），本工具不接触、不保存任何令牌。一键登录只把一次性授权码交给官方 `colab` 命令行。
+- **网页读取**：Flow 积分与 Cloud 赠金在每个账号专用的 Edge 配置里、在网页内部完成查询，只把数字和状态传回应用；登录状态、Cookie、邮箱、结算账号编号都不离开浏览器页面。这是非官方方式，网页改版可能失效，默认关闭。
+- **本地数据**：设置、账号备注、额度历史保存在 `~/.google-ai-manager/`（目录 0700 / 文件 0600）。
+- **不进仓库**：`logs/`、`outputs/`、`downloads/`、`*.db`、`active_hold.json`、`gpu_monitor_config.json`、`.venv-desktop/` 均已加入 `.gitignore`。
+- 本地接口只监听 `127.0.0.1`，并拒绝跨站请求。
 
 ---
 
-## 常用辅助入口
+## 开发
 
-- `3_紧急强杀与CCU对账_StopAll.bat`：一键强杀账号下所有云端 VM（含孤儿实例），复核 `0` 活跃会话并输出 CCU 余额。
-- `4_查看状态与CCU余额_Status.bat`：查询当前活跃实例、实时费率（`CCU/hr`）与剩余 CCU。
-- PowerShell 命令行：
-  ```powershell
-  # 预检授权与 CCU（不开机）
-  powershell -ExecutionPolicy Bypass -File .\scripts\Invoke-GAM.ps1 dry-run
-  # 抢一台 GPU 运行一条命令，跑完自动关机
-  powershell -ExecutionPolicy Bypass -File .\scripts\Invoke-GAM.ps1 run -g L4 -c "nvidia-smi"
-  ```
-- 示例短剧工作流：`0_下载模型到云盘_DownloadModels.bat`（下载模型）、`2_一键运行短剧_RunH3.bat`（运行 `cloud_workstation/run_drama.sh`）。
+```powershell
+# 单元测试（离线，不访问网络、不需要凭据）
+.\.venv-desktop\Scripts\python.exe -m unittest discover -s tests
+
+# 后端引擎测试（模拟 Colab，在 WSL 的 colab 环境里运行）
+wsl.exe -d Ubuntu -e bash -lc '$HOME/.local/share/uv/tools/google-colab-cli/bin/python -m unittest discover -s tests'
+
+# 安全实测：在空闲端口启动只读后端（不探测、不开机）
+wsl.exe -d Ubuntu -e python3 -u scripts/colab_gpu_monitor.py --port 8766 --no-probe
+```
+
+架构说明与开发约定见 [AGENTS.md](./AGENTS.md)。
 
 ---
 
-## 安全与隐私说明
+## 版本记录
 
-- 所有 OAuth Token、Drive 凭据、运行日志（`logs/`）、SQLite 探测库（`*.db`）、锁卡状态（`active_hold.json`）均已被 `.gitignore` 严格排除，**请勿将任何凭据或日志文件提交至公开仓库**。
-- 账号凭据由 colab-ext 保存在 WSL 本机；本工具自身的设置、账号备注保存在 `~/.google-ai-manager/`（目录 0700 / 文件 0600），不进仓库。
-- Antigravity 仅读取本地缓存文件，从不读取或使用其令牌；Flow 积分与 Cloud 赠金只在专用浏览器页面内读取、只回传数字；本地接口拒绝跨站请求。
-- 欢迎通过 Issue / PR 共建多账号与多 Google AI 额度模块。
+| 版本 | 主要内容 |
+|---|---|
+| v2.9 | 设置分页 + 关于页；修复长页面滚动不到底；清理模型下载等遗留脚本 |
+| v2.8 | Colab 合并为一个入口；Flow 余额趋势与提醒；Cloud 免费试用与赠金到期提醒；云盘空间构成；浅色主题 |
+| v2.7 | 一键 OAuth 添加 / 登录账号；顶部横向导航 |
+| v2.6 | 界面改为额度管理面板（总览首页） |
+| v2.5 | Google Cloud 赠金（实验性）；去掉已不适用的 Gemini CLI |
+| v2.4 | Google Flow 积分（实验性） |
+| v2.3 | Colab 会话管理；去掉短剧专用功能，改为通用的「运行命令」 |
+| v2.2 | 多账号中心、自动切换、Pro 权益中心、Antigravity 额度、环境自检 |
+| v2.0 | Colab GPU 监控、命中即锁卡、超时自动关机、桌面端与托盘 |
+
+## 路线图
+- 余额下限自动停机、实例端口转发到本机
+- Gemini / AI Studio API Key 管理与用量
+- 纯 Windows 运行（不依赖 WSL2）与安装包
+
+---
+
+## 许可与支持
+
+[MIT License](./LICENSE)。觉得有用的话，可以在应用的「设置 → 关于」页面请作者喝杯咖啡。

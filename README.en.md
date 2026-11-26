@@ -4,85 +4,59 @@
 >
 > [中文说明](./README.md)
 
-**Google AI Manager** (v2.6: an overview page of the five monthly Pro allowances — Colab CCU, Flow
-credits, Cloud credits, storage and Antigravity) is a native Windows desktop app (Edge WebView2 + system tray) with a WSL2 backend
-for people who use **Google AI Pro** across one or more Google accounts. It tracks Colab compute units,
-grabs scarce Colab GPUs with strict anti-ghost-billing guards, and puts the quotas of the other Pro
-tools in one place.
+**Google AI Manager** is a Windows desktop app (Edge WebView2 + system tray, backend in WSL2) for
+**Google AI Pro** users. It gathers the monthly allowances of one or more Google accounts into one
+panel and adds Colab GPU grabbing with strict anti-ghost-billing guards.
 
-## Features (v2.8)
+Current version: **v2.9**
 
-- **Colab GPU monitor & auto-hold**: probes `G4 / A100 / H100 / L4 / T4` capacity at zero cost (a
-  503 costs nothing), optionally holds a GPU on a hit and shuts the VM down
-  automatically when nobody claims it (independent 1-second watchdog, persisted hold state); Google
-  Drive can be mounted on demand.
-- **Anti-ghost-billing**: every probe allocation that is not intentionally held is released in a
-  `finally` block and verified; emergency stop kills all VMs (including orphans) and re-checks for 0.
-- **Multi-account hub**: add / re-login / Drive-consent Google accounts from the UI with one click
-  (browser sign-in completes through a localhost callback; no code to paste), labels and notes, guarded removal, aggregated CCU / burn rate / VMs /
-  storage across accounts.
-- **Failover**: when the primary account is below a CCU threshold, rate-limited (429), at its
-  instance cap (412) or unauthorised, probing and grabbing switch to ordered backup accounts. Holds,
-  the watchdog, release and emergency stop always act on the account that owns the hold.
-- **Google AI Pro benefits center**: live Google One storage, Colab CCU, Antigravity 5-hour / weekly
-  windows, Flow credits and Google Cloud credit status, plus official entry points for AI credits, Google Cloud
-  credits, Firebase Studio and more.
-- **Antigravity quota**: read-only from the Antigravity Tools local cache, matched to accounts by
-  e-mail — no tokens are ever read or used.
-- **Colab session manager**: every live (billed) Colab VM across all accounts, labelled as held by
-  this app / CLI / untracked (opened in the browser or orphaned). Per session: open in Colab web,
-  open a terminal (`colab ssh`, or `colab repl` without an SSH key), GPU / memory / disk status,
-  browse / upload / download files, execution history, restart kernel, and stop just that VM. New
-  sessions require an auto-shutdown time and are guarded by the hold watchdog. Feature ideas from
-  [colab-playground](https://github.com/scarletkc/colab-playground) and
-  [colab-monitor](https://github.com/hohieuai/colab-monitor) (no code reused).
-- **Google Flow credits (experimental, opt-in)**: the desktop shell keeps a dedicated Edge profile
-  per account (you sign in to flow.google.com once) and every 30 minutes reads the balance inside
-  the page with Flow's own read-only query; only the number reaches the app, the sign-in token
-  never leaves the browser page, and a mismatched Google account shows no number.
-- **Google Cloud credits (experimental, opt-in)**: the same dedicated profile reads the Developer
-  Program benefits page and the Cloud Billing credits page: whether the monthly credit still needs a
-  billing account / can be claimed, and how much is left. Only a state and amounts leave the page.
-- **Run a command on the held GPU**: one shell command runs on the held session; when it exits the
-  VM is stopped and reconciled, and the watchdog kills it at the time limit. The runner owns the
-  session / GPU / account / time-limit flags, so a command cannot disable auto-shutdown.
-- **Example workflow**: `cloud_workstation/` (ComfyUI + MiniMax-H3 short drama) is kept as a
-  command-line example (`cloud_workstation/run_drama.sh`); the app itself has no drama-specific code.
-- **Proxy settings** (auto-detect / manual / direct) shared by the backend and all scripts, and a
-  **first-run self-check** with fix hints.
+## Features
+
+- **Overview of the five monthly Pro allowances**
+  - Colab compute units: balance, burn rate, running VMs.
+  - Flow credits: balance, 24 h / 7 d usage, trend chart, estimated Veo clips left (experimental).
+  - Google Cloud credits: $300 free-trial status, Developer Program $10/month, per-credit expiry (experimental).
+  - Google One storage: usage and breakdown (Drive files / Gmail & Photos / trash).
+  - Antigravity: Gemini and Claude/GPT 5-hour and weekly windows (read from the Antigravity Tools cache).
+  - A to-do list highlights holds, self-check issues, unclaimed or expiring credits and low balances.
+- **Accounts**: one-click OAuth sign-in (the browser login completes through a localhost callback; no
+  code to paste), Drive consent, labels and notes, guarded removal, totals across accounts, and
+  failover to backup accounts when grabbing GPUs.
+- **Colab** (one entry, four sub-tabs): grab & hold GPUs with auto-shutdown; a session manager for every
+  billed VM (open in Colab web, terminal, GPU status, files, restart kernel, stop one VM); run a command
+  on the held GPU; probe statistics.
+- **Anti-ghost-billing**: probe allocations released in `finally` and verified; persisted holds with a
+  1-second watchdog; dead-man watchdog for commands; one-click emergency stop.
+- Light / dark theme, proxy settings, first-run self-check, About page.
 
 ## Quick start (Windows + WSL2)
 
-1. Desktop shell (Windows, Python 3.11+):
+1. Desktop shell (Python 3.11+):
    ```powershell
    py -3.12 -m venv .venv-desktop
    .\.venv-desktop\Scripts\python.exe -m pip install -r requirements-desktop.txt
    ```
-2. Backend (WSL2 Ubuntu): installs `uv`, `google-colab-cli` and `colab-ext`:
-   ```powershell
-   wsl.exe -d Ubuntu -e bash scripts/wsl_setup_env.sh
-   ```
-3. Start `5_显卡余量监控看板_Monitor.bat` (add `--web` for browser mode on `http://127.0.0.1:8765`).
-4. Open **Accounts → Add account** to sign in, then check **Self-check** to confirm the setup.
+2. Backend (WSL2 Ubuntu): `wsl.exe -d Ubuntu -e bash scripts/wsl_setup_env.sh`
+3. Start `5_显卡余量监控看板_Monitor.bat` (`--web` for browser mode on `http://127.0.0.1:8765`).
+4. **Accounts → Add account → Start OAuth**.
+5. Optional: enable Flow / Cloud credit reading in **Settings → Experimental**, then **Connect** on an
+   account card and sign in once in the dedicated Edge window.
 
 ## Privacy & security
 
-- Credentials stay where `google-colab-cli` / `colab-ext` keep them in WSL (`0600`). App settings and
-  account notes live in `~/.google-ai-manager/` (`0700` / `0600`), never in the repository.
-- `logs/`, `outputs/`, `*.db`, `active_hold.json` and `gpu_monitor_config.json` are git-ignored.
-- The local API only listens on `127.0.0.1` and refuses cross-origin browser requests.
-- The Antigravity integration only reads its local cache; Flow and Cloud credits are read inside a dedicated
-  browser page and only numbers leave it.
+- Credentials stay with `google-colab-cli` / `colab-ext` in WSL (`0600`); the app never handles tokens.
+- Flow and Cloud credits are read inside a dedicated per-account browser page; only numbers and states
+  leave it. Unofficial and off by default.
+- App settings, notes and history live in `~/.google-ai-manager/` (`0700` / `0600`), never in the repo.
+- The local API listens on `127.0.0.1` only and refuses cross-origin requests.
 
 ## Development
 
 ```powershell
-# Offline unit tests (no network / Colab / credentials)
-.\.venv-desktop\Scripts\python.exe -m unittest discover -s tests -v
-# Engine tests with mocked Colab (inside the google-colab-cli venv)
+.\.venv-desktop\Scripts\python.exe -m unittest discover -s tests
 wsl.exe -d Ubuntu -e bash -lc '$HOME/.local/share/uv/tools/google-colab-cli/bin/python -m unittest discover -s tests'
-# Safe live test: read-only backend on a spare port (never probes or allocates GPUs)
-wsl.exe -d Ubuntu -e python3 -u scripts/colab_gpu_monitor.py --port 8766 --no-probe
+wsl.exe -d Ubuntu -e python3 -u scripts/colab_gpu_monitor.py --port 8766 --no-probe   # safe read-only backend
 ```
 
-See [AGENTS.md](./AGENTS.md) for architecture and safety invariants. Licensed under MIT.
+`cloud_workstation/` is an optional example workflow (ComfyUI + MiniMax-H3 short drama), unrelated to
+the app itself. See [AGENTS.md](./AGENTS.md) for architecture and safety invariants. Licensed under MIT.

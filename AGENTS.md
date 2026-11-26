@@ -63,20 +63,15 @@ This repository (`google-ai-manager`) is collaboratively developed by multiple A
    - Any held VM (`HOLDING` or `CLAIMED_MANUAL`) MUST be persisted to `logs/active_hold.json` and enforced by the independent 1-second `_hold_watchdog_loop()` auto-shutdown timer.
    - Never terminate or disturb pre-existing user Colab VMs during automated testing unless explicitly asked.
 
-## 3. Target Roadmap (Next Milestones)
+## 3. Status & Roadmap
 
-1. **Multi-Account Management (inspired by Antigravity Tools)**:
-   - Visual Accounts Hub in the desktop UI (add/switch/remove/tag multiple Google accounts, OAuth flow, Drive consent status).
-   - Aggregated multi-account CCU balance & active VM overview; account selector & failover for GPU sniping.
-2. **Modular Google Quota Providers (`providers/`)**:
-   - Extract Colab logic into a provider interface so future providers can plug in cleanly:
-     - `colab` (CCU, GPU capacity, auto-hold, anti-ghost-billing)
-     - `drive_quota` (Google One / Drive storage usage per account)
-     - `gemini_api` (AI Studio / Gemini API keys, RPM/RPD quotas, health checks)
-     - `gcp_vertex` / additional Google AI credit sources
-3. **Cross-Platform & Decoupling**:
-   - Keep personal workflows out of the app: they run through the generic command runner (`scripts/wsl_run_remote.sh`).
-   - Long-term: move Colab HTTPS/OAuth monitoring & hold logic to pure cross-platform Python so WSL2 is only optional (needed only for `colab dfs mount`).
+Done (v2.9): accounts hub with one-click OAuth, failover, provider layer (Colab, storage, Antigravity, Flow, Cloud credits), overview dashboard, Colab session manager, command runner, light/dark themes, settings tabs + About. Product scope: deep-track only the five monthly Pro allowances (Colab CCU, Flow, Cloud credits, storage, Antigravity); other benefits are links only. Do not add drama/model-download features back into the app.
+
+Next:
+1. Verify Cloud credit parsing once a billing account / free trial exists (claimed and trial-active pages are untested).
+2. Balance-floor auto-stop for Colab; port forwarding from a session to 127.0.0.1.
+3. Gemini / AI Studio API key management (never store keys in the repo).
+4. Long-term: pure Windows runtime (WSL2 optional) and an installer.
 
 ## 4. Quick Verification Commands
 

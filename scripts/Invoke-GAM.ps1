@@ -1,6 +1,6 @@
 ﻿param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("auth", "download", "run", "drama", "stop", "status", "dry-run", "monitor")]
+    [ValidateSet("auth", "run", "drama", "stop", "status", "dry-run", "monitor")]
     [string]$Mode,
 
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -24,15 +24,6 @@ switch ($Mode) {
     "auth" {
         wsl.exe -d Ubuntu -e bash "$WslProjectRoot/scripts/wsl_auth.sh" @PassThruArgs
         exit $LASTEXITCODE
-    }
-    "download" {
-        try {
-            wsl.exe -d Ubuntu -e bash "$WslProjectRoot/cloud_workstation/local/wsl_download_models.sh" @PassThruArgs
-            exit $LASTEXITCODE
-        }
-        finally {
-            wsl.exe -d Ubuntu -e python3 "$WslProjectRoot/scripts/colab_meter.py" stop --all
-        }
     }
     "status" {
         wsl.exe -d Ubuntu -e python3 "$WslProjectRoot/scripts/colab_meter.py" status --all-accounts @PassThruArgs
