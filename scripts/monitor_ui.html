@@ -1400,6 +1400,16 @@
               <span class="switch-track"></span>
             </label>
           </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">Google Cloud 赠金（开发者计划）</div>
+              <div class="form-desc">用同一个专用浏览器配置读取开发者计划权益页与 Cloud 结算「赠送金额」页：显示每月 $10 赠金是否已领取、剩余多少（只回传状态与金额，不回传结算账号信息），每 6 小时刷新</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="cfgGcpOn" onchange="updateCfg({gcp_credits_on: this.checked}).then(() => setTimeout(() => loadAccounts(false), 800))" />
+              <span class="switch-track"></span>
+            </label>
+          </div>
         </div>
 
         <div class="card">
@@ -1706,6 +1716,7 @@ function renderState(st) {
   document.getElementById("cfgClaimMax").value = cfg.manual_claim_max_minutes || 120;
   renderFailoverSettings(st);
   document.getElementById("cfgFlowOn").checked = Boolean(cfg.flow_credits_on);
+  document.getElementById("cfgGcpOn").checked = Boolean(cfg.gcp_credits_on);
   renderAcctPill(st);
   document.getElementById("cfgSkipBusy").checked = Boolean(cfg.skip_when_active_vm);
   document.getElementById("cfgToast").checked = Boolean(cfg.windows_toast);
@@ -2723,6 +2734,7 @@ function renderAccountCard(r) {
     ${stats}
     ${agLine(snaps.antigravity)}
     ${flowLine(snaps.flow_credits, r.name)}
+    ${gcpLine(snaps.gcp_credits, r.name)}
     ${colabErr && !loading ? `<div class="prov-err">Colab：${escHtml(colabErr)}</div>` : ""}
     ${storBad && !loading ? `<div class="prov-err">云盘：${escHtml(snaps.google_storage.error || "")}</div>` : ""}
     ${meta.note ? `<div class="acct-note">${escHtml(meta.note)}</div>` : ""}
@@ -3026,12 +3038,43 @@ function agLine(snap) {
 let flowConnected = {};   // account -> bool (desktop bridge only)
 const hasFlowBridge = () => Boolean(window.pywebview?.api?.flow_status);
 
+const webReadOn = () => Boolean(appState?.config?.flow_credits_on || appState?.config?.gcp_credits_on);
+
 async function loadFlowStatus(names) {
-  if (!hasFlowBridge() || !appState?.config?.flow_credits_on) return;
+  if (!hasFlowBridge() || !webReadOn()) return;
   try {
     const r = await window.pywebview.api.flow_status(names);
     flowConnected = r?.connected || {};
   } catch (_) {}
+}
+
+function webButtons(name, connected) {
+  if (!hasFlowBridge()) return "";
+  const nm = escHtml(name);
+  return connected
+    ? `<button class="btn btn-sm" data-act="flow-refresh" data-name="${nm}" title="立即读取">🔄</button>
+       <button class="btn btn-sm" data-act="flow-connect" data-name="${nm}" title="打开专用浏览器窗口重新登录">🔑</button>
+       <button class="btn btn-sm" data-act="flow-disconnect" data-name="${nm}" title="删除这个账号的专用浏览器配置">断开</button>`
+    : `<button class="btn btn-sm btn-primary" data-act="flow-connect" data-name="${nm}">🔗 连接</button>`;
+}
+
+function gcpLine(snap, name) {
+  if (!appState?.config?.gcp_credits_on) return "";
+  const ex = snap?.extra || {};
+  let text;
+  if (snap && snap.status === "ok" && (snap.metrics || []).length) {
+    const m = snap.metrics[0];
+    text = `☁️ Cloud 赠金剩余 <b>${escHtml(m.unit || "$")}${Number(m.remaining).toFixed(2)}</b>${ex.checked_at_iso ? ` · ${escHtml(fmtWhen(ex.checked_at_iso))}` : ""}`;
+  } else if (snap && snap.status === "ok") {
+    text = `☁️ Cloud 赠金：<span style="color:#fcd34d;">${escHtml(ex.state_text || "未领取")}</span>
+      <a style="cursor:pointer;color:#93c5fd;" onclick="openExternal('${escHtml(ex.setup_url || "https://developers.google.com/program/my-benefits")}')">去领取 ↗</a>`;
+  } else if (snap && snap.status === "error") {
+    text = `☁️ Cloud 赠金：<span style="color:#fca5a5;">${escHtml(snap.error || "读取失败")}</span>`;
+  } else {
+    text = `☁️ Cloud 赠金：${hasFlowBridge() && flowConnected[name] ? "已连接，等待首次读取（约 30 秒）" : "未连接"}`;
+  }
+  const btns = appState?.config?.flow_credits_on ? "" : webButtons(name, hasFlowBridge() ? Boolean(flowConnected[name]) : false);
+  return `<div class="acct-note" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span>${text}</span>${btns}</div>`;
 }
 
 function flowLine(snap, name) {
@@ -3050,11 +3093,7 @@ function flowLine(snap, name) {
   } else {
     text = `🎬 Flow 积分：${connected ? "已连接，等待首次读取" : "未连接"}`;
   }
-  const btns = !hasFlowBridge() ? "" : connected
-    ? `<button class="btn btn-sm" data-act="flow-refresh" data-name="${nm}" title="立即读取 Flow 积分">🔄</button>
-       <button class="btn btn-sm" data-act="flow-connect" data-name="${nm}" title="打开专用浏览器窗口重新登录">🔑</button>
-       <button class="btn btn-sm" data-act="flow-disconnect" data-name="${nm}" title="删除这个账号的 Flow 专用浏览器配置">断开</button>`
-    : `<button class="btn btn-sm btn-primary" data-act="flow-connect" data-name="${nm}">🔗 连接 Flow</button>`;
+  const btns = webButtons(name, connected);
   return `<div class="acct-note" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span>${text}</span>${btns}</div>`;
 }
 
@@ -3062,17 +3101,21 @@ async function flowConnect(name) {
   const r = await window.pywebview.api.flow_connect(name);
   if (!r?.ok) return showToast(r?.error || "无法打开浏览器", "crimson");
   flowConnected[name] = true;
-  showToast(`已打开专用 Edge 窗口：请用「${name}」对应的 Google 账号登录 flow.google.com，登录后关闭窗口，再点 🔄 读取`, "amber");
+  showToast(`已打开专用 Edge 窗口：请用「${name}」对应的 Google 账号登录，登录后关闭窗口，再点 🔄 读取`, "amber");
   renderAccounts();
 }
 
 async function flowRefresh(name, btn) {
   if (btn) btn.disabled = true;
-  showToast("正在读取 Flow 积分（约 10 秒）...", "amber");
+  const slow = appState?.config?.gcp_credits_on;
+  showToast(`正在读取${slow ? "（含 Cloud 赠金，约 40 秒）" : "（约 10 秒）"}...`, "amber");
   try {
     const r = await window.pywebview.api.flow_refresh(name);
-    if (r?.ok) showToast(`Flow 积分：${r.credits}`, "emerald");
-    else showToast(`Flow 积分读取失败：${r?.error || "未知错误"}`, "crimson");
+    const parts = [];
+    if (r?.flow) parts.push(r.flow.ok ? `Flow 积分 ${r.flow.credits}` : `Flow：${r.flow.error || "失败"}`);
+    if (r?.gcp) parts.push(r.gcp.ok ? `Cloud 赠金：${r.gcp.dev_remaining != null ? "$" + r.gcp.dev_remaining : "未领取"}` : `Cloud 赠金：${r.gcp.error || "失败"}`);
+    if (!parts.length && r?.error) parts.push(r.error);
+    showToast(parts.join(" · ") || "读取完成", r?.ok ? "emerald" : "crimson");
   } finally {
     if (btn) btn.disabled = false;
     loadAccounts(false);
@@ -3080,9 +3123,9 @@ async function flowRefresh(name, btn) {
 }
 
 async function flowDisconnect(name) {
-  if (!confirm(`断开「${name}」的 Flow 连接？\n\n会删除这个账号专用的 Edge 浏览器配置（其中的 Google 登录状态），不影响你平时使用的浏览器。之后需要重新连接才能读取。`)) return;
+  if (!confirm(`断开「${name}」的网页读取连接？\n\n会删除这个账号专用的 Edge 浏览器配置（其中的 Google 登录状态），Flow 积分与 Cloud 赠金都将停止读取；不影响你平时使用的浏览器。`)) return;
   const r = await window.pywebview.api.flow_disconnect(name);
-  showToast(r?.ok ? "已断开 Flow" : `断开失败：${r?.error || ""}`, r?.ok ? "emerald" : "crimson");
+  showToast(r?.ok ? "已断开" : `断开失败：${r?.error || ""}`, r?.ok ? "emerald" : "crimson");
   flowConnected[name] = false;
   loadAccounts(false);
 }
@@ -3106,17 +3149,20 @@ function benefitLive(b) {
     const bal = ms.find(m => m.key === "ccu_balance");
     return bal ? `<div class="bn-live"><span>当前余额 <b>${fmtCcu(bal.remaining)}</b> CCU</span></div>` : "";
   }
+  if (b.provider === "gcp_credits") {
+    const ex = s.extra || {};
+    const m = ms[0];
+    if (m) return `<div class="bn-live"><span>开发者计划赠金剩余 <b>${escHtml(m.unit || "$")}${Number(m.remaining).toFixed(2)}</b></span>
+      <span class="prov-foot">${ex.checked_at_iso ? "读取于 " + escHtml(fmtWhen(ex.checked_at_iso)) : ""} · 实验性</span></div>`;
+    return `<div class="bn-live"><span style="color:#fcd34d;">${escHtml(ex.state_text || "未领取")}</span>
+      <span class="prov-foot">${ex.checked_at_iso ? "读取于 " + escHtml(fmtWhen(ex.checked_at_iso)) : ""} · 实验性</span></div>`;
+  }
   if (b.provider === "flow_credits") {
     const m = ms[0];
     const ex = s.extra || {};
     return m ? `<div class="bn-live"><span>当前余额 <b>${Math.round(m.remaining)}</b> 积分</span>
       ${m.total ? `<div class="meter"><i style="width:${Math.min(100, m.remaining / m.total * 100).toFixed(1)}%"></i></div>` : ""}
       <span class="prov-foot">${ex.checked_at_iso ? "读取于 " + escHtml(fmtWhen(ex.checked_at_iso)) : ""}${ex.stale ? "（较旧）" : ""} · 实验性</span></div>` : "";
-  }
-  if (b.provider === "gemini_cli") {
-    const ex = s.extra || {};
-    return `<div class="bn-live"><span>${ex.installed ? "已安装" : "未安装"} · ${ex.logged_in ? "已登录" : "未登录"}</span>
-      ${(ex.notes || []).map(n => `<span class="prov-foot">${escHtml(n)}</span>`).join("")}</div>`;
   }
   return "";
 }

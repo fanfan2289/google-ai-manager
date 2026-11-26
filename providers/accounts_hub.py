@@ -241,7 +241,7 @@ class AccountsHub:
         return list((self.registry().get("accounts") or {}).keys())
 
     def email_of(self, name: str) -> str | None:
-        """Google e-mail recorded by colab-ext for a profile (links it to Antigravity / Gemini CLI)."""
+        """Google e-mail recorded by colab-ext for a profile (links it to Antigravity / Flow)."""
         try:
             meta = (self.registry().get("accounts") or {}).get(name) or {}
         except Exception:

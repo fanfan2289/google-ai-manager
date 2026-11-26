@@ -89,6 +89,69 @@ class ProviderTests(unittest.TestCase):
         self.assertTrue(b["url"].startswith(benefits.EXTERNAL_URL_PREFIXES))
 
 
+class GcpCreditsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        from providers.gcp_credits import GcpCreditsProvider, validate_gcp_report
+
+        self.validate = validate_gcp_report
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = FlowCreditsStore(Path(self.tmp.name) / "gcp.json")
+        self.p = GcpCreditsProvider(self.store, enabled=lambda: True)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_report_keeps_state_and_amounts_only(self) -> None:
+        rep = self.validate({"account": "main", "ok": True, "state": "active", "billing_accounts": 1,
+                             "dev_remaining": 7.5, "currency": "$", "billing_id": "0123AB-CDEF01-234567"},
+                            ["main"], now=1.0)
+        self.assertNotIn("0123AB", json.dumps(rep))
+        self.assertEqual(rep["record"]["dev_remaining"], 7.5)
+        with self.assertRaises(FlowReportError):
+            self.validate({"account": "main", "ok": True, "state": "bogus"}, ["main"])
+
+    def test_unclaimed_state_has_text_and_no_metric(self) -> None:
+        rec = self.validate({"account": "main", "ok": True, "state": "no_billing"}, ["main"])["record"]
+        self.store.put("main", rec)
+        snap = self.p.snapshot("main")
+        self.assertEqual((snap.status, snap.metrics), (OK, []))
+        self.assertIn("结算账号", snap.extra["state_text"])
+
+    def test_active_balance(self) -> None:
+        rec = self.validate({"account": "main", "ok": True, "state": "active", "dev_remaining": 9.25,
+                             "other_remaining": 300, "currency": "$"}, ["main"])["record"]
+        self.store.put("main", rec)
+        snap = self.p.snapshot("main")
+        self.assertEqual([m.remaining for m in snap.metrics], [9.25, 300.0])
+
+    def test_benefit_is_tracked(self) -> None:
+        b = next(x for x in benefits.BENEFITS if x["id"] == "gcp_credits")
+        self.assertEqual((b["status"], b["provider"]), ("tracked", "gcp_credits"))
+        self.assertTrue(b["url"].startswith(benefits.EXTERNAL_URL_PREFIXES))
+        self.assertNotIn("gemini_cli", [x["id"] for x in benefits.BENEFITS])
+
+
+@unittest.skipIf(desktop_flow is None, "desktop flow reader not importable")
+class GcpPageTests(unittest.TestCase):
+    def test_no_billing(self) -> None:
+        out = desktop_flow.normalize_gcp({"state": "needs_billing"}, {"ids": []}, [])
+        self.assertEqual((out["state"], out["program_state"], out["billing_accounts"]), ("no_billing", "needs_billing", 0))
+
+    def test_active_sums_unexpired_developer_credits(self) -> None:
+        pages = [{"credits": [
+            {"label": "developer_program", "remaining": 10, "original": 10, "currency": "$", "expired": False},
+            {"label": "developer_program", "remaining": 4.5, "original": 10, "currency": "$", "expired": False},
+            {"label": "developer_program", "remaining": 3, "original": 10, "currency": "$", "expired": True},
+            {"label": "other", "remaining": 280, "original": 300, "currency": "$", "expired": False},
+        ]}]
+        out = desktop_flow.normalize_gcp({"state": "claimed"}, {"ids": ["X"]}, pages)
+        self.assertEqual((out["state"], out["dev_remaining"], out["other_remaining"]), ("active", 14.5, 280.0))
+
+    def test_billing_without_program_credit(self) -> None:
+        out = desktop_flow.normalize_gcp({"state": "unknown"}, {"ids": ["X"]}, [{"credits": [], "no_credits_text": True}])
+        self.assertEqual(out["state"], "billing_no_program_credit")
+
+
 @unittest.skipIf(desktop_flow is None, "desktop flow reader not importable")
 class PageResultTests(unittest.TestCase):
     def test_balance(self) -> None:

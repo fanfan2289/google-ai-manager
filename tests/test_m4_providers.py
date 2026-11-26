@@ -1,4 +1,4 @@
-"""Offline tests for M4: Antigravity cache provider, Gemini CLI status, benefits catalog, self-check.
+"""Offline tests for M4: Antigravity cache provider, benefits catalog, self-check.
 
 Run:  python -m unittest discover -s tests -v
 """
@@ -20,7 +20,6 @@ sys.path.insert(0, str(ROOT))
 from providers import benefits, paths, selfcheck  # noqa: E402
 from providers.antigravity import AntigravityProvider, parse_quota  # noqa: E402
 from providers.base import NOT_CONFIGURED, OK  # noqa: E402
-from providers.gemini_cli import PRO_DAILY_REQUESTS, GeminiCliProvider  # noqa: E402
 
 QUOTA = {
     "last_updated": time.time() - 60,
@@ -89,37 +88,6 @@ class AntigravityTests(unittest.TestCase):
         snap = self.p.snapshot("main")
         self.assertEqual(snap.status, "error")
         self.assertIn("banned", snap.error)
-
-
-class GeminiCliTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.tmp = tempfile.TemporaryDirectory()
-        self.home = Path(self.tmp.name)
-
-    def tearDown(self) -> None:
-        self.tmp.cleanup()
-
-    def provider(self, email="me@example.com"):
-        return GeminiCliProvider(email_of=lambda _a: email, homes=[self.home])
-
-    def test_not_installed_not_logged_in(self) -> None:
-        p = self.provider()
-        p.installed = lambda: None  # ignore any gemini on the test machine's PATH
-        self.assertEqual(p.snapshot("a").status, NOT_CONFIGURED)
-
-    def test_logged_in_matching_account_reports_daily_limit(self) -> None:
-        _write(self.home / ".gemini" / "oauth_creds.json", {"refresh_token": "SECRET"})
-        _write(self.home / ".gemini" / "google_accounts.json", {"active": "me@example.com"})
-        (self.home / "AppData/Roaming/npm").mkdir(parents=True)
-        (self.home / "AppData/Roaming/npm/gemini.cmd").write_text("@echo off", encoding="utf-8")
-        snap = self.provider().snapshot("a").to_dict()
-        self.assertEqual((snap["status"], snap["metrics"][0]["total"]), (OK, PRO_DAILY_REQUESTS))
-        self.assertNotIn("SECRET", json.dumps(snap))
-
-    def test_other_signed_in_account(self) -> None:
-        _write(self.home / ".gemini" / "oauth_creds.json", {})
-        _write(self.home / ".gemini" / "google_accounts.json", {"active": "other@example.com"})
-        self.assertEqual(self.provider().snapshot("a").status, NOT_CONFIGURED)
 
 
 class BenefitsTests(unittest.TestCase):

@@ -243,76 +243,265 @@ def _wait_port(d: Path, proc: subprocess.Popen, timeout: float = 20.0) -> int:
     raise FlowError("浏览器没有启动调试端口：如果 Flow 登录窗口还开着，请先关闭它再刷新")
 
 
-def read_credits(account: str, expected_email: str | None = None, *, headless: bool = True) -> dict[str, Any]:
-    """Read the Flow balance for `account` through its dedicated browser profile."""
-    account = check_account(account)
-    if not is_connected(account):
-        return {"ok": False, "connected": False, "error": "尚未连接 Flow"}
-    d = profile_dir(account)
-    close_profile_browser(account)  # a running instance on this profile would swallow our launch
-    (d / "DevToolsActivePort").unlink(missing_ok=True)
-    flags = [*_common_flags(account), "--remote-debugging-port=0", "--remote-debugging-address=127.0.0.1",
-             "--disable-extensions", "--mute-audio", "--disable-background-networking"]
-    flags += ["--headless=new"] if headless else ["--window-position=-32000,-32000", "--window-size=800,600"]
-    proc = subprocess.Popen([find_browser(), *flags, "about:blank"], creationflags=CREATE_NO_WINDOW,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    cdp = None
-    try:
-        port = _wait_port(d, proc)
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=10) as resp:
-            targets = json.loads(resp.read().decode("utf-8"))
-        page = next((t for t in targets if t.get("type") == "page" and t.get("webSocketDebuggerUrl")), None)
-        if page is None:
-            raise FlowError("浏览器没有可用页面")
-        cdp = _Cdp(page["webSocketDebuggerUrl"])
-        cdp.call("Page.navigate", {"url": FLOW_URL})
-        deadline = time.time() + 40
-        state = ""
-        while time.time() < deadline:
-            res = cdp.call("Runtime.evaluate", {
-                "expression": "location.origin + '|' + document.readyState + '|' + Boolean(window.WIZ_global_data)",
-                "returnByValue": True})
-            state = str((res.get("result") or {}).get("value") or "")
-            if state == f"{FLOW_ORIGIN}|complete|true":
-                break
-            if state.startswith("https://accounts.google.com|complete"):
-                return {"ok": False, "connected": True, "error": "未登录 Flow，请点「连接 Flow」并在弹出的窗口中登录"}
-            time.sleep(0.5)
-        else:
-            raise FlowError("打开 flow.google.com 超时（检查网络或代理）")
-        res = cdp.call("Runtime.evaluate", {
-            "expression": f"({PAGE_SCRIPT})({json.dumps(expected_email or '')})",
-            "awaitPromise": True, "returnByValue": True,
-        }, timeout=40)
-        if res.get("exceptionDetails"):
-            return {"ok": False, "connected": True, "error": "页面脚本执行失败（网络或接口变化）"}
-        out = normalize((res.get("result") or {}).get("value"))
-        return {**out, "connected": True}
-    except FlowError as exc:
-        return {"ok": False, "connected": True, "error": str(exc)}
-    except Exception as exc:  # never include response bodies: only the error type
-        return {"ok": False, "connected": True, "error": f"读取失败（{type(exc).__name__}）"}
-    finally:
-        if cdp is not None:
+GCP_BENEFITS_URL = "https://me.developers.google.com/benefits"
+GCP_BILLING_URL = "https://console.cloud.google.com/billing"
+SIGNED_OUT = "未登录，请点「连接」并在弹出的窗口中登录"
+
+# Developer Program benefits page: is the monthly Cloud credit waiting for a billing account?
+GCP_BENEFITS_SCRIPT = r"""
+(() => {
+  const t = (document.body ? document.body.innerText : "").replace(/\s+/g, " ");
+  const lower = t.toLowerCase();
+  const out = { has_monthly_credit: /每月\s*\$\s*\d+|monthly\s*\$\s*\d+|\$\s*\d+\s*(?:monthly|per month)/i.test(t) };
+  if (/set up a google cloud billing account|设置.{0,8}结算账号|建立.{0,8}结算帐户|创建.{0,8}结算账号/i.test(t)) out.state = "needs_billing";
+  else if (/claimed|已申领|已领取|已兑换/i.test(t)) out.state = "claimed";
+  else if (/\bclaim\b|申领|领取/i.test(lower)) out.state = "claimable";
+  else out.state = "unknown";
+  return out;
+})()
+"""
+
+# The Cloud console renders most of its UI inside shadow roots: search those too.
+DEEP_JS = r"""
+const deepAll = (root, sel, out = []) => {
+  root.querySelectorAll(sel).forEach(e => out.push(e));
+  root.querySelectorAll("*").forEach(e => { if (e.shadowRoot) deepAll(e.shadowRoot, sel, out); });
+  return out;
+};
+const deepText = () => [document.body, ...deepAll(document, "*").filter(e => e.shadowRoot).map(e => e.shadowRoot)]
+  .map(r => r === document.body ? r.innerText : [...r.children].map(c => c.innerText || "").join("\n")).join("\n");
+"""
+
+# Billing overview: how many billing accounts can this login see (ids stay in the page)?
+GCP_ACCOUNTS_SCRIPT = r"""
+(() => {
+  DEEP_JS
+  const ids = new Set();
+  for (const a of deepAll(document, "a[href]")) {
+    const m = a.getAttribute("href").match(/\/billing\/([0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6})/i);
+    if (m) ids.add(m[1].toUpperCase());
+  }
+  const t = deepText();
+  return { ids: [...ids].slice(0, 3), trial_banner: /免费试用|free trial/i.test(t), text_len: t.length };
+})()
+""".replace("DEEP_JS", DEEP_JS)
+
+# Credits page of one billing account: rows that carry money amounts. Returns numbers + coarse labels only.
+GCP_CREDITS_SCRIPT = r"""
+(() => {
+  DEEP_JS
+  const money = /(?:US\$|\$|€|£|¥|HK\$|NT\$)\s?\d[\d,]*(?:\.\d+)?|\d[\d,]*(?:\.\d+)?\s?(?:USD|EUR|CNY|HKD|TWD)/g;
+  const num = s => parseFloat(String(s).replace(/[^\d.]/g, ""));
+  const cur = s => (String(s).match(/US\$|HK\$|NT\$|\$|€|£|¥|USD|EUR|CNY|HKD|TWD/) || ["$"])[0].replace("US$", "$");
+  const rows = deepAll(document, "tr, [role='row']").map(r => r.innerText.replace(/\s+/g, " ").trim());
+  const credits = [];
+  for (const r of rows) {
+    const amounts = r.match(money);
+    if (!amounts || !amounts.length) continue;
+    const dev = /developer program|开发者计划|開發人員計畫|google ai|gemini/i.test(r);
+    const expired = /expired|已过期|已到期|used up|已用完/i.test(r);
+    credits.push({ label: dev ? "developer_program" : "other", remaining: num(amounts[0]),
+                   original: amounts.length > 1 ? num(amounts[1]) : null, currency: cur(amounts[0]), expired });
+  }
+  const t = deepText();
+  return { credits: credits.slice(0, 20), no_credits_text: /没有.{0,6}赠送|no credits|no promotional/i.test(t) };
+})()
+""".replace("DEEP_JS", DEEP_JS)
+
+
+class _ProfilePage:
+    """One headless browser launch on the account's dedicated profile; several page reads."""
+
+    def __init__(self, account: str, headless: bool = True) -> None:
+        self.account = account
+        self.headless = headless
+        self.proc: subprocess.Popen | None = None
+        self.cdp: _Cdp | None = None
+
+    def __enter__(self) -> "_ProfilePage":
+        d = profile_dir(self.account)
+        close_profile_browser(self.account)  # a running instance on this profile would swallow our launch
+        (d / "DevToolsActivePort").unlink(missing_ok=True)
+        flags = [*_common_flags(self.account), "--remote-debugging-port=0", "--remote-debugging-address=127.0.0.1",
+                 "--disable-extensions", "--mute-audio", "--disable-background-networking", "--window-size=1400,1000"]
+        flags += ["--headless=new"] if self.headless else ["--window-position=-32000,-32000"]
+        self.proc = subprocess.Popen([find_browser(), *flags, "about:blank"], creationflags=CREATE_NO_WINDOW,
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            port = _wait_port(d, self.proc)
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=10) as resp:
+                targets = json.loads(resp.read().decode("utf-8"))
+            page = next((t for t in targets if t.get("type") == "page" and t.get("webSocketDebuggerUrl")), None)
+            if page is None:
+                raise FlowError("浏览器没有可用页面")
+            self.cdp = _Cdp(page["webSocketDebuggerUrl"])
+        except Exception:
+            self.__exit__(None, None, None)
+            raise
+        return self
+
+    def __exit__(self, *_exc: Any) -> None:
+        if self.cdp is not None:
             try:
-                cdp.call("Browser.close", timeout=5)
+                self.cdp.call("Browser.close", timeout=5)
             except Exception:
                 pass
-            cdp.close()
-        try:
-            proc.wait(timeout=8)
-        except Exception:
-            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], creationflags=CREATE_NO_WINDOW,
-                           capture_output=True, check=False)
+            self.cdp.close()
+        if self.proc is not None:
+            try:
+                self.proc.wait(timeout=8)
+            except Exception:
+                subprocess.run(["taskkill", "/PID", str(self.proc.pid), "/T", "/F"], creationflags=CREATE_NO_WINDOW,
+                               capture_output=True, check=False)
+
+    def evaluate(self, expression: str, timeout: float = 40.0) -> Any:
+        res = self.cdp.call("Runtime.evaluate", {"expression": expression, "awaitPromise": True,
+                                                 "returnByValue": True}, timeout=timeout)
+        if res.get("exceptionDetails"):
+            raise FlowError("页面脚本执行失败（网络或页面变化）")
+        return (res.get("result") or {}).get("value")
+
+    def goto(self, url: str, origin: str, ready_expr: str = "true", timeout: float = 40.0) -> str:
+        """Navigate and wait for `origin` + readyState complete + `ready_expr`; returns 'ok' / 'signed_out'."""
+        self.cdp.call("Page.navigate", {"url": url})
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            # Heavy apps (Cloud console) keep loading forever: "interactive" is good enough there.
+            state = str(self.evaluate(
+                "location.origin + '|' + (document.readyState === 'loading' ? 'loading' : 'ready') + '|' + "
+                f"Boolean({ready_expr})", timeout=10) or "")
+            if state == f"{origin}|ready|true":
+                return "ok"
+            if state.startswith("https://accounts.google.com|ready"):
+                return "signed_out"
+            time.sleep(0.5)
+        raise FlowError(f"打开 {origin} 超时（检查网络或代理）")
+
+
+def _read_flow(page: _ProfilePage, expected_email: str | None) -> dict[str, Any]:
+    if page.goto(FLOW_URL, FLOW_ORIGIN, "window.WIZ_global_data") == "signed_out":
+        return {"ok": False, "error": SIGNED_OUT}
+    return normalize(page.evaluate(f"({PAGE_SCRIPT})({json.dumps(expected_email or '')})"))
+
+
+def normalize_gcp(benefits: Any, accounts: Any, credit_pages: list[Any]) -> dict[str, Any]:
+    """Combine the three page probes into a small status + numbers record."""
+    benefits = benefits if isinstance(benefits, dict) else {}
+    accounts = accounts if isinstance(accounts, dict) else {}
+    n_billing = len(accounts.get("ids") or [])
+    credits: list[dict[str, Any]] = []
+    for pg in credit_pages:
+        for c in (pg or {}).get("credits") or []:
+            if not isinstance(c, dict) or not isinstance(c.get("remaining"), (int, float)):
+                continue
+            credits.append({
+                "label": "developer_program" if c.get("label") == "developer_program" else "other",
+                "remaining": round(float(c["remaining"]), 2),
+                "original": round(float(c["original"]), 2) if isinstance(c.get("original"), (int, float)) else None,
+                "currency": str(c.get("currency") or "$")[:4],
+                "expired": bool(c.get("expired")),
+            })
+    live = [c for c in credits if not c["expired"]]
+    dev = [c for c in live if c["label"] == "developer_program"]
+    program_state = benefits.get("state") if benefits.get("state") in (
+        "needs_billing", "claimable", "claimed", "unknown") else "unknown"
+    if n_billing == 0:
+        state = "no_billing"
+    elif dev:
+        state = "active"
+    else:
+        state = program_state if program_state != "unknown" else "billing_no_program_credit"
+    return {
+        "ok": True,
+        "state": state,
+        "program_state": program_state,
+        "billing_accounts": n_billing,
+        "dev_remaining": round(sum(c["remaining"] for c in dev), 2) if dev else None,
+        "other_remaining": round(sum(c["remaining"] for c in live if c["label"] == "other"), 2) if live else None,
+        "currency": (dev or live or [{"currency": "$"}])[0]["currency"],
+        "credits": credits[:10],
+    }
+
+
+def _read_gcp(page: _ProfilePage) -> dict[str, Any]:
+    if page.goto(GCP_BENEFITS_URL, "https://me.developers.google.com",
+                 "document.body && document.body.innerText.length > 200") == "signed_out":
+        return {"ok": False, "error": SIGNED_OUT}
+    time.sleep(3)  # client-rendered benefit cards
+    benefits = page.evaluate(GCP_BENEFITS_SCRIPT)
+    if page.goto(GCP_BILLING_URL, "https://console.cloud.google.com", "document.body", timeout=60) == "signed_out":
+        return {"ok": False, "error": SIGNED_OUT}
+    accounts: dict[str, Any] = {}
+    for _ in range(12):  # the console renders its billing account list asynchronously
+        time.sleep(1.5)
+        accounts = page.evaluate(GCP_ACCOUNTS_SCRIPT) or {}
+        if accounts.get("ids"):
+            break
+    pages: list[Any] = []
+    for bid in (accounts.get("ids") or [])[:3]:
+        for suffix in ("credits/all", "credits"):
+            try:
+                page.goto(f"{GCP_BILLING_URL}/{bid}/{suffix}", "https://console.cloud.google.com",
+                          "document.body", timeout=60)
+            except FlowError:
+                continue
+            got = None
+            for _ in range(12):
+                time.sleep(1.5)
+                got = page.evaluate(GCP_CREDITS_SCRIPT) or {}
+                if got.get("credits") or got.get("no_credits_text"):
+                    break
+            if got and (got.get("credits") or got.get("no_credits_text")):
+                pages.append(got)
+                break
+    return normalize_gcp(benefits, {"ids": accounts.get("ids") or []}, pages)
+
+
+def read_account(account: str, expected_email: str | None = None, *, flow: bool = True, gcp: bool = False,
+                 headless: bool = True) -> dict[str, Any]:
+    """Read Flow credits and/or Google Cloud credit status for `account` in one browser launch."""
+    account = check_account(account)
+    out: dict[str, Any] = {"connected": is_connected(account)}
+    if not out["connected"]:
+        err = {"ok": False, "connected": False, "error": "尚未连接"}
+        return {**out, **({"flow": err} if flow else {}), **({"gcp": err} if gcp else {})}
+    try:
+        with _ProfilePage(account, headless=headless) as page:
+            for key, fn in (("flow", lambda: _read_flow(page, expected_email)), ("gcp", lambda: _read_gcp(page))):
+                if not {"flow": flow, "gcp": gcp}[key]:
+                    continue
+                try:
+                    out[key] = {**fn(), "connected": True}
+                except FlowError as exc:
+                    out[key] = {"ok": False, "connected": True, "error": str(exc)}
+                except Exception as exc:  # never include page content: only the error type
+                    out[key] = {"ok": False, "connected": True, "error": f"读取失败（{type(exc).__name__}）"}
+    except FlowError as exc:
+        for key, on in (("flow", flow), ("gcp", gcp)):
+            if on:
+                out[key] = {"ok": False, "connected": True, "error": str(exc)}
+    except Exception as exc:
+        for key, on in (("flow", flow), ("gcp", gcp)):
+            if on:
+                out[key] = {"ok": False, "connected": True, "error": f"读取失败（{type(exc).__name__}）"}
+    return out
+
+
+def read_credits(account: str, expected_email: str | None = None, *, headless: bool = True) -> dict[str, Any]:
+    """Flow balance only (kept for the CLI / older callers)."""
+    res = read_account(account, expected_email, flow=True, gcp=False, headless=headless)
+    return {**res.get("flow", {}), "connected": res["connected"]}
 
 
 if __name__ == "__main__":  # manual test: python flow_credits.py login|read ACCOUNT [expected_email]
-    if len(sys.argv) < 3 or sys.argv[1] not in ("login", "read", "read-visible"):
-        print("usage: flow_credits.py login|read|read-visible ACCOUNT [expected_email]")
+    if len(sys.argv) < 3 or sys.argv[1] not in ("login", "read", "read-visible", "read-gcp"):
+        print("usage: flow_credits.py login|read|read-visible|read-gcp ACCOUNT [expected_email]")
         sys.exit(2)
     acct = sys.argv[2]
     if sys.argv[1] == "login":
         print(open_login(acct))
+    elif sys.argv[1] == "read-gcp":
+        print(json.dumps(read_account(acct, None, flow=False, gcp=True), ensure_ascii=False))
     else:
         result = read_credits(acct, sys.argv[3] if len(sys.argv) > 3 else None,
                               headless=sys.argv[1] == "read")

@@ -8,6 +8,12 @@
 
 ---
 
+## v2.5 变更：Google Cloud 赠金（实验性）、去掉 Gemini CLI
+
+- **☁️ Google Cloud 赠金（开发者计划，每月 $10）**：「设置 → 实验功能」开启后，用与 Flow 相同的专用浏览器配置读取开发者计划权益页与 Cloud 结算「赠送金额」页，显示「需先创建结算账号 / 可领取 / 剩余金额」，未领取时提供「去领取」入口；只回传状态与金额，不回传结算账号信息；每 6 小时刷新。Google 没有查询赠金余额的官方接口。
+- **去掉 Gemini CLI**：2026-06-18 起 Google AI Pro 账号已从 Gemini CLI 迁到 Antigravity CLI，原「每天 1500 次」已不适用，相关展示、自检项与插件全部删除（Antigravity 额度仍在权益中心与账号卡片显示）。
+- 修复：桌面端替换旧版后端时等待端口真正释放（旧后端会先完成进行中的探测），避免新后端启动失败。
+
 ## v2.4 新增：Google Flow 积分（实验性）
 
 - 「设置 → 实验功能」开启后，在「账号管理」的账号卡片上点「🔗 连接 Flow」：桌面端为该账号打开一个**专用的 Edge 浏览器配置**（`%LOCALAPPDATA%\GoogleAIManager\flow\<账号>`，与你平时的浏览器完全隔离），在其中登录一次 `flow.google.com` 即可。
@@ -26,7 +32,7 @@
 
 - **👤 多 Google 账号中心**：图形化添加 / 重新登录 / 云盘授权（复制授权码即可，无需命令行）、标签备注、切换、带保护的删除；全部账号 CCU / 实时消耗 / VM / 存储聚合看板。
 - **🔁 多账号自动切换**：主号 CCU 低于阈值、429 限流、实例数上限或授权失效时，探测与抢卡自动改用备用号；占卡、看门狗、释放与紧急强杀始终按「占卡的那个账号」执行，支持按账号 / 全部账号强杀。
-- **🎁 Pro 权益中心**：Google One 存储、Colab CCU、Antigravity 5 小时 / 每周窗口、Gemini CLI 等实时额度，以及 Flow 积分、AI 积分、Cloud 赠金、Firebase Studio 等官方入口。
+- **🎁 Pro 权益中心**：Google One 存储、Colab CCU、Antigravity 5 小时 / 每周窗口等实时额度，以及 Flow 积分、AI 积分、Cloud 赠金、Firebase Studio 等官方入口。
 - **🛸 Antigravity 额度**：只读 Antigravity Tools 本地缓存，按邮箱关联账号，**不读取、不使用任何令牌**。
 - **🌐 可视化代理**与 **🩺 首次启动环境自检**（Colab CLI、账号授权、云盘权限、网络、目录权限等，附修复建议）。
 
@@ -59,9 +65,10 @@
   - [x] **M1** `providers/` 额度插件层（Colab CCU、Google One 存储容量）+ 可视化网络代理设置（自动探测 / 手动 / 直连，配置保存在 `~/.google-ai-manager/`）
   - [x] **M2** 图形化多 Google 账号中心（添加 / 切换 / 删除 / 标签备注 / OAuth + 云盘授权引导）+ 多账号额度聚合看板
   - [x] **M3** 指定账号抢卡 + 主号 CCU 不足 / 限流 / 实例上限 / 授权失效时自动切换备用号 + 按账号 / 全部账号强杀
-  - [x] **M4** Antigravity / Gemini CLI 额度、Pro 权益中心、首次启动环境自检、中英文 README
+  - [x] **M4** Antigravity 额度、Pro 权益中心、首次启动环境自检、中英文 README
 - [x] **v2.3**：Colab 会话管理页面、去除短剧专用功能（改为示例工作流）、锁卡后运行命令、云盘按需挂载
 - [x] **v2.4**：Google Flow 积分（实验性，专用浏览器配置 + 页面内只读查询）
+- [x] **v2.5**：Google Cloud 赠金领取状态与剩余金额（实验性）、去掉过时的 Gemini CLI 展示
 - [ ] **会话管理后续**：余额下限自动停机、端口转发（实例端口映射到本机 127.0.0.1）、一键部署插件
 - [ ] **Phase 2（多服务额度插件生态）**：
   - 接入 Jules 任务数、Gemini / AI Studio API Key 池、GCP / Vertex AI 配额等其他 Google AI 额度
@@ -73,12 +80,12 @@
 
 ```text
 google-ai-manager/
-├── providers/                    # 额度插件层：colab / google_storage / antigravity / gemini_cli / accounts_hub(多账号)
+├── providers/                    # 额度插件层：colab / google_storage / antigravity / gcp_credits / accounts_hub(多账号)
 │                                 #   benefits(权益中心) / selfcheck / remote_runner(运行命令) / colab_sessions(会话管理) / flow_credits / netcfg / paths
 ├── tests/                        # 离线单元测试（python -m unittest discover -s tests）
 ├── desktop_app/
 │   ├── colab_gpu_tools.py        # Windows 原生 Edge WebView2 桌面外壳 + 系统托盘
-│   ├── flow_credits.py           # Flow 积分读取（专用 Edge 配置 + 页面内只读查询）
+│   ├── flow_credits.py           # 专用 Edge 配置网页读取：Flow 积分 + Cloud 赠金
 │   └── colab_gpu_tools.ico       # 应用图标
 ├── scripts/
 │   ├── colab_gpu_monitor.py      # GPU 探测、命中锁卡、按需挂盘、1s 倒计时看门狗与本地 HTTP/SSE 服务
@@ -150,5 +157,5 @@ google-ai-manager/
 
 - 所有 OAuth Token、Drive 凭据、运行日志（`logs/`）、SQLite 探测库（`*.db`）、锁卡状态（`active_hold.json`）均已被 `.gitignore` 严格排除，**请勿将任何凭据或日志文件提交至公开仓库**。
 - 账号凭据由 colab-ext 保存在 WSL 本机；本工具自身的设置、账号备注保存在 `~/.google-ai-manager/`（目录 0700 / 文件 0600），不进仓库。
-- Antigravity / Gemini CLI 仅读取本地缓存与状态文件，从不读取或使用它们的令牌；本地接口拒绝跨站请求。
+- Antigravity 仅读取本地缓存文件，从不读取或使用其令牌；Flow 积分与 Cloud 赠金只在专用浏览器页面内读取、只回传数字；本地接口拒绝跨站请求。
 - 欢迎通过 Issue / PR 共建多账号与多 Google AI 额度模块。

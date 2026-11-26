@@ -1,6 +1,6 @@
 """Unified quota-provider interface.
 
-Every Google quota source (Colab CCU, Google One storage, Antigravity windows, Gemini CLI
+Every Google quota source (Colab CCU, Google One storage, Antigravity windows, Flow credits
 requests, ...) is a `QuotaProvider` that turns one account into a `ProviderSnapshot` made of
 generic `Metric`s, so the UI can render any provider as a card without special-casing it.
 

@@ -33,22 +33,23 @@ except Exception:  # pragma: no cover - missing dependency just disables the fea
     flow_reader = None
 
 FLOW_REFRESH_SECONDS = 30 * 60
+GCP_REFRESH_SECONDS = 6 * 3600
 _FLOW_LOCK = threading.Lock()
 
 APP_TITLE = "Colab GPU Tools"
 BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 8765
 BACKEND_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}"
-EXPECTED_VERSION = "2.4"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
+EXPECTED_VERSION = "2.5"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
 # Google pages the UI may open in the default browser (keep in sync with providers/benefits.py).
 EXTERNAL_URL_PREFIXES = (
     "https://accounts.google.com/",
     "https://one.google.com/",
     "https://colab.research.google.com/",
     "https://antigravity.google/",
-    "https://github.com/google-gemini/",
     "https://labs.google/",
     "https://flow.google.com/",
+    "https://developers.google.com/",
     "https://console.cloud.google.com/",
     "https://studio.firebase.google.com/",
     "https://jules.google.com/",
@@ -213,9 +214,13 @@ def ensure_wsl_backend() -> None:
                 timeout=8,
                 check=False,
             )
-            time.sleep(1.0)
         except Exception:
             pass
+        # The old backend finishes an in-flight probe (up to ~30 s) and its release checks before it
+        # exits; spawning earlier fails with "Address already in use".
+        deadline = time.time() + 45.0
+        while time.time() < deadline and _is_port_open():
+            time.sleep(0.5)
 
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     daemon_log = LOGS_DIR / "wsl_monitor_daemon.log"
@@ -273,6 +278,7 @@ class DesktopController:
         }
         self._last_icon_key = "ok"
         self._flow_last: dict[str, float] = {}
+        self._gcp_last: dict[str, float] = {}
 
     # ---- JS Bridge Methods (window.pywebview.api.*) ----
     def open_external_url(self, url: str) -> dict[str, Any]:
@@ -339,26 +345,46 @@ class DesktopController:
         except Exception as exc:
             return {"ok": False, "error": str(exc)}
 
-    def flow_refresh(self, account: str) -> dict[str, Any]:
-        """Read one account's balance and report the numbers to the backend."""
+    def flow_refresh(self, account: str, *, flow: bool | None = None, gcp: bool | None = None) -> dict[str, Any]:
+        """Read Flow credits and/or Cloud credit status (per the settings) and report the numbers."""
         if flow_reader is None:
             return {"ok": False, "error": "缺少依赖 websocket-client"}
         try:
             flow_reader.check_account(account)
-            targets = {t.get("account"): t.get("email") for t in _http_json("/api/flow", timeout=10).get("targets", [])}
+            info = _http_json("/api/flow", timeout=10)
         except Exception as exc:
             return {"ok": False, "error": f"无法连接后端：{exc}"}
+        targets = {t.get("account"): t.get("email") for t in info.get("targets", [])}
         if account not in targets:
             return {"ok": False, "error": "未知账号"}
+        do_flow = bool(info.get("enabled")) if flow is None else flow
+        do_gcp = bool(info.get("gcp_enabled")) if gcp is None else gcp
+        if not (do_flow or do_gcp):
+            return {"ok": False, "error": "请先在「设置 → 实验功能」中开启 Flow 积分或 Cloud 赠金"}
         with _FLOW_LOCK:
-            res = flow_reader.read_credits(account, targets.get(account))
-        self._flow_last[account] = time.time()
-        report = {k: res.get(k) for k in ("ok", "connected", "credits", "email_verified", "error")}
-        try:
-            _http_json("/api/flow/report", method="POST", payload={"account": account, **report}, timeout=10)
-        except Exception as exc:
-            _log_desktop(f"Flow report failed: {type(exc).__name__}")
-        return report
+            res = flow_reader.read_account(account, targets.get(account), flow=do_flow, gcp=do_gcp)
+        now = time.time()
+        out: dict[str, Any] = {"ok": True}
+        if do_flow:
+            self._flow_last[account] = now
+            report = {k: res["flow"].get(k) for k in ("ok", "connected", "credits", "email_verified", "error")}
+            out["flow"] = report
+            try:
+                _http_json("/api/flow/report", method="POST", payload={"account": account, **report}, timeout=10)
+            except Exception as exc:
+                _log_desktop(f"Flow report failed: {type(exc).__name__}")
+        if do_gcp:
+            self._gcp_last[account] = now
+            g = res["gcp"]
+            report = {k: g.get(k) for k in ("ok", "connected", "state", "billing_accounts", "dev_remaining",
+                                            "other_remaining", "currency", "error")}
+            out["gcp"] = report
+            try:
+                _http_json("/api/gcp/report", method="POST", payload={"account": account, **report}, timeout=10)
+            except Exception as exc:
+                _log_desktop(f"GCP report failed: {type(exc).__name__}")
+        out["ok"] = all(v.get("ok") for k, v in out.items() if isinstance(v, dict))
+        return out
 
     def flow_disconnect(self, account: str) -> dict[str, Any]:
         if flow_reader is None:
@@ -379,13 +405,14 @@ class DesktopController:
             try:
                 if flow_reader is not None:
                     info = _http_json("/api/flow", timeout=10)
-                    if info.get("enabled"):
-                        for t in info.get("targets", []):
-                            acct = str(t.get("account") or "")
-                            if not acct or not flow_reader.is_connected(acct):
-                                continue
-                            if time.time() - self._flow_last.get(acct, 0.0) >= FLOW_REFRESH_SECONDS:
-                                self.flow_refresh(acct)
+                    for t in info.get("targets", []):
+                        acct = str(t.get("account") or "")
+                        if not acct or not flow_reader.is_connected(acct):
+                            continue
+                        due_flow = bool(info.get("enabled")) and                             time.time() - self._flow_last.get(acct, 0.0) >= FLOW_REFRESH_SECONDS
+                        due_gcp = bool(info.get("gcp_enabled")) and                             time.time() - self._gcp_last.get(acct, 0.0) >= GCP_REFRESH_SECONDS
+                        if due_flow or due_gcp:
+                            self.flow_refresh(acct, flow=due_flow, gcp=due_gcp)
             except Exception as exc:
                 _log_desktop(f"Flow loop: {type(exc).__name__}")
             self._stop_poll.wait(300)

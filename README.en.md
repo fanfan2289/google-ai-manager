@@ -9,7 +9,7 @@ for people who use **Google AI Pro** across one or more Google accounts. It trac
 grabs scarce Colab GPUs with strict anti-ghost-billing guards, and puts the quotas of the other Pro
 tools in one place.
 
-## Features (v2.4)
+## Features (v2.5)
 
 - **Colab GPU monitor & auto-hold**: probes `G4 / A100 / H100 / L4 / T4` capacity at zero cost (a
   503 costs nothing), optionally holds a GPU on a hit and shuts the VM down
@@ -24,7 +24,7 @@ tools in one place.
   instance cap (412) or unauthorised, probing and grabbing switch to ordered backup accounts. Holds,
   the watchdog, release and emergency stop always act on the account that owns the hold.
 - **Google AI Pro benefits center**: live Google One storage, Colab CCU, Antigravity 5-hour / weekly
-  windows and Gemini CLI status, plus official entry points for Flow credits, AI credits, Google Cloud
+  windows, Flow credits and Google Cloud credit status, plus official entry points for AI credits, Google Cloud
   credits, Firebase Studio and more.
 - **Antigravity quota**: read-only from the Antigravity Tools local cache, matched to accounts by
   e-mail — no tokens are ever read or used.
@@ -39,6 +39,9 @@ tools in one place.
   per account (you sign in to flow.google.com once) and every 30 minutes reads the balance inside
   the page with Flow's own read-only query; only the number reaches the app, the sign-in token
   never leaves the browser page, and a mismatched Google account shows no number.
+- **Google Cloud credits (experimental, opt-in)**: the same dedicated profile reads the Developer
+  Program benefits page and the Cloud Billing credits page: whether the monthly credit still needs a
+  billing account / can be claimed, and how much is left. Only a state and amounts leave the page.
 - **Run a command on the held GPU**: one shell command runs on the held session; when it exits the
   VM is stopped and reconciled, and the watchdog kills it at the time limit. The runner owns the
   session / GPU / account / time-limit flags, so a command cannot disable auto-shutdown.
@@ -67,7 +70,8 @@ tools in one place.
   account notes live in `~/.google-ai-manager/` (`0700` / `0600`), never in the repository.
 - `logs/`, `outputs/`, `*.db`, `active_hold.json` and `gpu_monitor_config.json` are git-ignored.
 - The local API only listens on `127.0.0.1` and refuses cross-origin browser requests.
-- Antigravity and Gemini CLI integrations only read local cache / status files.
+- The Antigravity integration only reads its local cache; Flow and Cloud credits are read inside a dedicated
+  browser page and only numbers leave it.
 
 ## Development
 
