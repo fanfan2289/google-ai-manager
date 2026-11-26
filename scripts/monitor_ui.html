@@ -52,6 +52,7 @@
   /* Desktop App Shell */
   .app-shell {
     display: flex;
+    flex-direction: column;
     height: 100vh;
     width: 100vw;
     overflow: hidden;
@@ -211,6 +212,39 @@
     gap: 6px;
   }
 
+  /* Top app bar (v2.7.1, Antigravity Tools style) */
+  .appbar { height: 64px; flex-shrink: 0; display: flex; align-items: center; gap: 16px; padding: 0 22px;
+            background: var(--bg-sidebar); border-bottom: 1px solid var(--border); position: relative; z-index: 20; }
+  .appbar .brand { border-bottom: none; padding: 0; min-width: 0; flex-shrink: 0; }
+  .topnav { flex: 1; display: flex; justify-content: center; min-width: 0; }
+  .topnav-inner { display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px;
+                  background: rgba(148, 163, 184, 0.07); border: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+  .topnav-inner::-webkit-scrollbar { display: none; }
+  .topnav .nav-item { position: relative; gap: 6px; padding: 7px 11px; border-radius: 999px; border: none; white-space: nowrap; }
+  .topnav .nav-item .ni { font-size: 15px; line-height: 1; }
+  .topnav .nav-item .nl { display: none; font-size: 12.5px; }
+  .topnav .nav-item.active { background: var(--accent); color: #fff; }
+  .topnav .nav-item.active .nl { display: inline; }
+  .topnav .nav-item .nav-badge { position: absolute; top: 1px; right: 1px; margin: 0; padding: 0 4px; min-width: 15px; height: 15px;
+                                 line-height: 15px; font-size: 9.5px; text-align: center; background: var(--crimson); color: #fff; border: none; }
+  .topnav .nav-item .nav-badge.amber { background: var(--amber); color: #1f1300; border: none; }
+  .nav-sep { width: 1px; height: 18px; background: var(--border-strong); margin: 0 4px; flex-shrink: 0; }
+  .appbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .icon-btn { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: rgba(148,163,184,.07);
+              color: var(--text); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 15px; }
+  .icon-btn:hover { background: rgba(148,163,184,.15); }
+  .icon-btn.danger { background: var(--crimson-soft); border-color: var(--crimson-border); }
+  .icon-btn.danger:hover { background: rgba(239,68,68,.25); }
+  .quota-chip { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 999px;
+                border: 1px solid var(--border); background: rgba(148,163,184,.07); cursor: pointer; font-size: 12px; color: var(--text-muted); }
+  .quota-chip b { font-family: var(--mono); color: #f8fafc; font-size: 13px; }
+  .mini-panel { display: none; position: absolute; right: 0; top: 44px; width: 260px; padding: 14px; border-radius: 12px; cursor: default;
+                background: var(--bg-panel); border: 1px solid var(--border-strong); box-shadow: 0 12px 32px rgba(0,0,0,.45); }
+  .mini-panel.open { display: block; }
+  .mini-panel .acct-mini-top { margin-bottom: 4px; }
+  @media (max-width: 1180px) { .appbar .brand-sub { display: none; } .quota-chip .qc-vm { display: none; } }
+  @media (max-width: 980px) { .appbar .brand-title { display: none; } }
+
   /* Main Workspace */
   .main-area {
     flex: 1;
@@ -223,16 +257,12 @@
   }
 
   .topbar {
-    height: 54px;
     flex-shrink: 0;
-    padding: 0 22px;
-    border-bottom: 1px solid var(--border);
+    padding: 22px 30px 4px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    background: rgba(14, 19, 30, 0.65);
-    backdrop-filter: blur(8px);
   }
   .topbar-left {
     display: flex;
@@ -241,7 +271,7 @@
     min-width: 0;
   }
   .page-title {
-    font-size: 15.5px;
+    font-size: 21px;
     font-weight: 700;
     color: #f8fafc;
   }
@@ -272,7 +302,7 @@
   .content-scroll {
     flex: 1;
     overflow-y: auto;
-    padding: 18px 22px 28px;
+    padding: 14px 30px 32px;
   }
   .content-scroll::-webkit-scrollbar { width: 8px; }
   .content-scroll::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.2); border-radius: 4px; }
@@ -805,23 +835,27 @@
   .ov-hero { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
   .ov-hero h2 { margin: 0; font-size: 17px; color: var(--text); }
   .ov-hero .ov-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
-  .ov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-bottom: 16px; }
-  .ov-card { background: rgba(10, 13, 20, 0.45); border: 1px solid var(--border); border-radius: 12px; padding: 14px;
-             display: flex; flex-direction: column; gap: 6px; cursor: pointer; transition: border-color .15s, transform .15s; min-height: 150px; }
-  .ov-card:hover { border-color: rgba(96, 165, 250, 0.5); transform: translateY(-1px); }
+  .ov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(205px, 1fr)); gap: 14px; margin-bottom: 26px; }
+  .ov-card { background: var(--bg-card); border: 1px solid transparent; border-radius: 16px; padding: 20px 20px 18px;
+             display: flex; flex-direction: column; gap: 8px; cursor: pointer; transition: border-color .15s, background .15s; min-height: 150px; }
+  .ov-card:hover { border-color: var(--border-strong); background: var(--bg-card-2); }
+  .ov-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 2px; }
+  .ov-caption { font-size: 12.5px; color: var(--text-dim); }
+  .ov-caption b { color: var(--text-muted); font-weight: 600; }
+  .ov-section-title { font-size: 13px; font-weight: 600; color: var(--text-muted); margin: 0 2px 10px; }
   .ov-head { display: flex; align-items: center; gap: 8px; }
   .ov-icon { font-size: 18px; }
-  .ov-name { font-weight: 600; color: var(--text); font-size: 13px; flex: 1; }
-  .ov-big { font-family: var(--mono); font-size: 26px; font-weight: 700; color: #f8fafc; line-height: 1.15; }
+  .ov-name { font-weight: 500; color: var(--text-muted); font-size: 12.5px; flex: 1; }
+  .ov-big { font-family: var(--mono); font-size: 30px; font-weight: 700; color: #f8fafc; line-height: 1.15; margin-top: 4px; }
   .ov-big span { font-size: 12px; color: var(--text-dim); font-weight: 500; margin-left: 4px; font-family: var(--sans); }
-  .ov-big.dim { font-size: 17px; color: var(--text-muted); font-family: var(--sans); }
+  .ov-big.dim { font-size: 17px; color: var(--text-muted); font-family: var(--sans); font-weight: 600; }
   .ov-line { font-size: 12px; color: var(--text-muted); }
   .ov-foot { font-size: 11px; color: var(--text-dim); margin-top: auto; }
   .ov-bars { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 8px; align-items: center; font-size: 11.5px; color: var(--text-muted); }
   .ov-bars b { font-family: var(--mono); color: #f8fafc; font-weight: 600; text-align: right; }
   .todo-list { display: flex; flex-direction: column; gap: 8px; }
-  .todo-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px; border: 1px solid var(--border);
-               background: rgba(10, 13, 20, 0.35); font-size: 12.5px; color: var(--text); }
+  .todo-item { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 12px; border: 1px solid transparent;
+               background: var(--bg-card); font-size: 12.5px; color: var(--text); }
   .todo-item .todo-txt { flex: 1; min-width: 0; }
   .todo-item.warn { border-color: var(--amber-border); background: var(--amber-soft); }
   .todo-item.crit { border-color: rgba(239, 68, 68, 0.45); background: rgba(239, 68, 68, 0.08); }
@@ -913,14 +947,13 @@
 
   @media (max-width: 960px) {
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-    .sidebar { width: 196px; }
   }
 </style>
 </head>
 <body>
 <div class="app-shell">
-  <!-- Left Sidebar -->
-  <aside class="sidebar">
+  <!-- Top app bar -->
+  <header class="appbar">
     <div class="brand">
       <div class="brand-icon">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -938,70 +971,58 @@
       </div>
     </div>
 
-    <div class="nav-group">
-      <div class="nav-label">概览</div>
-      <div class="nav-item active" data-view="overview">
-        <span>🏠</span><span>总览</span>
-        <span id="navTodoBadge" class="nav-badge amber" style="display:none;"></span>
+    <nav class="topnav"><div class="topnav-inner">
+      <div class="nav-item active" data-view="overview" title="总览">
+        <span class="ni">🏠</span><span class="nl">总览</span><span id="navTodoBadge" class="nav-badge amber" style="display:none;"></span>
       </div>
-      <div class="nav-item" data-view="accounts">
-        <span>👤</span><span>账号管理</span>
-        <span id="navAcctBadge" class="nav-badge" style="display:none;"></span>
+      <div class="nav-item" data-view="accounts" title="账号管理">
+        <span class="ni">👤</span><span class="nl">账号管理</span><span id="navAcctBadge" class="nav-badge" style="display:none;"></span>
       </div>
-      <div class="nav-label">Colab 算力</div>
-      <div class="nav-item" data-view="dashboard">
-        <span>⚡</span><span>抢卡与锁卡</span>
-        <span id="navHoldBadge" class="nav-badge amber" style="display:none;">占卡中</span>
+      <span class="nav-sep"></span>
+      <div class="nav-item" data-view="dashboard" title="抢卡与锁卡">
+        <span class="ni">⚡</span><span class="nl">抢卡与锁卡</span><span id="navHoldBadge" class="nav-badge amber" style="display:none;">占卡中</span>
       </div>
-      <div class="nav-item" data-view="sessions">
-        <span>☁️</span><span>会话管理</span>
-        <span id="navSessBadge" class="nav-badge" style="display:none;"></span>
+      <div class="nav-item" data-view="sessions" title="会话管理">
+        <span class="ni">☁️</span><span class="nl">会话管理</span><span id="navSessBadge" class="nav-badge" style="display:none;"></span>
       </div>
-      <div class="nav-item" data-view="runner">
-        <span>⌨</span><span>运行命令</span>
+      <div class="nav-item" data-view="runner" title="运行命令">
+        <span class="ni">⌨</span><span class="nl">运行命令</span>
       </div>
-      <div class="nav-item" data-view="stats">
-        <span>📊</span><span>探测统计</span>
+      <div class="nav-item" data-view="stats" title="探测统计">
+        <span class="ni">📊</span><span class="nl">探测统计</span>
       </div>
-      <div class="nav-label">AI 额度</div>
-      <div class="nav-item" data-view="benefits">
-        <span>🎁</span><span>权益明细</span>
+      <span class="nav-sep"></span>
+      <div class="nav-item" data-view="benefits" title="权益明细">
+        <span class="ni">🎁</span><span class="nl">权益明细</span>
       </div>
-      <div class="nav-label">系统</div>
-      <div class="nav-item" data-view="selfcheck">
-        <span>🩺</span><span>环境自检</span>
-        <span id="navCheckBadge" class="nav-badge amber" style="display:none;"></span>
+      <span class="nav-sep"></span>
+      <div class="nav-item" data-view="selfcheck" title="环境自检">
+        <span class="ni">🩺</span><span class="nl">环境自检</span><span id="navCheckBadge" class="nav-badge amber" style="display:none;"></span>
       </div>
-      <div class="nav-item" data-view="settings">
-        <span>⚙️</span><span>设置</span>
+      <div class="nav-item" data-view="settings" title="设置">
+        <span class="ni">⚙️</span><span class="nl">设置</span>
       </div>
+    </div></nav>
+    <div class="appbar-right">
+      <div class="quota-chip" onclick="toggleMiniPanel(event)" title="本月额度摘要">
+        <span>⚡</span><b><span id="acctBalance">--</span></b><span>CCU</span>
+        <span id="acctVmBadge" class="pill qc-vm" style="padding:1px 7px;font-size:10.5px;">0 VM</span>
+        <div id="miniPanel" class="mini-panel" onclick="event.stopPropagation()">
+          <div class="acct-mini-top"><span id="acctName">账号加载中...</span><a style="cursor:pointer;color:#93c5fd;" onclick="switchView('overview'); toggleMiniPanel()">打开总览 →</a></div>
+          <div class="mini-rows">
+            <span>🎬 Flow</span><b id="miniFlow">--</b>
+            <span>☁️ 赠金</span><b id="miniGcp">--</b>
+            <span>💾 云盘</span><b id="miniDrive">--</b>
+            <span>🛸 反重力</span><b id="miniAg">--</b>
+          </div>
+          <div class="acct-meta"><span id="acctRate">0.00 CCU/hr</span><span id="acctDelta">本次 -0.00</span></div>
+        </div>
+      </div>
+      <button class="icon-btn" onclick="refreshAllQuotas()" title="刷新全部额度">🔄</button>
+      <button id="btnMinTray" class="icon-btn" style="display:none;" onclick="minimizeToTray()" title="最小化到托盘">🗕</button>
+      <button class="icon-btn danger" onclick="emergencyStopAll()" title="一键强杀全部 GPU：关闭占卡账号与当前账号下的全部 Colab 实例（含孤儿实例）">🛑</button>
     </div>
-
-    <div class="sidebar-spacer"></div>
-
-    <div class="acct-mini" title="点击打开总览" onclick="switchView('overview')">
-      <div class="acct-mini-top">
-        <span id="acctName">账号加载中...</span>
-        <span id="acctVmBadge" class="pill" style="padding:1px 7px;font-size:10.5px;">0 VM</span>
-      </div>
-      <div class="mini-rows">
-        <span>⚡ Colab</span><b><span id="acctBalance">--</span> CCU</b>
-        <span>🎬 Flow</span><b id="miniFlow">--</b>
-        <span>☁️ 赠金</span><b id="miniGcp">--</b>
-        <span>💾 云盘</span><b id="miniDrive">--</b>
-        <span>🛸 反重力</span><b id="miniAg">--</b>
-      </div>
-      <div class="acct-meta">
-        <span id="acctRate">0.00 CCU/hr</span>
-        <span id="acctDelta">本次 -0.00</span>
-      </div>
-    </div>
-
-    <div class="sidebar-actions">
-      <button class="btn btn-danger btn-block" onclick="emergencyStopAll()" title="关闭占卡账号与当前账号下的全部 Colab 实例（含孤儿实例）">🛑 一键强杀全部 GPU</button>
-      <button id="btnMinTray" class="btn btn-sm btn-block" style="display:none;" onclick="minimizeToTray()">🗕 最小化到托盘</button>
-    </div>
-  </aside>
+  </header>
 
   <!-- Main Workspace -->
   <main class="main-area">
@@ -1011,9 +1032,7 @@
         <span id="topAcctPill" class="pill" style="display:none;cursor:pointer;" onclick="switchView('accounts')"></span>
         <span id="topReadonlyPill" class="pill blue" style="display:none;" title="后端以 --no-probe 启动：禁用探测与抢卡">👁 只读模式</span>
       </div>
-      <div class="topbar-right">
-        <button class="btn btn-sm" onclick="refreshAllQuotas()" title="重新读取所有账号的各项额度">🔄 刷新全部额度</button>
-      </div>
+      <div class="topbar-right"><span id="ovAcctSwitch"></span></div>
     </header>
 
     <div class="content-scroll">
@@ -1032,23 +1051,12 @@
 
       <!-- VIEW: OVERVIEW (v2.6) -->
       <section id="view-overview" class="view active">
-        <div class="ov-hero">
-          <div>
-            <h2>👋 Google AI Pro 额度总览</h2>
-            <div class="ov-sub">账号 <b id="ovAcct">-</b> · 五项每月发放的额度；点卡片查看详情</div>
-          </div>
-          <div id="ovAcctSwitch"></div>
-        </div>
+        <div class="ov-top"><span class="ov-caption">本月额度 · <b id="ovAcct">-</b></span></div>
         <div id="ovCards" class="ov-grid"><div class="card-sub">加载中...</div></div>
-        <div id="acctAgg" class="acct-agg" style="display:none;margin-bottom:14px;"></div>
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <div class="card-title">📌 需要处理</div>
-              <div class="card-sub">锁卡、自检问题、未领取的赠金和未连接的额度来源</div>
-            </div>
-          </div>
-          <div id="ovTodo" class="todo-list"><div class="card-sub">检查中...</div></div>
+        <div id="acctAgg" class="acct-agg" style="display:none;margin-bottom:22px;"></div>
+        <div id="ovTodoWrap" style="display:none;">
+          <div class="ov-section-title">需要处理</div>
+          <div id="ovTodo" class="todo-list"></div>
         </div>
       </section>
 
@@ -1715,7 +1723,8 @@ function switchView(view) {
   currentView = view;
   document.querySelectorAll(".nav-item").forEach(n => n.classList.toggle("active", n.dataset.view === view));
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === `view-${view}`));
-  document.getElementById("topbarTitle").textContent = VIEW_TITLES[view] || "Google AI Manager";
+  document.getElementById("topbarTitle").textContent = view === "overview" ? ovGreeting() : (VIEW_TITLES[view] || "Google AI Manager");
+  if (view !== "overview") document.getElementById("ovAcctSwitch").innerHTML = "";
   if (view === "stats") { statsTab === "history" ? loadHistory() : loadAnalytics(); }
   if (view === "overview") loadOverview(false);
   if (view === "runner") { refreshJobLog(); loadRunnerForm(); }
@@ -1824,7 +1833,9 @@ function renderState(st) {
   document.getElementById("cfgToast").checked = Boolean(cfg.windows_toast);
   document.getElementById("cfgSound").checked = Boolean(cfg.browser_sound);
 
-  if (acctOverview) { renderOverviewTodo(); renderSidebarMini(); }
+  if (acctOverview) {  // state carries config + hold: keep the overview cards in sync with it
+    if (currentView === "overview") renderOverview(); else { renderOverviewTodo(); renderSidebarMini(); }
+  }
 
   // Hold Hero Banner
   const hero = document.getElementById("holdHero");
@@ -2127,10 +2138,10 @@ function ovAccount() {
 function ovSnaps() { return (acctOverview?.accounts || {})[ovAccount()] || {}; }
 
 function ovCard(view, icon, name, pill, big, lines, foot) {
-  return `<div class="ov-card" onclick="switchView('${view}')">
+  const tip = String(foot || "").replace(/<[^>]+>/g, "").replace(/"/g, "&quot;");
+  return `<div class="ov-card" onclick="switchView('${view}')" title="${tip}">
     <div class="ov-head"><span class="ov-icon">${icon}</span><span class="ov-name">${name}</span>${pill || ""}</div>
-    ${big}${(lines || []).map(l => `<div class="ov-line">${l}</div>`).join("")}
-    ${foot ? `<div class="ov-foot">${foot}</div>` : ""}
+    ${big}${(lines || []).filter(Boolean).slice(0, 1).map(l => `<div class="ov-line">${l}</div>`).join("")}
   </div>`;
 }
 
@@ -2141,12 +2152,27 @@ function ovMeter(frac, warnLow = true) {
   return `<div class="meter"><i class="${cls}" style="width:${pct.toFixed(1)}%"></i></div>`;
 }
 
+function ovGreeting() {
+  const acct = ovAccount();
+  const row = (acctData?.accounts || []).find(r => r.name === acct);
+  const nm = row?.meta?.label || (row?.email || "").split("@")[0] || acct || "";
+  return nm ? `你好，${nm} 👋` : "总览";
+}
+
+function toggleMiniPanel(ev) {
+  if (ev) ev.stopPropagation();
+  document.getElementById("miniPanel").classList.toggle("open");
+}
+document.addEventListener("click", () => document.getElementById("miniPanel")?.classList.remove("open"));
+
 function renderOverview() {
   const s = ovSnaps();
   const acct = ovAccount();
   document.getElementById("ovAcct").textContent = acct || "-";
+  document.querySelector("#view-overview .ov-top").style.display = Object.keys(acctOverview?.accounts || {}).length > 1 ? "" : "none";
+  if (currentView === "overview") document.getElementById("topbarTitle").textContent = ovGreeting();
   const names = Object.keys(acctOverview?.accounts || {});
-  document.getElementById("ovAcctSwitch").innerHTML = names.length > 1
+  document.getElementById("ovAcctSwitch").innerHTML = names.length > 1 && currentView === "overview"
     ? `<select onchange="localStorage.setItem('gamOvAccount', this.value); renderOverview(); renderSidebarMini();">
         ${names.map(n => `<option value="${escHtml(n)}" ${n === acct ? "selected" : ""}>${escHtml(n)}</option>`).join("")}</select>` : "";
   const cfg = appState?.config || {};
@@ -2158,8 +2184,8 @@ function renderOverview() {
     : s.colab && s.colab.status !== "ok" ? `<span class="pill crimson">异常</span>` : "";
   const colab = ovCard("dashboard", "⚡", "Colab 算力", colabPill,
     bal ? `<div class="ov-big">${fmtCcu(bal.remaining)}<span>CCU</span></div>` : `<div class="ov-big dim">${s.colab ? escHtml(s.colab.error || "无法读取") : "加载中..."}</div>`,
-    [`消耗 ${burn && burn.used ? burn.used.toFixed(2) : "0.00"} CCU/hr · ${vms ? vms.used : 0} 个实例`,
-     hold ? `锁卡中 · 剩余 ${fmtMMSS(Math.max(0, (hold.expires_at_ts || 0) - Date.now() / 1000))}` : (appState?.paused ? "监控已暂停" : "后台监控中")],
+    [hold ? `锁卡中 · 剩余 ${fmtMMSS(Math.max(0, (hold.expires_at_ts || 0) - Date.now() / 1000))}`
+          : `${burn && burn.used ? burn.used.toFixed(2) + " CCU/hr · " : ""}${vms && vms.used ? vms.used + " 个实例" : (appState?.paused ? "监控已暂停" : "没有运行中的实例")}`],
     "AI Pro 每月 200 CCU");
 
   // Flow
@@ -2191,8 +2217,9 @@ function renderOverview() {
     gcp = ovCard("benefits", "☁️", "Cloud 赠金", "", `<div class="ov-big">${escHtml(m.unit || "$")}${Number(m.remaining).toFixed(2)}<span>剩余</span></div>`,
       [gs.extra?.checked_at_iso ? `读取于 ${escHtml(fmtWhen(gs.extra.checked_at_iso))}` : ""], "开发者计划每月 $10 · 每笔 12 个月有效");
   } else if (gs && gs.status === "ok") {
-    gcp = ovCard("benefits", "☁️", "Cloud 赠金", `<span class="pill amber">未领取</span>`, `<div class="ov-big dim">未领取</div>`,
-      [escHtml(gs.extra?.state_text || "")], "开发者计划每月 $10");
+    const short = { no_billing: "需先创建结算账号再领取", needs_billing: "需先关联结算账号再领取", claimable: "本月赠金可领取" }[gs.extra?.state] || "到开发者计划页面领取";
+    gcp = ovCard("benefits", "☁️", "Cloud 赠金", "", `<div class="ov-big dim" style="color:#fcd34d;">未领取</div>`,
+      [short], "开发者计划每月 $10 · " + (gs.extra?.state_text || ""));
   } else {
     gcp = ovCard("accounts", "☁️", "Cloud 赠金", `<span class="pill ${gs?.status === "error" ? "crimson" : ""}">${gs?.status === "error" ? "读取失败" : "未读取"}</span>`,
       `<div class="ov-big dim">${escHtml(gs?.status === "error" ? gs.error || "读取失败" : "等待读取")}</div>`, [], "开发者计划每月 $10");
@@ -2207,17 +2234,18 @@ function renderOverview() {
 
   // Antigravity
   const ag = s.antigravity;
-  let agBody;
+  let agBody, agLine2 = "";
   if (ag && ag.status === "ok") {
-    const pick = (re) => (ag.metrics || []).filter(m => re.test(m.label)).slice(0, 2);
-    const rows = [["Gemini", pick(/^Gemini/)], ["Claude/GPT", pick(/Claude/)]]
-      .flatMap(([lbl, ms]) => ms.map(m => `<span>${lbl} · ${escHtml(m.label.split("·").pop().trim())}</span>${ovMeter((pctOf(m) ?? 0) / 100)}<b>${(pctOf(m) ?? 0).toFixed(0)}%</b>`));
-    agBody = `<div class="ov-bars">${rows.join("")}</div>`;
+    const first = re => (ag.metrics || []).find(m => re.test(m.label));
+    const g = first(/^Gemini/), c = first(/Claude/);
+    const pct = m => (m ? (pctOf(m) ?? 0).toFixed(0) + "%" : "--");
+    agBody = `<div class="ov-big">${pct(g)}<span>Gemini</span></div>`;
+    agLine2 = `Claude / GPT ${pct(c)} · 5 小时窗口`;
   } else {
     agBody = `<div class="ov-big dim">${escHtml(ag?.error || "未检测到 Antigravity Tools")}</div>`;
   }
   const agCard = ovCard("benefits", "🛸", "Antigravity 反重力", ag?.extra?.stale ? `<span class="pill amber">较旧</span>` : "", agBody,
-    [ag?.extra?.last_updated_iso ? `缓存更新于 ${escHtml(fmtWhen(ag.extra.last_updated_iso))}` : ""], "5 小时 + 每周双窗口");
+    [agLine2], "5 小时 + 每周双窗口" + (ag?.extra?.last_updated_iso ? " · 缓存更新于 " + fmtWhen(ag.extra.last_updated_iso) : ""));
 
   document.getElementById("ovCards").innerHTML = colab + flow + gcp + drive + agCard;
   renderOverviewTodo();
@@ -2265,9 +2293,8 @@ function renderOverviewTodo() {
   for (const [k, label] of [["flow_credits", "Flow 积分"], ["gcp_credits", "Cloud 赠金"]]) {
     if (s[k]?.status === "error") add("warn", `${label}读取失败：${escHtml(s[k].error || "")}`, "重试", "switchView('accounts')");
   }
-  box.innerHTML = items.length
-    ? items.map(i => `<div class="todo-item ${i.tone}"><span class="todo-txt">${i.text}</span><button class="btn btn-sm" onclick="${i.action}">${i.label}</button></div>`).join("")
-    : `<div class="todo-item"><span class="todo-txt">✅ 一切正常，没有需要处理的事项</span></div>`;
+  box.innerHTML = items.map(i => `<div class="todo-item ${i.tone}"><span class="todo-txt">${i.text}</span><button class="btn btn-sm" onclick="${i.action}">${i.label}</button></div>`).join("");
+  document.getElementById("ovTodoWrap").style.display = items.length ? "" : "none";
   const badge = document.getElementById("navTodoBadge");
   const n = items.filter(i => i.tone).length;
   badge.textContent = n;
