@@ -1480,17 +1480,18 @@ class MonitorEngine:
         try:
             proc = subprocess.run(
                 [colab_bin, *acct_args, "exec", "-s", session_name, "--timeout", "35"],
-                input="import subprocess; subprocess.run('nvidia-smi --query-gpu=name,memory.total --format=csv,noheader', shell=True)\n",
+                # `_ = ...` keeps the REPL from echoing the CompletedProcess repr as an extra line.
+                input="import subprocess; _ = subprocess.run('nvidia-smi --query-gpu=name,memory.total --format=csv,noheader', shell=True)\n",
                 text=True,
                 capture_output=True,
                 timeout=45,
                 env=env,
             )
-            lines = [ln.strip() for ln in (proc.stdout or "").splitlines() if ln.strip() and not ln.strip().startswith("[colab]")]
-            if lines:
+            model = colab_sessions.pick_gpu_model(proc.stdout or "")
+            if model:
                 with self._state_lock:
                     if self.active_hold and self.active_hold.get("endpoint") == endpoint:
-                        self.active_hold["gpu_model"] = lines[-1]
+                        self.active_hold["gpu_model"] = model
                         self._save_hold_state_locked()
                 self.broadcast_state()
         except Exception:

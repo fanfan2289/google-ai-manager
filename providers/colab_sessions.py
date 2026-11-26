@@ -94,6 +94,18 @@ def clean_cli_output(text: str, limit: int = 20000) -> str:
     return out[-limit:]
 
 
+GPU_MODEL_RE = re.compile(r"^[A-Za-z][\w .()/-]{1,60},\s*\d+\s*MiB$")
+
+
+def pick_gpu_model(stdout: str) -> str | None:
+    """The `name, memory.total` line printed by nvidia-smi (ignores REPL echoes / progress lines)."""
+    for line in reversed((stdout or "").splitlines()):
+        line = line.strip()
+        if GPU_MODEL_RE.match(line):
+            return line
+    return None
+
+
 def parse_session_url(stdout: str) -> str:
     for line in reversed((stdout or "").splitlines()):
         line = line.strip()

@@ -80,6 +80,14 @@ class ValidationTests(unittest.TestCase):
         with self.assertRaises(cs.SessionError):
             cs.parse_session_url("https://evil.example/x")
 
+    def test_gpu_model_ignores_repl_echo(self) -> None:
+        out = ("[colab] connecting\nTesla T4, 15360 MiB\n"
+               "CompletedProcess(args='nvidia-smi --query-gpu=name,memory.total --format=csv,noheader', returncode=0)")
+        self.assertEqual(cs.pick_gpu_model(out), "Tesla T4, 15360 MiB")
+        self.assertEqual(cs.pick_gpu_model("NVIDIA RTX PRO 6000 Blackwell Server Edition, 97887 MiB"),
+                         "NVIDIA RTX PRO 6000 Blackwell Server Edition, 97887 MiB")
+        self.assertIsNone(cs.pick_gpu_model("bash: nvidia-smi: command not found"))
+
     def test_clean_output_drops_progress_lines(self) -> None:
         self.assertEqual(cs.clean_cli_output("[colab] connecting\nhello\n  [colab] x\nworld"), "hello\nworld")
 
