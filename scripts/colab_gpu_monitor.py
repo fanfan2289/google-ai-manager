@@ -2087,7 +2087,7 @@ class MonitorEngine:
                     detail = "400 Bad Request (当前账号无该卡权限或参数不受该显卡支持)"
                 elif http_code in (401, 403):
                     status = "AUTH_ERROR"
-                    detail = f"{http_code} 授权失效或无权访问，请重跑 1_首次授权_Auth.bat"
+                    detail = f"{http_code} 授权失效或无权访问，请在「账号管理」重新登录该账号"
                 else:
                     status = "NETWORK_ERROR"
                     detail = f"HTTP {http_code or '?'} {reason} {body_snip}".strip()

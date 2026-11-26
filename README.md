@@ -57,18 +57,21 @@
    ```powershell
    wsl.exe -d Ubuntu -e bash scripts/wsl_setup_env.sh
    ```
-3. **启动**：双击 `5_显卡余量监控看板_Monitor.bat`（加 `--web` 参数改用浏览器打开 `http://127.0.0.1:8765`）。
+3. **启动**：双击 `desktop_app\start.bat`，或给它建一个桌面快捷方式（加 `--web` 参数改用浏览器打开 `http://127.0.0.1:8765`）。
 4. **添加账号**：打开「👤 账号管理 → 添加账号 → 开始 OAuth 授权」。
 5. **可选**：在「设置 → 实验功能」打开 Flow 积分与 Cloud 赠金读取，然后在账号卡片上点「🔗 连接」，在弹出的专用 Edge 窗口里登录一次。
 
 ### 命令行入口（可选）
-| 入口 | 作用 |
+统一用 `.\scripts\Invoke-GAM.ps1 <模式>` 调用：
+
+| 模式 | 作用 |
 |---|---|
-| `1_首次授权_Auth.bat` | 命令行方式登录 Colab 与授权云盘（一般用界面的一键授权即可） |
-| `3_紧急强杀与CCU对账_StopAll.bat` | 强杀所有账号的全部 Colab 实例并复核 |
-| `4_查看状态与CCU余额_Status.bat` | 查看各账号的实例与 CCU 余额 |
-| `.\scripts\Invoke-GAM.ps1 run -g L4 -c "nvidia-smi"` | 抢一台 GPU 运行一条命令，跑完自动关机 |
-| `2_一键运行短剧_RunH3.bat` | 示例工作流（见下方 `cloud_workstation/`） |
+| `stop` | 强杀所有账号的全部 Colab 实例并复核 |
+| `status` | 查看各账号的实例与 CCU 余额 |
+| `run -g L4 -c "nvidia-smi"` | 抢一台 GPU 运行一条命令，跑完自动关机 |
+| `auth` | 命令行方式登录 Colab 与授权云盘（一般用界面的一键授权即可） |
+| `monitor --open` | 只启动后端并用浏览器打开面板 |
+| `drama` | 示例工作流（见下方 `cloud_workstation/`） |
 
 ---
 
@@ -77,6 +80,7 @@
 ```text
 google-ai-manager/
 ├── desktop_app/
+│   ├── start.bat               # 启动桌面端（双击或建快捷方式）
 │   ├── colab_gpu_tools.py      # Windows 桌面外壳：WebView2 窗口 + 系统托盘 + JS 桥
 │   └── flow_credits.py         # 专用 Edge 配置的网页读取（Flow 积分、Cloud 赠金）
 ├── scripts/
@@ -90,8 +94,7 @@ google-ai-manager/
 ├── providers/                  # 额度插件：colab / google_storage / antigravity / flow_credits / gcp_credits
 │                               #   accounts_hub(多账号) / colab_sessions / remote_runner / benefits / selfcheck / netcfg / paths
 ├── cloud_workstation/          # 示例工作流：ComfyUI + MiniMax-H3 短剧（与应用本身无关，可删除）
-├── tests/                      # 单元测试
-└── *.bat                       # 命令行快捷入口
+└── tests/                      # 单元测试
 ```
 
 ---
@@ -127,7 +130,7 @@ wsl.exe -d Ubuntu -e python3 -u scripts/colab_gpu_monitor.py --port 8766 --no-pr
 
 | 版本 | 主要内容 |
 |---|---|
-| v2.9 | 设置分页 + 关于页；修复长页面滚动不到底；清理模型下载等遗留脚本 |
+| v2.9 | 设置分页 + 关于页；修复长页面滚动不到底；清理模型下载与根目录 .bat 等遗留脚本 |
 | v2.8 | Colab 合并为一个入口；Flow 余额趋势与提醒；Cloud 免费试用与赠金到期提醒；云盘空间构成；浅色主题 |
 | v2.7 | 一键 OAuth 添加 / 登录账号；顶部横向导航 |
 | v2.6 | 界面改为额度管理面板（总览首页） |

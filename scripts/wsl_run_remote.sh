@@ -160,7 +160,7 @@ fi
 
 # 检查 Colab OAuth 与 DriveFS 凭据是否就绪（自动适配多账户与跨账户共享 Drive）
 if ! colab "${ACCT_ARGS[@]}" whoami >/dev/null 2>&1; then
-    log "[ERROR] Colab 账号尚未登录！请先双击运行 1_首次授权_Auth.bat 或执行 bash scripts/wsl_auth.sh"
+    log "[ERROR] Colab 账号尚未登录！请在桌面端「账号管理」登录，或执行 bash scripts/wsl_auth.sh"
     exit 1
 fi
 
@@ -168,7 +168,7 @@ if [[ "$MOUNT_DRIVE" -eq 1 ]]; then
 DFS_CRED="$(colab "${ACCT_ARGS[@]}" account current --json | python3 -c 'import json,sys; print(json.load(sys.stdin).get("dfs_credentials_path",""))' 2>/dev/null || true)"
 if [[ -z "$DFS_CRED" ]] || [[ ! -s "$DFS_CRED" ]]; then
     log "[ERROR] 未检测到零浏览器 DriveFS 授权凭据 (${DFS_CRED:-unknown})！"
-    log "        请先双击运行 1_首次授权_Auth.bat 或执行: colab dfs consent"
+    log "        请在桌面端「账号管理」授权云盘，或执行: colab dfs consent"
     exit 1
 fi
 if ! colab "${ACCT_ARGS[@]}" dfs token >/dev/null 2>&1; then

@@ -37,7 +37,8 @@ Current version: **v2.9**
    .\.venv-desktop\Scripts\python.exe -m pip install -r requirements-desktop.txt
    ```
 2. Backend (WSL2 Ubuntu): `wsl.exe -d Ubuntu -e bash scripts/wsl_setup_env.sh`
-3. Start `5_显卡余量监控看板_Monitor.bat` (`--web` for browser mode on `http://127.0.0.1:8765`).
+3. Start `desktop_app\start.bat` (or make a desktop shortcut to it; `--web` for browser mode on `http://127.0.0.1:8765`).
+   Command-line tools: `.\scripts\Invoke-GAM.ps1 stop | status | run | auth | monitor | drama`.
 4. **Accounts → Add account → Start OAuth**.
 5. Optional: enable Flow / Cloud credit reading in **Settings → Experimental**, then **Connect** on an
    account card and sign in once in the dedicated Edge window.
