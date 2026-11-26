@@ -40,7 +40,7 @@ APP_TITLE = "Google AI Manager"
 BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 8765
 BACKEND_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}"
-EXPECTED_VERSION = "2.8"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
+EXPECTED_VERSION = "2.9"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
 # Google pages the UI may open in the default browser (keep in sync with providers/benefits.py).
 EXTERNAL_URL_PREFIXES = (
     "https://accounts.google.com/",
@@ -50,6 +50,7 @@ EXTERNAL_URL_PREFIXES = (
     "https://labs.google/",
     "https://flow.google.com/",
     "https://drive.google.com/",
+    "https://github.com/fanfan2289/",
     "https://developers.google.com/",
     "https://console.cloud.google.com/",
     "https://studio.firebase.google.com/",

@@ -23,6 +23,7 @@ import datetime as dt
 import json
 import os
 import queue
+import re
 import signal
 import socket
 import sqlite3
@@ -46,7 +47,9 @@ CONFIG_PATH = LOGS_DIR / "gpu_monitor_config.json"
 HOLD_STATE_PATH = LOGS_DIR / "active_hold.json"
 DOWNLOADS_DIR = PROJECT_DIR / "downloads"
 UI_HTML_PATH = SCRIPT_DIR / "monitor_ui.html"
-APP_VERSION = "2.8"
+STATIC_DIR = SCRIPT_DIR / "static"
+STATIC_RE = re.compile(r"^[a-z0-9_-]{1,64}\.(png|svg)$")
+APP_VERSION = "2.9"
 
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
@@ -2481,6 +2484,21 @@ def make_handler(engine: MonitorEngine):
             parsed = urllib.parse.urlparse(self.path)
             path = parsed.path
             qs = urllib.parse.parse_qs(parsed.query)
+
+            if path.startswith("/static/"):  # about-page images; flat whitelist-by-pattern, no traversal
+                name = path[len("/static/"):]
+                f = STATIC_DIR / name
+                if not STATIC_RE.match(name) or not f.is_file():
+                    self._send_json({"error": "Not found"}, status=404)
+                    return
+                data = f.read_bytes()
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "image/png" if name.endswith(".png") else "image/svg+xml")
+                self.send_header("Cache-Control", "max-age=3600")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
 
             if path in ("/", "/index.html"):
                 if not UI_HTML_PATH.is_file():
