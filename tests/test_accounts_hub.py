@@ -250,3 +250,120 @@ class HubInvalidateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---------------------------------------------------------------------- v2.7 one-click OAuth
+import io  # noqa: E402
+import json  # noqa: E402
+import time  # noqa: E402
+
+from providers.accounts_hub import TEMP_PREFIX, derive_account_name  # noqa: E402
+
+
+class FakeProc:
+    def __init__(self, lines, rc=0):
+        self.stdout = io.StringIO("".join(line + "\n" for line in lines))
+        self.rc = rc
+        self.pid = 999999
+
+    def wait(self):
+        return self.rc
+
+    def poll(self):
+        return self.rc
+
+    def terminate(self):
+        pass
+
+
+class OAuthJobTests(_HubCase):
+    def _run(self, kind, lines, rc=0, name=None, on_cli=None):
+        """Start a job whose helper prints `lines`; registry changes are simulated via `on_cli`."""
+        runner = self.runner
+
+        def cli(args, timeout):
+            runner.calls.append(list(args))
+            if on_cli:
+                on_cli(args)
+            return subprocess.CompletedProcess(args, 0, AUTH_URL + "\n", "")
+
+        self.hub._runner = cli
+        self.hub._popen = lambda argv: (self.argv.append(argv), FakeProc(lines, rc))[1]
+        self.argv = []
+        job = self.hub.start_oauth(kind, name)
+        for _ in range(50):
+            st = self.hub.oauth_status(job["id"])
+            if st["state"] in ("done", "error"):
+                return st
+            time.sleep(0.05)
+        return st
+
+    def test_derive_name(self) -> None:
+        self.assertEqual(derive_account_name("John.Doe+x@gmail.com", []), "john.doe-x")
+        self.assertEqual(derive_account_name("main@example.com", ["main", "main2"]), "main3")
+        self.assertEqual(derive_account_name(None, []), "google")
+        self.assertEqual(derive_account_name("-x@y.z", []), "x")
+        self.assertFalse(derive_account_name(TEMP_PREFIX + "a@y.z", []).startswith(TEMP_PREFIX))
+
+    def test_add_renames_temp_profile_after_email(self) -> None:
+        reg = self.backend.reg["accounts"]
+
+        def on_cli(args):
+            if args[:2] == ["account", "add"]:
+                reg[args[2]] = {}
+            if args[:2] == ["account", "rename"]:
+                reg[args[3]] = reg.pop(args[2])
+
+        lines = [json.dumps({"event": "url", "url": AUTH_URL, "port": 1}), json.dumps({"event": "done"})]
+        # the helper "logs in": colab-ext records the e-mail on the temp profile
+        orig_popen = None
+
+        def popen(argv):
+            reg[argv[2]]["email"] = "alice@example.com"
+            return FakeProc(lines)
+
+        self.hub._runner = lambda args, timeout: (on_cli(args), subprocess.CompletedProcess(args, 0, AUTH_URL, ""))[1]
+        self.hub._popen = popen
+        job = self.hub.start_oauth("add")
+        self.assertEqual(job["url"], AUTH_URL)
+        for _ in range(50):
+            st = self.hub.oauth_status(job["id"])
+            if st["state"] == "done":
+                break
+            time.sleep(0.05)
+        self.assertEqual((st["state"], st["account"]), ("done", "alice"))
+        self.assertIn("alice", reg)
+        self.assertFalse(any(n.startswith(TEMP_PREFIX) for n in reg))
+        del orig_popen
+
+    def test_failed_add_removes_temp_profile(self) -> None:
+        reg = self.backend.reg["accounts"]
+        removed = []
+
+        def on_cli(args):
+            if args[:2] == ["account", "add"]:
+                reg[args[2]] = {}
+            if args[:2] == ["account", "remove"]:
+                removed.append(args[2])
+                reg.pop(args[2], None)
+
+        lines = [json.dumps({"event": "url", "url": AUTH_URL}), json.dumps({"event": "error", "error": "授权被取消"})]
+        st = self._run("add", lines, rc=3, on_cli=on_cli)
+        self.assertEqual(st["state"], "error")
+        self.assertIn("取消", st["error"])
+        self.assertTrue(removed and removed[0].startswith(TEMP_PREFIX))
+
+    def test_drive_job_parses_url_from_cli_output(self) -> None:
+        st = self._run("drive", ["Consent URL (loopback http://localhost:1234):", "  " + AUTH_URL, "saved"], name="main")
+        self.assertEqual(st["state"], "done")
+        self.assertEqual(self.argv[0][1:6], ["drive", "consent", "-a", "main", "--flavor"])
+
+    def test_non_google_url_is_ignored(self) -> None:
+        with self.assertRaises(AccountsError):
+            self._run("login", [json.dumps({"event": "url", "url": "https://evil.example/x"})], rc=1, name="main")
+
+    def test_unknown_kind_and_account(self) -> None:
+        with self.assertRaises(AccountsError):
+            self.hub.start_oauth("bogus")
+        with self.assertRaises(AccountsError):
+            self.hub.start_oauth("login", "ghost")

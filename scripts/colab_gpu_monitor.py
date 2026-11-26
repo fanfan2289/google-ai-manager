@@ -46,7 +46,7 @@ CONFIG_PATH = LOGS_DIR / "gpu_monitor_config.json"
 HOLD_STATE_PATH = LOGS_DIR / "active_hold.json"
 DOWNLOADS_DIR = PROJECT_DIR / "downloads"
 UI_HTML_PATH = SCRIPT_DIR / "monitor_ui.html"
-APP_VERSION = "2.6"
+APP_VERSION = "2.7"
 
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
@@ -2626,6 +2626,17 @@ def make_handler(engine: MonitorEngine):
                         )
                     elif action == "meta":
                         res = {"ok": True, "meta": hub.set_meta(name, body.get("meta") or {})}
+                    elif action == "oauth-start":  # v2.7 one-click sign-in (localhost callback)
+                        res = hub.start_oauth(str(body.get("kind") or ""), name or None, body.get("email"))
+                    elif action == "oauth-status":
+                        res = hub.oauth_status(str(body.get("id") or ""))
+                        if res.get("state") == "done":
+                            engine.providers.invalidate(res.get("account"))
+                    elif action == "oauth-cancel":
+                        res = hub.cancel_oauth(str(body.get("id") or ""))
+                    elif action == "oauth-code":
+                        res = hub.finish_oauth_with_code(str(body.get("id") or ""), str(body.get("code") or ""))
+                        engine.providers.invalidate(res.get("account"))
                     else:
                         self._send_json({"error": "Not found"}, status=404)
                         return

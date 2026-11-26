@@ -14,11 +14,15 @@ Switching the account the monitor works with is the engine's job (its own config
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import secrets
 import subprocess
 import threading
+import time
 import urllib.parse
+from pathlib import Path
 from typing import Any, Callable
 
 try:  # package import (backend / tests) or plain script
@@ -33,6 +37,11 @@ CODE_RE = re.compile(r"^[A-Za-z0-9/_.~%+-]{10,1024}$")
 OAUTH_URL_PREFIXES = ("https://accounts.google.com/",)
 COLORS = ("", "blue", "emerald", "amber", "crimson", "violet", "slate")
 MAX_LABEL, MAX_NOTE, MAX_TAGS, MAX_TAG = 40, 500, 8, 16
+# One-click sign-in (v2.7): a temporary profile name is used until the Google e-mail is known.
+TEMP_PREFIX = "gam-new-"
+OAUTH_ACTIVE = ("starting", "waiting", "finishing")
+OAUTH_TIMEOUT_SECONDS = 600
+LOOPBACK_SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "gam_oauth_loopback.py"
 
 Runner = Callable[[list[str], float], "subprocess.CompletedProcess[str]"]
 
@@ -116,6 +125,20 @@ def _tail(text: str, n: int = 4) -> str:
     return " | ".join(lines[-n:])[:600]
 
 
+def derive_account_name(email: str | None, existing: list[str]) -> str:
+    """Profile name from the e-mail's local part (letters, digits, . _ -), unique among `existing`."""
+    local = (email or "").split("@")[0].lower()
+    base = re.sub(r"[^a-z0-9._-]+", "-", local).strip("-._")[:28] or "google"
+    if not base[0].isalnum() or base.startswith(TEMP_PREFIX):
+        base = "g" + base
+    name, i = base, 2
+    taken = set(existing)
+    while name in taken:
+        name = f"{base[:28]}{i}"
+        i += 1
+    return name
+
+
 def aggregate_account_totals(per: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Sum Colab CCU / burn / VMs over accounts; storage is de-duplicated by Drive account."""
 
@@ -174,6 +197,8 @@ class AccountsHub:
         self._meta_lock = threading.Lock()
         # Serialise CLI writes: colab-ext locks its registry, but pending OAuth files are per account.
         self._cli_lock = threading.Lock()
+        self._oauth_lock = threading.Lock()
+        self._oauth_job: dict[str, Any] | None = None
 
     # ------------------------------------------------------------------ plumbing
     @property
@@ -340,6 +365,188 @@ class AccountsHub:
         if not url:
             raise AccountsError("colab 未返回授权链接：" + (_tail(proc.stderr) or _tail(proc.stdout) or "空输出"))
         return {"ok": True, "name": name, "step": step, "url": url}
+
+    # ------------------------------------------------------------------ one-click OAuth (v2.7, loopback callback)
+    def _popen(self, argv: list[str]) -> "subprocess.Popen[str]":
+        env = dict((self._env() if callable(self._env) else self._env) or os.environ)
+        env.setdefault("NO_COLOR", "1")
+        env["COLUMNS"] = "200"
+        env["PYTHONUNBUFFERED"] = "1"
+        return subprocess.Popen(argv, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                stdin=subprocess.DEVNULL, bufsize=1, start_new_session=True)
+
+    def _oauth_public(self, job: dict[str, Any]) -> dict[str, Any]:
+        return {k: job.get(k) for k in ("id", "kind", "state", "url", "account", "error", "started_at")}
+
+    def start_oauth(self, kind: str, name: str | None = None, email: str | None = None) -> dict[str, Any]:
+        """Start a browser sign-in that completes by itself through a localhost callback.
+
+        kind: "add" (new profile, auto-named from the Google e-mail), "login" (re-login an existing
+        profile) or "drive" (DriveFS consent). Only one job runs at a time; a new one cancels the old.
+        """
+        if kind not in ("add", "login", "drive"):
+            raise AccountsError("未知的授权类型")
+        email = (email or "").strip() or None
+        if email and (not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email) or len(email) > 254):
+            raise AccountsError("邮箱格式不正确")
+        with self._oauth_lock:
+            old = self._oauth_job
+        if old and old.get("state") in OAUTH_ACTIVE:
+            self.cancel_oauth(old["id"])
+        temp = None
+        if kind == "add":
+            temp = TEMP_PREFIX + secrets.token_hex(3)
+            args = ["account", "add", temp, "--url-only", "--no-use", "--no-browser", "--no-drive"]
+            if email:
+                args += ["--email", email]
+            self._cli(args)  # registers the profile; the helper below replaces its pending login
+            account = temp
+        else:
+            account = self.require_existing(name or "")
+        if kind == "drive":
+            argv = [self._colab_bin, "drive", "consent", "-a", account, "--flavor", "dfs", "--no-browser"]
+        else:
+            argv = ["python3", str(LOOPBACK_SCRIPT), account] + (["--email", email] if email else [])
+        job = {"id": secrets.token_hex(6), "kind": kind, "state": "starting", "url": None, "account": account,
+               "temp": temp, "error": None, "started_at": time.time(), "proc": None}
+        try:
+            job["proc"] = self._popen(argv)
+        except OSError as exc:
+            if temp:
+                self._cleanup_temp(temp)
+            raise AccountsError(f"无法启动授权流程：{exc}") from exc
+        with self._oauth_lock:
+            self._oauth_job = job
+        threading.Thread(target=self._oauth_reader, args=(job,), name="oauth-reader", daemon=True).start()
+        deadline = time.time() + 30  # wait for the consent URL so the UI can open it right away
+        while time.time() < deadline and job["state"] == "starting":
+            time.sleep(0.2)
+        if job["state"] == "starting":
+            self.cancel_oauth(job["id"])
+            raise AccountsError("授权链接生成超时（检查网络或代理）")
+        if job["state"] == "error" and not job["url"]:
+            raise AccountsError(job["error"] or "授权流程启动失败")
+        return self._oauth_public(job)
+
+    def _oauth_reader(self, job: dict[str, Any]) -> None:
+        proc = job["proc"]
+        tail: list[str] = []
+        for line in proc.stdout or []:
+            line = line.strip()
+            if not line:
+                continue
+            tail = (tail + [line])[-4:]
+            if job["kind"] == "drive":
+                url = _first_url(line)
+                if url and job["url"] is None:
+                    job.update(url=url, state="waiting")
+                continue
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            if ev.get("event") == "url" and str(ev.get("url", "")).startswith(OAUTH_URL_PREFIXES):
+                job.update(url=ev["url"], state="waiting")
+            elif ev.get("event") == "finishing":
+                job["state"] = "finishing"
+            elif ev.get("event") == "error":
+                job["error"] = str(ev.get("error") or "授权失败")[:300]
+        rc = proc.wait()
+        if job["state"] == "cancelled":
+            return
+        if rc == 0 and not job.get("error"):
+            try:
+                self._oauth_finalize(job)
+                job["state"] = "done"
+            except Exception as exc:
+                job.update(state="error", error=f"登录已完成，但收尾失败：{exc}")
+        else:
+            if not job.get("error"):
+                job["error"] = ("授权失败：" + " ".join(tail))[:300] if tail else f"授权失败（退出码 {rc}）"
+            job["state"] = "error"
+            if job.get("temp"):
+                self._cleanup_temp(job["temp"])
+            elif job["kind"] == "login":
+                self._drop_pending_login(job["account"])
+
+    def _oauth_finalize(self, job: dict[str, Any]) -> None:
+        """After a successful "add": rename the temporary profile after the Google e-mail."""
+        temp = job.get("temp")
+        if not temp:
+            return
+        email = self.email_of(temp)
+        new = derive_account_name(email, [n for n in self.names() if n != temp])
+        if new != temp:
+            self._cli(["account", "rename", temp, new])
+        job["account"] = new
+        job["temp"] = None
+
+    def _cleanup_temp(self, temp: str) -> None:
+        """Remove a half-created profile from an abandoned "add" (never a real account)."""
+        if not temp.startswith(TEMP_PREFIX) or temp not in self.names():
+            return
+        try:
+            self._cli(["account", "remove", temp, "--force"])
+        except AccountsError:
+            pass
+
+    def oauth_status(self, job_id: str) -> dict[str, Any]:
+        with self._oauth_lock:
+            job = self._oauth_job
+        if not job or job["id"] != job_id:
+            raise AccountsError("授权流程不存在或已过期")
+        if job["state"] in OAUTH_ACTIVE and time.time() - job["started_at"] > OAUTH_TIMEOUT_SECONDS + 30:
+            self.cancel_oauth(job_id)
+            job.update(state="error", error="等待授权超时")
+        return self._oauth_public(job)
+
+    def cancel_oauth(self, job_id: str) -> dict[str, Any]:
+        with self._oauth_lock:
+            job = self._oauth_job
+        if not job or job["id"] != job_id:
+            return {"ok": True}
+        if job["state"] in OAUTH_ACTIVE:
+            job["state"] = "cancelled"
+            proc = job.get("proc")
+            if proc is not None and proc.poll() is None:
+                try:
+                    os.killpg(os.getpgid(proc.pid), 15)
+                except Exception:
+                    proc.terminate()
+            if job.get("temp"):
+                self._cleanup_temp(job["temp"])
+            elif job["kind"] == "login":
+                self._drop_pending_login(job["account"])
+        return {"ok": True}
+
+    def _drop_pending_login(self, name: str) -> None:
+        """An abandoned one-click login leaves colab-ext's pending file behind; it holds no token."""
+        try:
+            path = self.backend.oauth_pending_path(name)
+            if os.path.exists(path):
+                os.unlink(path)
+        except Exception:
+            pass
+
+    def finish_oauth_with_code(self, job_id: str, code: str) -> dict[str, Any]:
+        """Fallback when the browser cannot reach the callback: paste the address-bar URL / code."""
+        with self._oauth_lock:
+            job = self._oauth_job
+        if not job or job["id"] != job_id or job["kind"] == "drive":
+            raise AccountsError("当前没有可手动完成的登录流程")
+        code = normalize_code(code)
+        proc = job.get("proc")
+        job["state"] = "finishing"
+        if proc is not None and proc.poll() is None:  # stop the helper first (it may still be listening)
+            job["state"] = "cancelled"
+            try:
+                os.killpg(os.getpgid(proc.pid), 15)
+            except Exception:
+                proc.terminate()
+        self._cli(["account", "login", job["account"], "--code", code])
+        self._oauth_finalize(job)
+        job.update(state="done", error=None)
+        return self._oauth_public(job)
 
     # ------------------------------------------------------------------ removal
     def remove(self, name: str) -> dict[str, Any]:

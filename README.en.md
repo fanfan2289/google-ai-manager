@@ -10,7 +10,7 @@ for people who use **Google AI Pro** across one or more Google accounts. It trac
 grabs scarce Colab GPUs with strict anti-ghost-billing guards, and puts the quotas of the other Pro
 tools in one place.
 
-## Features (v2.6)
+## Features (v2.7)
 
 - **Colab GPU monitor & auto-hold**: probes `G4 / A100 / H100 / L4 / T4` capacity at zero cost (a
   503 costs nothing), optionally holds a GPU on a hit and shuts the VM down
@@ -18,8 +18,8 @@ tools in one place.
   Drive can be mounted on demand.
 - **Anti-ghost-billing**: every probe allocation that is not intentionally held is released in a
   `finally` block and verified; emergency stop kills all VMs (including orphans) and re-checks for 0.
-- **Multi-account hub**: add / re-login / Drive-consent Google accounts from the UI (copy & paste
-  OAuth code, no CLI needed), labels and notes, guarded removal, aggregated CCU / burn rate / VMs /
+- **Multi-account hub**: add / re-login / Drive-consent Google accounts from the UI with one click
+  (browser sign-in completes through a localhost callback; no code to paste), labels and notes, guarded removal, aggregated CCU / burn rate / VMs /
   storage across accounts.
 - **Failover**: when the primary account is below a CCU threshold, rate-limited (429), at its
   instance cap (412) or unauthorised, probing and grabbing switch to ordered backup accounts. Holds,

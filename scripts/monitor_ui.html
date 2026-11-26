@@ -782,6 +782,25 @@
                  border-radius: var(--radius); background: var(--amber-soft); border: 1px solid var(--amber-border); color: #fde68a; font-size: 12.5px; }
   .info-banner.show { display: flex; }
 
+  /* One-click OAuth modal (v2.7) */
+  .oauth-tabs { display: flex; background: rgba(148,163,184,.08); border-radius: 10px; padding: 4px; margin: 4px 0 14px; }
+  .oauth-tabs span { flex: 1; text-align: center; padding: 7px 0; border-radius: 8px; font-size: 12.5px; color: var(--text-dim); }
+  .oauth-tabs span.on { background: rgba(59,130,246,.18); color: #93c5fd; font-weight: 600; }
+  .oauth-hero { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 10px 0 14px; }
+  .oauth-hero .ring { width: 74px; height: 74px; border-radius: 50%; background: rgba(59,130,246,.14); display: flex;
+                      align-items: center; justify-content: center; font-size: 34px; }
+  .oauth-hero .ring.spin { animation: gamPulse 1.6s ease-in-out infinite; }
+  @keyframes gamPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,.35); } 50% { box-shadow: 0 0 0 12px rgba(59,130,246,0); } }
+  .oauth-hero b { font-size: 15px; color: var(--text); }
+  .oauth-hero p { margin: 0; font-size: 12.5px; color: var(--text-muted); max-width: 380px; line-height: 1.6; }
+  .oauth-main { width: 100%; padding: 12px 0; font-size: 14.5px; font-weight: 600; border-radius: 10px; }
+  .oauth-linklbl { font-size: 11.5px; color: var(--text-dim); margin: 12px 0 6px; }
+  .oauth-link { display: flex; align-items: center; gap: 8px; border: 1px dashed var(--border); border-radius: 9px; padding: 8px 10px; }
+  .oauth-link code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--text-muted); }
+  .oauth-ghost { width: 100%; margin-top: 10px; padding: 10px 0; border-radius: 10px; }
+  details.oauth-manual { margin-top: 12px; font-size: 12px; color: var(--text-muted); }
+  details.oauth-manual summary { cursor: pointer; color: var(--text-dim); }
+
   /* Overview (v2.6) */
   .ov-hero { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
   .ov-hero h2 { margin: 0; font-size: 17px; color: var(--text); }
@@ -3113,6 +3132,8 @@ function acctModalOpen(html) {
   if (first) setTimeout(() => first.focus(), 30);
 }
 function acctModalClose() {
+  if (typeof oauthStopPoll === "function") oauthStopPoll();
+  if (acctWizard?.jobId) apiPost("/api/accounts/oauth-cancel", { id: acctWizard.jobId }).catch(() => {});
   document.getElementById("acctModalBackdrop").classList.remove("open");
   document.getElementById("acctModal").innerHTML = "";
   const changed = acctWizard?.changed;
@@ -3127,111 +3148,182 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape" && document.getElementById("acctModalBackdrop").classList.contains("open") && !acctWizard?.busy) acctModalClose();
 });
 
-function wizardSteps(active) {
-  const steps = acctWizard.mode === "add" ? [["name", "1 账号名"], ["login", "2 登录 Colab"], ["drive", "3 授权云盘"]]
-    : acctWizard.mode === "login" ? [["login", "登录 Colab"]] : [["drive", "授权云盘"]];
-  return `<div class="modal-steps">${steps.map(([k, t]) => `<span class="pill ${k === active ? "blue" : ""}">${t}</span>`).join("")}</div>`;
-}
+// ---- one-click OAuth (v2.7): browser sign-in completes through a localhost callback
+const OAUTH_TITLES = { add: "添加新账号", login: "重新登录 Colab", drive: "授权 Google Drive 云盘" };
+let oauthPoll = null;
+
+function oauthStopPoll() { if (oauthPoll) { clearInterval(oauthPoll); oauthPoll = null; } }
 
 function renderWizard() {
   const w = acctWizard;
+  if (!w) return;
   const err = w.error ? `<div class="modal-err">${escHtml(w.error)}</div>` : "";
   const dis = w.busy ? "disabled" : "";
+  const who = w.name && w.mode !== "add" ? ` · ${escHtml(w.name)}` : "";
+  const tabs = `<div class="oauth-tabs"><span class="on">OAuth 授权</span></div>`;
   let body = "";
-  if (w.step === "name") {
-    body = `<h3>添加 Google 账号</h3>${wizardSteps("name")}
-      <p>为这个账号起一个本地名字（仅字母、数字、. _ -，例如 main、backup2）。邮箱可选，用于在 Google 登录页预选账号。</p>
-      <label class="fld">账号名<input type="text" id="wzName" maxlength="32" placeholder="backup" value="${escHtml(w.name || "")}" /></label>
-      <label class="fld">Google 邮箱（可选）<input type="text" id="wzEmail" maxlength="254" placeholder="name@example.com" value="${escHtml(w.email || "")}" /></label>
+  if (w.step === "start") {
+    const what = w.kind === "drive" ? "Google Drive 云盘（挂载云盘与存储额度）" : "Google Colab";
+    body = `<h3>${OAUTH_TITLES[w.kind]}${who}</h3>${tabs}
+      <div class="oauth-hero"><div class="ring">🌐</div><b>推荐方式</b>
+        <p>将打开默认浏览器进行 Google 登录授权（${what}），授权后自动完成，无需复制授权码。</p></div>
+      ${w.mode === "add" ? `<label class="fld">Google 邮箱（可选，用于在登录页预选账号）<input type="text" id="wzEmail" maxlength="254" placeholder="name@example.com" value="${escHtml(w.email || "")}" /></label>` : ""}
+      ${err}
+      <button class="btn btn-primary oauth-main" onclick="beginOAuth()" ${dis}>${w.busy ? "正在打开浏览器..." : "开始 OAuth 授权"}</button>
+      <div class="modal-actions"><button class="btn" onclick="acctModalClose()" ${dis}>取消</button></div>`;
+  } else if (w.step === "waiting") {
+    const fin = w.state === "finishing";
+    body = `<h3>${OAUTH_TITLES[w.kind]}${who}</h3>${tabs}
+      <div class="oauth-hero"><div class="ring spin">${fin ? "🔐" : "⏳"}</div><b>${fin ? "正在完成登录..." : "等待浏览器授权"}</b>
+        <p>${fin ? "已收到 Google 的授权，正在保存登录状态" : "已在默认浏览器打开 Google 登录页：选择账号并点「继续 / 允许」，完成后这里会自动进入下一步。"}</p></div>
+      ${err}
+      <button class="btn btn-primary oauth-main" onclick="openExternal(acctWizard.url)" ${fin ? "disabled" : ""}>🌐 重新打开浏览器</button>
+      <div class="oauth-linklbl">授权链接</div>
+      <div class="oauth-link"><code title="${escHtml(w.url || "")}">${escHtml(w.url || "")}</code>
+        <button class="btn btn-sm" onclick="copyText(acctWizard.url)">📋 复制授权链接</button></div>
+      <button class="btn oauth-ghost" onclick="oauthCheck(true)" ${dis}>✔ 我已授权，继续</button>
+      ${w.kind !== "drive" ? `<details class="oauth-manual"><summary>自动回调失败？手动完成</summary>
+        <p>如果浏览器授权后显示「无法访问此网站」，把地址栏里的完整网址（含 code=）粘贴到下面。</p>
+        <label class="fld"><input type="text" id="wzCode" placeholder="http://localhost:.../?state=...&code=..." autocomplete="off" spellcheck="false" /></label>
+        <button class="btn btn-sm btn-primary" onclick="oauthManualCode()" ${dis}>提交</button></details>`
+      : `<details class="oauth-manual"><summary>自动回调失败？改用授权码方式</summary>
+        <p>改用 Google 显示授权码、手动复制粘贴的方式完成云盘授权。</p>
+        <button class="btn btn-sm" onclick="driveLegacy()" ${dis}>改用授权码方式</button></details>`}
+      <div class="modal-actions"><button class="btn" onclick="acctModalClose()">取消</button></div>`;
+  } else if (w.step === "legacy-code") {
+    body = `<h3>授权云盘（授权码方式）${who}</h3>
+      <p>① 在浏览器打开下面的链接并同意；② 复制 Google 显示的授权码粘贴到下面。</p>
+      <div class="oauth-link"><code>${escHtml(w.url || "")}</code>
+        <button class="btn btn-sm" onclick="openExternal(acctWizard.url)">🌐 打开</button>
+        <button class="btn btn-sm" onclick="copyText(acctWizard.url)">📋 复制</button></div>
+      <label class="fld" style="margin-top:10px;">授权码<input type="text" id="wzCode" placeholder="4/0A..." autocomplete="off" spellcheck="false" /></label>
       ${err}
       <div class="modal-actions"><button class="btn" onclick="acctModalClose()" ${dis}>取消</button>
-        <button class="btn btn-primary" onclick="wizardStartAdd()" ${dis}>${w.busy ? "生成中..." : "获取授权链接"}</button></div>`;
-  } else if (w.step === "code") {
-    const what = w.kind === "drive" ? "Google Drive 云盘（静默挂盘 + 存储额度）" : "Google Colab";
-    body = `<h3>${w.kind === "drive" ? "授权云盘" : "登录 Colab"} · ${escHtml(w.name)}</h3>${wizardSteps(w.kind)}
-      <p>① 在浏览器打开下面的链接，用 <b>${escHtml(w.name)}</b> 对应的 Google 账号授权 ${what}；<br>② 授权完成后 Google 会显示一段授权码，复制回来粘贴到下面。</p>
-      <div class="oauth-url">${escHtml(w.url)}</div>
-      <div class="modal-actions" style="justify-content:flex-start;">
-        <button class="btn btn-primary btn-sm" onclick="openExternal(acctWizard.url)">🌐 在浏览器打开</button>
-        <button class="btn btn-sm" onclick="copyText(acctWizard.url)">📋 复制链接</button></div>
-      <label class="fld">授权码<input type="text" id="wzCode" placeholder="4/0A..." autocomplete="off" spellcheck="false" /></label>
-      ${err}
-      <div class="modal-actions"><button class="btn" onclick="acctModalClose()" ${dis}>${w.kind === "drive" && w.mode === "add" ? "跳过，稍后授权" : "取消"}</button>
-        <button class="btn btn-primary" onclick="wizardFinish()" ${dis}>${w.busy ? "验证中..." : "完成授权"}</button></div>`;
+        <button class="btn btn-primary" onclick="driveLegacyFinish()" ${dis}>${w.busy ? "验证中..." : "完成授权"}</button></div>`;
   } else if (w.step === "offer-drive") {
-    body = `<h3>✅ Colab 登录成功 · ${escHtml(w.name)}</h3>${wizardSteps("drive")}
-      <p>建议继续授权 Google Drive：锁卡后可一键静默挂载云盘，并能在总览里看到这个账号的存储额度。</p>
+    body = `<h3>✅ Colab 登录成功 · ${escHtml(w.name)}</h3>
+      <div class="oauth-hero"><div class="ring">💾</div><b>继续授权 Google Drive？</b>
+        <p>授权后可一键挂载云盘到 Colab，并在总览里看到这个账号的存储用量。同样是一键授权。</p></div>
       ${err}
-      <div class="modal-actions"><button class="btn" onclick="acctModalClose()" ${dis}>以后再说</button>
-        <button class="btn btn-primary" onclick="wizardStartDrive()" ${dis}>${w.busy ? "生成中..." : "授权云盘"}</button></div>`;
+      <button class="btn btn-primary oauth-main" onclick="startOAuth('drive', acctWizard.name, true)" ${dis}>授权云盘</button>
+      <div class="modal-actions"><button class="btn" onclick="acctModalClose()" ${dis}>以后再说</button></div>`;
   }
   acctModalOpen(body);
   const code = document.getElementById("wzCode");
-  if (code) code.addEventListener("keydown", e => { if (e.key === "Enter") wizardFinish(); });
-}
-
-async function wizardCall(fn) {
-  acctWizard.busy = true; acctWizard.error = "";
-  renderWizard();
-  try { await fn(); }
-  catch (e) { acctWizard.error = e.message; }
-  finally { if (acctWizard) { acctWizard.busy = false; renderWizard(); } }
+  if (code) code.addEventListener("keydown", e => { if (e.key === "Enter") (w.step === "legacy-code" ? driveLegacyFinish() : oauthManualCode()); });
 }
 
 function openAddAccount() {
-  acctWizard = { mode: "add", step: "name", name: "", email: "" };
+  oauthStopPoll();
+  acctWizard = { mode: "add", kind: "add", step: "start", name: "", email: "" };
   renderWizard();
 }
 
-async function wizardStartAdd() {
-  acctWizard.name = document.getElementById("wzName").value.trim();
-  acctWizard.email = document.getElementById("wzEmail").value.trim();
-  await wizardCall(async () => {
-    const r = await apiPost("/api/accounts/add-start", { name: acctWizard.name, email: acctWizard.email });
-    Object.assign(acctWizard, { step: "code", kind: "login", url: r.url, changed: true });
-  });
+function startOAuth(kind, name, chained = false) {
+  oauthStopPoll();
+  const changed = acctWizard?.changed;
+  acctWizard = { mode: chained ? "add-drive" : kind, kind, step: "start", name, changed };
+  if (chained) return beginOAuth();
+  renderWizard();
 }
 
-async function startOAuth(kind, name) {
-  acctWizard = { mode: kind, step: "code", kind, name, url: "", busy: true };
-  acctModalOpen(`<h3>正在生成授权链接...</h3><p>${escHtml(name)}</p>`);
+async function beginOAuth() {
+  const w = acctWizard;
+  if (w.mode === "add") w.email = document.getElementById("wzEmail")?.value.trim() || "";
+  w.busy = true; w.error = ""; renderWizard();
   try {
-    const r = await apiPost(`/api/accounts/${kind}-start`, { name });
-    acctWizard.url = r.url;
-    acctWizard.busy = false;
+    const r = await apiPost("/api/accounts/oauth-start", { kind: w.kind, name: w.kind === "add" ? "" : w.name, email: w.email || "" });
+    if (acctWizard !== w) return;
+    Object.assign(w, { jobId: r.id, url: r.url, state: r.state, step: "waiting", busy: false });
+    if (w.kind === "add") w.changed = true;
+    openExternal(r.url);
     renderWizard();
+    oauthPoll = setInterval(() => oauthCheck(false), 1500);
   } catch (e) {
-    acctWizard = null;
-    acctModalClose();
-    showToast("生成授权链接失败: " + e.message, "crimson");
+    w.busy = false; w.error = "无法开始授权：" + e.message; renderWizard();
   }
 }
 
-async function wizardStartDrive() {
-  await wizardCall(async () => {
-    const r = await apiPost("/api/accounts/drive-start", { name: acctWizard.name });
-    Object.assign(acctWizard, { step: "code", kind: "drive", url: r.url });
-  });
+async function oauthCheck(manual) {
+  const w = acctWizard;
+  if (!w || !w.jobId) return;
+  try {
+    const r = await apiPost("/api/accounts/oauth-status", { id: w.jobId });
+    if (acctWizard !== w) return;
+    if (r.state === "done") return oauthDone(r);
+    if (r.state === "error" || r.state === "cancelled") {
+      oauthStopPoll();
+      Object.assign(w, { step: "start", error: r.error || "授权未完成，请重试", jobId: null });
+      return renderWizard();
+    }
+    if (r.state !== w.state) { w.state = r.state; renderWizard(); }
+    else if (manual) showToast("还没有收到 Google 的授权回调：请先在浏览器里完成授权", "amber");
+  } catch (e) {
+    if (manual) showToast(e.message, "crimson");
+  }
 }
 
-async function wizardFinish() {
-  const code = document.getElementById("wzCode")?.value.trim();
-  if (!code) { acctWizard.error = "请先粘贴授权码"; renderWizard(); return; }
-  const kind = acctWizard.kind;
-  await wizardCall(async () => {
-    await apiPost(`/api/accounts/${kind}-finish`, { name: acctWizard.name, code });
-    acctWizard.changed = true;
-    if (kind === "login") {
-      const row = (acctData?.accounts || []).find(r => r.name === acctWizard.name);
-      if (acctWizard.mode === "add" || !(row && row.drive && row.drive.ready)) {
-        acctWizard.step = "offer-drive";
-        return;
-      }
+function oauthDone(r) {
+  oauthStopPoll();
+  const w = acctWizard;
+  w.changed = true;
+  w.name = r.account || w.name;
+  w.jobId = null;
+  if (w.kind === "add" || w.kind === "login") {
+    const row = (acctData?.accounts || []).find(x => x.name === w.name);
+    if (w.kind === "add" || !(row && row.drive && row.drive.ready)) {
+      showToast(`✅ 已登录账号「${w.name}」`, "emerald");
+      Object.assign(w, { step: "offer-drive", error: "" });
+      return renderWizard();
     }
-    showToast(kind === "drive" ? "云盘授权成功" : "Colab 登录成功", "emerald");
-    acctWizard.busy = false;
+  }
+  showToast(w.kind === "drive" ? `✅ 「${w.name}」云盘授权成功` : `✅ 「${w.name}」Colab 登录成功`, "emerald");
+  acctModalClose();
+}
+
+async function oauthManualCode() {
+  const w = acctWizard;
+  const code = document.getElementById("wzCode")?.value.trim();
+  if (!code) { w.error = "请先粘贴地址栏里的网址"; return renderWizard(); }
+  oauthStopPoll();
+  w.busy = true; w.error = ""; renderWizard();
+  try {
+    const r = await apiPost("/api/accounts/oauth-code", { id: w.jobId, code });
+    w.busy = false;
+    oauthDone(r);
+  } catch (e) {
+    w.busy = false; w.error = e.message; renderWizard();
+  }
+}
+
+async function driveLegacy() {
+  const w = acctWizard;
+  oauthStopPoll();
+  if (w.jobId) { apiPost("/api/accounts/oauth-cancel", { id: w.jobId }).catch(() => {}); w.jobId = null; }
+  w.busy = true; renderWizard();
+  try {
+    const r = await apiPost("/api/accounts/drive-start", { name: w.name });
+    Object.assign(w, { step: "legacy-code", url: r.url, busy: false, error: "" });
+  } catch (e) {
+    Object.assign(w, { busy: false, error: e.message });
+  }
+  renderWizard();
+}
+
+async function driveLegacyFinish() {
+  const w = acctWizard;
+  const code = document.getElementById("wzCode")?.value.trim();
+  if (!code) { w.error = "请先粘贴授权码"; return renderWizard(); }
+  w.busy = true; w.error = ""; renderWizard();
+  try {
+    await apiPost("/api/accounts/drive-finish", { name: w.name, code });
+    w.changed = true;
+    showToast(`✅ 「${w.name}」云盘授权成功`, "emerald");
+    w.busy = false;
     acctModalClose();
-  });
+  } catch (e) {
+    w.busy = false; w.error = e.message; renderWizard();
+  }
 }
 
 // ---- metadata editor
