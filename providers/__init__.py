@@ -25,8 +25,6 @@ __all__ = [
 PLANNED_PROVIDERS: list[dict[str, Any]] = [
     {"id": "jules", "label": "Jules", "category": "ai_quota", "official_api": True,
      "description": "滚动 24 小时任务数（官方 API 无剩余额度字段，按任务数统计）", "milestone": "Phase 2"},
-    {"id": "flow_credits", "label": "Google Flow 积分", "category": "ai_quota", "official_api": False,
-     "description": "每月 AI 积分（仅逆向接口，实验性，默认关闭）", "milestone": "Phase 2"},
 ]
 
 

@@ -8,6 +8,12 @@
 
 ---
 
+## v2.4 新增：Google Flow 积分（实验性）
+
+- 「设置 → 实验功能」开启后，在「账号管理」的账号卡片上点「🔗 连接 Flow」：桌面端为该账号打开一个**专用的 Edge 浏览器配置**（`%LOCALAPPDATA%\GoogleAIManager\flow\<账号>`，与你平时的浏览器完全隔离），在其中登录一次 `flow.google.com` 即可。
+- 之后桌面端每 30 分钟在后台无窗口打开 Flow，在**页面内**调用 Flow 自己的只读余额查询（与头像菜单显示的余额一致），只把数字交给后端；登录令牌不离开浏览器页面，本工具不读取、不保存、不记录。登录的 Google 账号与本工具账号不一致时不显示数字。
+- 权益中心与账号卡片显示实时余额；读取失败时保留上次的余额并提示原因。非官方接口，随时可能失效；查询方法参考 [gflow-cli](https://github.com/ffroliva/gflow-cli)（未复用代码）。
+
 ## v2.3 变更：Colab 会话管理 + 通用化（不再绑定短剧工作流）
 
 - **☁️ Colab 会话管理**（新页面）：列出所有账号正在运行（正在计费）的 Colab 实例，区分「本工具锁卡 / 命令行 / 未跟踪（网页端或遗留）」；每个会话可在 Colab 网页中打开、打开终端（`colab ssh`，无 SSH 密钥时用 `colab repl`）、查看 GPU / 内存 / 磁盘状态、浏览 / 上传 / 下载文件、查看执行历史、重启内核、单独停止（不影响同账号的其他实例）；新建会话必须设置自动关机时长，并由锁卡看门狗守护。功能设计参考了 [colab-playground](https://github.com/scarletkc/colab-playground) 与 [colab-monitor](https://github.com/hohieuai/colab-monitor)（未复用其代码）。
@@ -55,9 +61,10 @@
   - [x] **M3** 指定账号抢卡 + 主号 CCU 不足 / 限流 / 实例上限 / 授权失效时自动切换备用号 + 按账号 / 全部账号强杀
   - [x] **M4** Antigravity / Gemini CLI 额度、Pro 权益中心、首次启动环境自检、中英文 README
 - [x] **v2.3**：Colab 会话管理页面、去除短剧专用功能（改为示例工作流）、锁卡后运行命令、云盘按需挂载
+- [x] **v2.4**：Google Flow 积分（实验性，专用浏览器配置 + 页面内只读查询）
 - [ ] **会话管理后续**：余额下限自动停机、端口转发（实例端口映射到本机 127.0.0.1）、一键部署插件
 - [ ] **Phase 2（多服务额度插件生态）**：
-  - 接入 Jules 任务数、Flow 积分（实验性）、Gemini / AI Studio API Key 池、GCP / Vertex AI 配额等其他 Google AI 额度
+  - 接入 Jules 任务数、Gemini / AI Studio API Key 池、GCP / Vertex AI 配额等其他 Google AI 额度
   - 核心监控与抢卡脱离 WSL2 强依赖，支持纯原生 Windows / macOS / Linux 运行与自动构建安装包
 
 ---
@@ -67,10 +74,11 @@
 ```text
 google-ai-manager/
 ├── providers/                    # 额度插件层：colab / google_storage / antigravity / gemini_cli / accounts_hub(多账号)
-│                                 #   benefits(权益中心) / selfcheck / remote_runner(运行命令) / colab_sessions(会话管理) / netcfg(代理) / paths
+│                                 #   benefits(权益中心) / selfcheck / remote_runner(运行命令) / colab_sessions(会话管理) / flow_credits / netcfg / paths
 ├── tests/                        # 离线单元测试（python -m unittest discover -s tests）
 ├── desktop_app/
 │   ├── colab_gpu_tools.py        # Windows 原生 Edge WebView2 桌面外壳 + 系统托盘
+│   ├── flow_credits.py           # Flow 积分读取（专用 Edge 配置 + 页面内只读查询）
 │   └── colab_gpu_tools.ico       # 应用图标
 ├── scripts/
 │   ├── colab_gpu_monitor.py      # GPU 探测、命中锁卡、按需挂盘、1s 倒计时看门狗与本地 HTTP/SSE 服务

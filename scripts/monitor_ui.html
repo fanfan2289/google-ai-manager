@@ -1386,6 +1386,25 @@
         <div class="card">
           <div class="card-header">
             <div>
+              <div class="card-title">🧪 实验功能</div>
+              <div class="card-sub">使用非官方接口，可能随时失效；关闭后不再读取，也不影响其他功能</div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div>
+              <div class="form-title">Google Flow 积分</div>
+              <div class="form-desc">桌面端为每个账号准备一个专用 Edge 配置，在 flow.google.com 页面内读取余额（与 Flow 头像菜单显示的一致），每 30 分钟刷新；登录令牌不离开浏览器页面。开启后在「账号管理」的账号卡片上点「连接 Flow」</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="cfgFlowOn" onchange="updateCfg({flow_credits_on: this.checked}).then(() => setTimeout(() => loadAccounts(false), 800))" />
+              <span class="switch-track"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
               <div class="card-title">🔁 多账号自动切换</div>
               <div class="card-sub">主号 CCU 低于阈值、触发 429 限流、实例数达上限或授权失效时，探测与抢卡自动改用下面勾选的备用号（按顺序尝试）</div>
             </div>
@@ -1686,6 +1705,7 @@ function renderState(st) {
   document.getElementById("cfgHoldMin").value = cfg.hold_minutes || 15;
   document.getElementById("cfgClaimMax").value = cfg.manual_claim_max_minutes || 120;
   renderFailoverSettings(st);
+  document.getElementById("cfgFlowOn").checked = Boolean(cfg.flow_credits_on);
   renderAcctPill(st);
   document.getElementById("cfgSkipBusy").checked = Boolean(cfg.skip_when_active_vm);
   document.getElementById("cfgToast").checked = Boolean(cfg.windows_toast);
@@ -2621,6 +2641,7 @@ async function loadAccounts(force = false) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     acctData = data;
+    await loadFlowStatus((data.accounts || []).map(a => a.name));
     renderAccounts();
     const ov = await fetch(`/api/accounts/overview${force ? "?refresh=1" : ""}`);
     const ovData = await ov.json();
@@ -2701,6 +2722,7 @@ function renderAccountCard(r) {
     <div class="acct-badges">${b.join("")}</div>
     ${stats}
     ${agLine(snaps.antigravity)}
+    ${flowLine(snaps.flow_credits, r.name)}
     ${colabErr && !loading ? `<div class="prov-err">Colab：${escHtml(colabErr)}</div>` : ""}
     ${storBad && !loading ? `<div class="prov-err">云盘：${escHtml(snaps.google_storage.error || "")}</div>` : ""}
     ${meta.note ? `<div class="acct-note">${escHtml(meta.note)}</div>` : ""}
@@ -2741,6 +2763,9 @@ document.getElementById("acctGrid").addEventListener("click", e => {
   else if (act === "meta") openMetaEditor(name);
   else if (act === "remove") openRemoveAccount(name);
   else if (act === "stop") stopAccounts(name);
+  else if (act === "flow-connect") flowConnect(name);
+  else if (act === "flow-refresh") flowRefresh(name, btn);
+  else if (act === "flow-disconnect") flowDisconnect(name);
 });
 
 async function useAccount(name) {
@@ -2997,6 +3022,71 @@ function agLine(snap) {
   return parts.length ? `<div class="acct-note" title="Antigravity 剩余额度（本地缓存）">🛸 ${parts.join(" · ")}</div>` : "";
 }
 
+// ---------------------------------------------------------------- Google Flow credits (v2.4, experimental)
+let flowConnected = {};   // account -> bool (desktop bridge only)
+const hasFlowBridge = () => Boolean(window.pywebview?.api?.flow_status);
+
+async function loadFlowStatus(names) {
+  if (!hasFlowBridge() || !appState?.config?.flow_credits_on) return;
+  try {
+    const r = await window.pywebview.api.flow_status(names);
+    flowConnected = r?.connected || {};
+  } catch (_) {}
+}
+
+function flowLine(snap, name) {
+  if (!appState?.config?.flow_credits_on) return "";
+  const nm = escHtml(name);
+  const ex = snap?.extra || {};
+  const known = snap && !["not_configured", "unavailable"].includes(snap.status);
+  const connected = hasFlowBridge() ? Boolean(flowConnected[name]) : Boolean(known) && ex.connected !== false;
+  let text;
+  if (snap && snap.status === "ok") {
+    const m = (snap.metrics || [])[0] || {};
+    text = `🎬 Flow 积分 <b>${Math.round(m.remaining ?? 0)}</b>${ex.checked_at_iso ? ` · ${escHtml(fmtWhen(ex.checked_at_iso))}` : ""}${ex.stale ? "（较旧）" : ""}`;
+  } else if (snap && snap.status === "error") {
+    const last = typeof ex.last_credits === "number" ? `（上次 ${ex.last_credits}）` : "";
+    text = `🎬 Flow：<span style="color:#fca5a5;">${escHtml(snap.error || "读取失败")}</span>${last}`;
+  } else {
+    text = `🎬 Flow 积分：${connected ? "已连接，等待首次读取" : "未连接"}`;
+  }
+  const btns = !hasFlowBridge() ? "" : connected
+    ? `<button class="btn btn-sm" data-act="flow-refresh" data-name="${nm}" title="立即读取 Flow 积分">🔄</button>
+       <button class="btn btn-sm" data-act="flow-connect" data-name="${nm}" title="打开专用浏览器窗口重新登录">🔑</button>
+       <button class="btn btn-sm" data-act="flow-disconnect" data-name="${nm}" title="删除这个账号的 Flow 专用浏览器配置">断开</button>`
+    : `<button class="btn btn-sm btn-primary" data-act="flow-connect" data-name="${nm}">🔗 连接 Flow</button>`;
+  return `<div class="acct-note" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span>${text}</span>${btns}</div>`;
+}
+
+async function flowConnect(name) {
+  const r = await window.pywebview.api.flow_connect(name);
+  if (!r?.ok) return showToast(r?.error || "无法打开浏览器", "crimson");
+  flowConnected[name] = true;
+  showToast(`已打开专用 Edge 窗口：请用「${name}」对应的 Google 账号登录 flow.google.com，登录后关闭窗口，再点 🔄 读取`, "amber");
+  renderAccounts();
+}
+
+async function flowRefresh(name, btn) {
+  if (btn) btn.disabled = true;
+  showToast("正在读取 Flow 积分（约 10 秒）...", "amber");
+  try {
+    const r = await window.pywebview.api.flow_refresh(name);
+    if (r?.ok) showToast(`Flow 积分：${r.credits}`, "emerald");
+    else showToast(`Flow 积分读取失败：${r?.error || "未知错误"}`, "crimson");
+  } finally {
+    if (btn) btn.disabled = false;
+    loadAccounts(false);
+  }
+}
+
+async function flowDisconnect(name) {
+  if (!confirm(`断开「${name}」的 Flow 连接？\n\n会删除这个账号专用的 Edge 浏览器配置（其中的 Google 登录状态），不影响你平时使用的浏览器。之后需要重新连接才能读取。`)) return;
+  const r = await window.pywebview.api.flow_disconnect(name);
+  showToast(r?.ok ? "已断开 Flow" : `断开失败：${r?.error || ""}`, r?.ok ? "emerald" : "crimson");
+  flowConnected[name] = false;
+  loadAccounts(false);
+}
+
 // ---------------------------------------------------------------- Pro benefits center (M4)
 let benefitsData = null;
 const BN_STATUS = { tracked: ["emerald", "实时"], manual: ["", "需在官方页面查看"], planned: ["", "规划中"] };
@@ -3015,6 +3105,13 @@ function benefitLive(b) {
   if (b.provider === "colab") {
     const bal = ms.find(m => m.key === "ccu_balance");
     return bal ? `<div class="bn-live"><span>当前余额 <b>${fmtCcu(bal.remaining)}</b> CCU</span></div>` : "";
+  }
+  if (b.provider === "flow_credits") {
+    const m = ms[0];
+    const ex = s.extra || {};
+    return m ? `<div class="bn-live"><span>当前余额 <b>${Math.round(m.remaining)}</b> 积分</span>
+      ${m.total ? `<div class="meter"><i style="width:${Math.min(100, m.remaining / m.total * 100).toFixed(1)}%"></i></div>` : ""}
+      <span class="prov-foot">${ex.checked_at_iso ? "读取于 " + escHtml(fmtWhen(ex.checked_at_iso)) : ""}${ex.stale ? "（较旧）" : ""} · 实验性</span></div>` : "";
   }
   if (b.provider === "gemini_cli") {
     const ex = s.extra || {};

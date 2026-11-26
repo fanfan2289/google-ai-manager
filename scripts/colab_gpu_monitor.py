@@ -46,7 +46,7 @@ CONFIG_PATH = LOGS_DIR / "gpu_monitor_config.json"
 HOLD_STATE_PATH = LOGS_DIR / "active_hold.json"
 DOWNLOADS_DIR = PROJECT_DIR / "downloads"
 UI_HTML_PATH = SCRIPT_DIR / "monitor_ui.html"
-APP_VERSION = "2.3"
+APP_VERSION = "2.4"
 
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
@@ -130,6 +130,7 @@ from providers import remote_runner  # noqa: E402
 from providers import colab_sessions  # noqa: E402
 from providers.antigravity import AntigravityProvider  # noqa: E402
 from providers.gemini_cli import GeminiCliProvider  # noqa: E402
+from providers.flow_credits import FlowCreditsProvider, FlowReportError, validate_report  # noqa: E402
 from providers.accounts_hub import (  # noqa: E402
     AccountsError,
     AccountsHub,
@@ -209,6 +210,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "failover_on": False,
     "failover_accounts": [],
     "min_ccu_threshold": 5.0,
+    # 实验功能：由桌面端专用浏览器配置读取 Google Flow 积分（非官方接口，默认关闭）
+    "flow_credits_on": False,
 }
 
 # Saved-config schema version. v3 (app 2.3): Drive auto-mount defaults to off and the default
@@ -603,6 +606,8 @@ class MonitorEngine:
         self.accounts = AccountsHub(colab_bin=self._colab_bin(), env=self._colab_env)
         self.providers.register(AntigravityProvider(email_of=self.accounts.email_of))
         self.providers.register(GeminiCliProvider(email_of=self.accounts.email_of))
+        self.flow = FlowCreditsProvider(enabled=lambda: bool(getattr(self, "config", {}).get("flow_credits_on")))
+        self.providers.register(self.flow)
         self._selfcheck_cache: tuple[float, dict[str, Any]] | None = None
         # Colab session manager: cached live listing + when each VM endpoint was first seen.
         self._sessions_cache: tuple[float, dict[str, Any]] | None = None
@@ -760,11 +765,14 @@ class MonitorEngine:
                 "hold_on_hit",
                 "auto_mount_drive",
                 "failover_on",
+                "flow_credits_on",
             ):
                 if bool_key in patch:
                     self.config[bool_key] = bool(patch[bool_key])
             self._save_config()
             cfg_copy = dict(self.config)
+        if "flow_credits_on" in patch:
+            self.providers.invalidate()  # cached "disabled" Flow snapshots are now wrong
         self._wake_event.set()
         self.broadcast_state()
         return cfg_copy
@@ -1049,7 +1057,8 @@ class MonitorEngine:
     def accounts_overview(self, *, force: bool = False) -> dict[str, Any]:
         """Per-account Colab + storage snapshots and de-duplicated totals."""
         names = self.accounts.names()
-        per = {name: self.providers.snapshot_many(name, ["colab", "google_storage", "antigravity"], force=force)
+        per = {name: self.providers.snapshot_many(name, ["colab", "google_storage", "antigravity", "flow_credits"],
+                                                  force=force)
                for name in names}
         return {"accounts": per, "totals": aggregate_account_totals(per)}
 
@@ -1201,6 +1210,29 @@ class MonitorEngine:
             pass
         self.broadcast_state()
         return {"ok": ok and not still, "account": acct, "endpoint": endpoint, "still_live": still}
+
+    # ------------------------------------------------------------------ Google Flow credits (v2.4, experimental)
+    def flow_payload(self) -> dict[str, Any]:
+        """Per-account Flow balance as last reported by the desktop reader (numbers only)."""
+        names = self.accounts.names()
+        return {
+            "enabled": bool(self.config.get("flow_credits_on")),
+            "refresh_minutes": 30,
+            "accounts": {n: self.flow.snapshot(n).to_dict() for n in names},
+            "targets": [{"account": n, "email": self.accounts.email_of(n)} for n in names],
+        }
+
+    def flow_report(self, body: dict[str, Any]) -> dict[str, Any]:
+        rep = validate_report(body, self.accounts.names())
+        rec = self.flow.store.put(rep["account"], rep["record"])
+        self.providers.invalidate(rep["account"])
+        return {"ok": True, "account": rep["account"], "record": rec}
+
+    def flow_forget(self, account: Any) -> dict[str, Any]:
+        account = self.accounts.require_existing(str(account or ""))
+        self.flow.store.forget(account)
+        self.providers.invalidate(account)
+        return {"ok": True}
 
     def _hold_account(self) -> str | None:
         with self._state_lock:
@@ -2481,6 +2513,13 @@ def make_handler(engine: MonitorEngine):
                     self._send_json({"error": str(exc)}, status=500)
                 return
 
+            if path == "/api/flow":
+                try:
+                    self._send_json(engine.flow_payload())
+                except Exception as exc:
+                    self._send_json({"error": str(exc)}, status=500)
+                return
+
             if path == "/api/job/log":
                 tail = int((qs.get("tail") or ["32768"])[0])
                 self._send_json(engine.get_job_log(tail_bytes=max(2048, min(262144, tail))))
@@ -2597,6 +2636,18 @@ def make_handler(engine: MonitorEngine):
                     self._send_json({"error": str(exc)}, status=400)
                 except subprocess.TimeoutExpired:
                     self._send_json({"error": "colab 命令超时"}, status=504)
+                except Exception as exc:
+                    self._send_json({"error": str(exc)}, status=500)
+                return
+
+            if path in ("/api/flow/report", "/api/flow/forget"):
+                try:
+                    if path == "/api/flow/report":
+                        self._send_json(engine.flow_report(body))
+                    else:
+                        self._send_json(engine.flow_forget(body.get("account")))
+                except (FlowReportError, AccountsError) as exc:
+                    self._send_json({"error": str(exc)}, status=400)
                 except Exception as exc:
                     self._send_json({"error": str(exc)}, status=500)
                 return

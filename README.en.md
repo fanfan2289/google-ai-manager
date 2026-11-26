@@ -9,7 +9,7 @@ for people who use **Google AI Pro** across one or more Google accounts. It trac
 grabs scarce Colab GPUs with strict anti-ghost-billing guards, and puts the quotas of the other Pro
 tools in one place.
 
-## Features (v2.3)
+## Features (v2.4)
 
 - **Colab GPU monitor & auto-hold**: probes `G4 / A100 / H100 / L4 / T4` capacity at zero cost (a
   503 costs nothing), optionally holds a GPU on a hit and shuts the VM down
@@ -35,6 +35,10 @@ tools in one place.
   sessions require an auto-shutdown time and are guarded by the hold watchdog. Feature ideas from
   [colab-playground](https://github.com/scarletkc/colab-playground) and
   [colab-monitor](https://github.com/hohieuai/colab-monitor) (no code reused).
+- **Google Flow credits (experimental, opt-in)**: the desktop shell keeps a dedicated Edge profile
+  per account (you sign in to flow.google.com once) and every 30 minutes reads the balance inside
+  the page with Flow's own read-only query; only the number reaches the app, the sign-in token
+  never leaves the browser page, and a mismatched Google account shows no number.
 - **Run a command on the held GPU**: one shell command runs on the held session; when it exits the
   VM is stopped and reconciled, and the watchdog kills it at the time limit. The runner owns the
   session / GPU / account / time-limit flags, so a command cannot disable auto-shutdown.

@@ -27,11 +27,19 @@ from PIL import Image, ImageDraw
 import pystray
 import webview
 
+try:  # optional: Google Flow credits reader (needs websocket-client)
+    import flow_credits as flow_reader
+except Exception:  # pragma: no cover - missing dependency just disables the feature
+    flow_reader = None
+
+FLOW_REFRESH_SECONDS = 30 * 60
+_FLOW_LOCK = threading.Lock()
+
 APP_TITLE = "Colab GPU Tools"
 BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 8765
 BACKEND_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}"
-EXPECTED_VERSION = "2.3"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
+EXPECTED_VERSION = "2.4"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
 # Google pages the UI may open in the default browser (keep in sync with providers/benefits.py).
 EXTERNAL_URL_PREFIXES = (
     "https://accounts.google.com/",
@@ -40,6 +48,7 @@ EXTERNAL_URL_PREFIXES = (
     "https://antigravity.google/",
     "https://github.com/google-gemini/",
     "https://labs.google/",
+    "https://flow.google.com/",
     "https://console.cloud.google.com/",
     "https://studio.firebase.google.com/",
     "https://jules.google.com/",
@@ -263,6 +272,7 @@ class DesktopController:
             "error": _draw_app_icon((239, 68, 68, 255), 64),
         }
         self._last_icon_key = "ok"
+        self._flow_last: dict[str, float] = {}
 
     # ---- JS Bridge Methods (window.pywebview.api.*) ----
     def open_external_url(self, url: str) -> dict[str, Any]:
@@ -308,6 +318,77 @@ class DesktopController:
         DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
         os.startfile(str(DOWNLOADS_DIR))
         return {"ok": True}
+
+    # ---- Google Flow credits (experimental; dedicated Edge profile per account) ----
+    def flow_status(self, accounts: list[str] | None = None) -> dict[str, Any]:
+        if flow_reader is None:
+            return {"ok": False, "available": False, "error": "缺少依赖 websocket-client（pip install -r requirements-desktop.txt）"}
+        out = {}
+        for a in accounts or []:
+            try:
+                out[str(a)] = flow_reader.is_connected(str(a))
+            except Exception:
+                out[str(a)] = False
+        return {"ok": True, "available": True, "connected": out}
+
+    def flow_connect(self, account: str) -> dict[str, Any]:
+        if flow_reader is None:
+            return {"ok": False, "error": "缺少依赖 websocket-client"}
+        try:
+            return flow_reader.open_login(account)
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+
+    def flow_refresh(self, account: str) -> dict[str, Any]:
+        """Read one account's balance and report the numbers to the backend."""
+        if flow_reader is None:
+            return {"ok": False, "error": "缺少依赖 websocket-client"}
+        try:
+            flow_reader.check_account(account)
+            targets = {t.get("account"): t.get("email") for t in _http_json("/api/flow", timeout=10).get("targets", [])}
+        except Exception as exc:
+            return {"ok": False, "error": f"无法连接后端：{exc}"}
+        if account not in targets:
+            return {"ok": False, "error": "未知账号"}
+        with _FLOW_LOCK:
+            res = flow_reader.read_credits(account, targets.get(account))
+        self._flow_last[account] = time.time()
+        report = {k: res.get(k) for k in ("ok", "connected", "credits", "email_verified", "error")}
+        try:
+            _http_json("/api/flow/report", method="POST", payload={"account": account, **report}, timeout=10)
+        except Exception as exc:
+            _log_desktop(f"Flow report failed: {type(exc).__name__}")
+        return report
+
+    def flow_disconnect(self, account: str) -> dict[str, Any]:
+        if flow_reader is None:
+            return {"ok": False, "error": "缺少依赖 websocket-client"}
+        try:
+            with _FLOW_LOCK:
+                flow_reader.close_profile_browser(account)
+                flow_reader.disconnect(account)
+            _http_json("/api/flow/forget", method="POST", payload={"account": account}, timeout=10)
+            return {"ok": True}
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+
+    def _flow_loop(self) -> None:
+        """Every few minutes: when enabled, refresh connected accounts older than FLOW_REFRESH_SECONDS."""
+        time.sleep(30)
+        while not self._stop_poll.is_set():
+            try:
+                if flow_reader is not None:
+                    info = _http_json("/api/flow", timeout=10)
+                    if info.get("enabled"):
+                        for t in info.get("targets", []):
+                            acct = str(t.get("account") or "")
+                            if not acct or not flow_reader.is_connected(acct):
+                                continue
+                            if time.time() - self._flow_last.get(acct, 0.0) >= FLOW_REFRESH_SECONDS:
+                                self.flow_refresh(acct)
+            except Exception as exc:
+                _log_desktop(f"Flow loop: {type(exc).__name__}")
+            self._stop_poll.wait(300)
 
     def minimize_to_tray(self) -> dict[str, Any]:
         if self.window:
@@ -446,6 +527,7 @@ class DesktopController:
         )
         threading.Thread(target=self.tray.run, name="tray-loop", daemon=True).start()
         threading.Thread(target=self._tray_sync_loop, name="tray-sync", daemon=True).start()
+        threading.Thread(target=self._flow_loop, name="flow-credits", daemon=True).start()
 
 
 class JsBridge:
@@ -468,6 +550,18 @@ class JsBridge:
 
     def open_downloads_folder(self) -> dict[str, Any]:
         return self._ctrl.open_downloads_folder()
+
+    def flow_status(self, accounts: list[str] | None = None) -> dict[str, Any]:
+        return self._ctrl.flow_status(accounts)
+
+    def flow_connect(self, account: str) -> dict[str, Any]:
+        return self._ctrl.flow_connect(account)
+
+    def flow_refresh(self, account: str) -> dict[str, Any]:
+        return self._ctrl.flow_refresh(account)
+
+    def flow_disconnect(self, account: str) -> dict[str, Any]:
+        return self._ctrl.flow_disconnect(account)
 
     def on_gpu_locked(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         return self._ctrl.on_gpu_locked(payload)
