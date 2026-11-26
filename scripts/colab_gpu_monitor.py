@@ -46,7 +46,7 @@ CONFIG_PATH = LOGS_DIR / "gpu_monitor_config.json"
 HOLD_STATE_PATH = LOGS_DIR / "active_hold.json"
 DOWNLOADS_DIR = PROJECT_DIR / "downloads"
 UI_HTML_PATH = SCRIPT_DIR / "monitor_ui.html"
-APP_VERSION = "2.7"
+APP_VERSION = "2.8"
 
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
@@ -129,8 +129,8 @@ from providers import selfcheck  # noqa: E402
 from providers import remote_runner  # noqa: E402
 from providers import colab_sessions  # noqa: E402
 from providers.antigravity import AntigravityProvider  # noqa: E402
-from providers.flow_credits import FlowCreditsProvider, FlowReportError, validate_report  # noqa: E402
-from providers.gcp_credits import GcpCreditsProvider, validate_gcp_report  # noqa: E402
+from providers.flow_credits import FlowCreditsProvider, FlowReportError, usage_stats, validate_report  # noqa: E402
+from providers.gcp_credits import GcpCreditsProvider, expiring as gcp_expiring, validate_gcp_report  # noqa: E402
 from providers.accounts_hub import (  # noqa: E402
     AccountsError,
     AccountsHub,
@@ -214,6 +214,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "flow_credits_on": False,
     # 实验功能：由同一个专用浏览器配置读取开发者计划 Google Cloud 赠金（网页读取，默认关闭）
     "gcp_credits_on": False,
+    # Flow 余额低于该值时桌面提醒（0 = 不提醒）
+    "flow_low_threshold": 100,
 }
 
 # Saved-config schema version. v3 (app 2.3): Drive auto-mount defaults to off and the default
@@ -751,6 +753,8 @@ class MonitorEngine:
                 val = str(patch["hold_session_name"] or "").strip()
                 if val and remote_runner.SESSION_RE.match(val):
                     self.config["hold_session_name"] = val
+            if "flow_low_threshold" in patch:
+                self.config["flow_low_threshold"] = int(_clamp_float(patch["flow_low_threshold"], 0, 100000, 100))
             if "min_ccu_threshold" in patch:
                 self.config["min_ccu_threshold"] = _clamp_float(patch["min_ccu_threshold"], 0.0, 10000.0, 5.0)
             if "failover_accounts" in patch:
@@ -1225,19 +1229,52 @@ class MonitorEngine:
 
     def flow_report(self, body: dict[str, Any]) -> dict[str, Any]:
         rep = validate_report(body, self.accounts.names())
-        rec = self.flow.store.put(rep["account"], rep["record"])
-        self.providers.invalidate(rep["account"])
-        return {"ok": True, "account": rep["account"], "record": rec}
+        acct, new = rep["account"], rep["record"]
+        prev = self.flow.store.get(acct) or {}
+        rec = self.flow.store.put(acct, new)
+        if new.get("ok"):
+            self.flow.history.add(acct, int(new["credits"]), float(new["checked_at"]))
+            low = int(self.config.get("flow_low_threshold") or 0)
+            before = prev.get("credits") if isinstance(prev.get("credits"), int) else None
+            if low and new["credits"] < low and (before is None or before >= low):
+                self._notify("flow_low", "Flow 积分不足", f"账号 {acct} 的 Flow 积分只剩 {new['credits']}（提醒阈值 {low}）")
+        self.providers.invalidate(acct)
+        return {"ok": True, "account": acct, "record": rec}
+
+    def flow_history(self, account: Any) -> dict[str, Any]:
+        account = self.accounts.require_existing(str(account or ""))
+        rec = self.flow.store.get(account) or {}
+        credits = rec.get("credits") if rec.get("ok") else None
+        return {"account": account, **usage_stats(self.flow.history.points(account), credits, time.time())}
+
+    def _notify(self, kind: str, title: str, text: str) -> None:
+        """Desktop toast + dashboard alert for quota reminders (respects the toast setting)."""
+        print(f"[{_now_iso()}] [gpu_monitor] {title}：{text}", flush=True)
+        self.broker.publish("alert", {"kind": kind, "ts_iso": _now_iso(), "detail": f"{title}：{text}"})
+        if self.config.get("windows_toast", True):
+            _send_windows_toast(title, text)
 
     def gcp_report(self, body: dict[str, Any]) -> dict[str, Any]:
         rep = validate_gcp_report(body, self.accounts.names())
+        prev = self.gcp.store.get(rep["account"]) or {}
         rec = self.gcp.store.put(rep["account"], rep["record"])
+        soon = gcp_expiring(rec.get("credits") or [], time.time())
+        warned_day = prev.get("expiry_warned_day")
+        today = dt.date.today().isoformat()
+        if soon:  # remind at most once a day per account
+            if warned_day != today:
+                first = min(soon, key=lambda c: c["days_left"])
+                self._notify("gcp_expiring", "Cloud 赠金即将到期",
+                             f"账号 {rep['account']} 有 {len(soon)} 笔赠金将在 {first['days_left']} 天内到期"
+                             f"（剩余 {first['currency']}{first['remaining']:.2f}）")
+            rec = self.gcp.store.put(rep["account"], {**rec, "expiry_warned_day": today})
         self.providers.invalidate(rep["account"])
         return {"ok": True, "account": rep["account"], "record": rec}
 
     def flow_forget(self, account: Any) -> dict[str, Any]:
         account = self.accounts.require_existing(str(account or ""))
         self.flow.store.forget(account)
+        self.flow.history.forget(account)
         self.gcp.store.forget(account)
         self.providers.invalidate(account)
         return {"ok": True}
@@ -2519,6 +2556,13 @@ def make_handler(engine: MonitorEngine):
                     self._send_json(engine.colab_sessions_payload(force=force))
                 except Exception as exc:
                     self._send_json({"error": str(exc)}, status=500)
+                return
+
+            if path == "/api/flow/history":
+                try:
+                    self._send_json(engine.flow_history((qs.get("account") or [""])[0]))
+                except AccountsError as exc:
+                    self._send_json({"error": str(exc)}, status=400)
                 return
 
             if path == "/api/flow":

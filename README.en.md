@@ -10,7 +10,7 @@ for people who use **Google AI Pro** across one or more Google accounts. It trac
 grabs scarce Colab GPUs with strict anti-ghost-billing guards, and puts the quotas of the other Pro
 tools in one place.
 
-## Features (v2.7)
+## Features (v2.8)
 
 - **Colab GPU monitor & auto-hold**: probes `G4 / A100 / H100 / L4 / T4` capacity at zero cost (a
   503 costs nothing), optionally holds a GPU on a hit and shuts the VM down

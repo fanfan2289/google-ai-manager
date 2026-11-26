@@ -9,6 +9,8 @@ account ids, names and e-mails never reach this module.
 
 from __future__ import annotations
 
+import datetime as dt
+import re
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -28,6 +30,41 @@ STATE_TEXT = {
     "unknown": "无法判断领取状态",
 }
 SETUP_URL = "https://developers.google.com/program/my-benefits"
+TRIAL_URL = "https://console.cloud.google.com/freetrial"
+TRIAL_STATES = ("available", "active", "none", "unknown")
+CREDIT_KINDS = ("developer_program", "free_trial", "other")
+EXPIRY_WARN_DAYS = 14
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _clean_credits(raw: Any) -> list[dict[str, Any]]:
+    out = []
+    for c in raw if isinstance(raw, list) else []:
+        if not isinstance(c, dict) or _money(c.get("remaining")) is None:
+            continue
+        exp = c.get("expires")
+        out.append({
+            "kind": c.get("kind") if c.get("kind") in CREDIT_KINDS else "other",
+            "remaining": _money(c.get("remaining")),
+            "original": _money(c.get("original")),
+            "currency": str(c.get("currency") or "$")[:4],
+            "expires": exp if isinstance(exp, str) and DATE_RE.match(exp) else None,
+            "expired": bool(c.get("expired")),
+        })
+    return out[:10]
+
+
+def expiring(credits: list[dict[str, Any]], now: float, days: int = EXPIRY_WARN_DAYS) -> list[dict[str, Any]]:
+    """Unexpired credits with money left whose expiry date is within `days`."""
+    soon = []
+    today = dt.date.fromtimestamp(now)
+    for c in credits:
+        if c["expired"] or not c["expires"] or not c["remaining"]:
+            continue
+        left = (dt.date.fromisoformat(c["expires"]) - today).days
+        if 0 <= left <= days:
+            soon.append({**c, "days_left": left})
+    return soon
 
 
 def store_path() -> Path:
@@ -56,6 +93,8 @@ def validate_gcp_report(body: dict[str, Any], known_accounts: list[str], *, now:
             dev_remaining=_money(body.get("dev_remaining")),
             other_remaining=_money(body.get("other_remaining")),
             currency=str(body.get("currency") or "$")[:4],
+            trial_state=body.get("trial_state") if body.get("trial_state") in TRIAL_STATES else "unknown",
+            credits=_clean_credits(body.get("credits")),
         )
     else:
         rec["error"] = str(body.get("error") or "读取失败")[:200]
@@ -96,18 +135,25 @@ class GcpCreditsProvider(QuotaProvider):
             return ProviderSnapshot(provider=self.id, account=account, status=ERROR,
                                     error=str(rec.get("error") or "读取失败"), extra=extra)
         state = rec.get("state") or "unknown"
-        extra.update(state=state, billing_accounts=rec.get("billing_accounts", 0), currency=rec.get("currency", "$"))
+        credits = rec.get("credits") or []
+        extra.update(state=state, billing_accounts=rec.get("billing_accounts", 0), currency=rec.get("currency", "$"),
+                     trial_state=rec.get("trial_state", "unknown"), trial_url=TRIAL_URL, credits=credits,
+                     expiring=expiring(credits, now))
+        trial = [c for c in credits if c["kind"] == "free_trial" and not c["expired"]]
+        trial_metric = ([Metric(key="gcp_trial_credit", label="免费试用赠金剩余", unit=trial[0]["currency"],
+                                remaining=sum(c["remaining"] for c in trial), detail="新用户 $300，90 天有效")]
+                        if trial else [])
         if state == "active" and rec.get("dev_remaining") is not None:
             remaining = float(rec["dev_remaining"])
             metric = Metric(key="gcp_dev_credit", label="开发者计划赠金剩余", unit=rec.get("currency", "$"),
                             remaining=remaining,
                             detail=f"AI Pro 每月 ${PRO_MONTHLY_USD}（每笔自发放起 12 个月有效）")
-            metrics = [metric]
-            if rec.get("other_remaining"):
+            metrics = [metric, *trial_metric]
+            if rec.get("other_remaining") and not trial_metric:
                 metrics.append(Metric(key="gcp_other_credit", label="其他赠金剩余", unit=rec.get("currency", "$"),
                                       remaining=float(rec["other_remaining"])))
             return ProviderSnapshot(provider=self.id, account=account, status=OK, metrics=metrics,
                                     updated_at_iso=_iso(checked) or "", extra=extra)
         extra["state_text"] = STATE_TEXT.get(state, STATE_TEXT["unknown"])
-        return ProviderSnapshot(provider=self.id, account=account, status=OK, metrics=[],
+        return ProviderSnapshot(provider=self.id, account=account, status=OK, metrics=trial_metric,
                                 updated_at_iso=_iso(checked) or "", extra=extra)

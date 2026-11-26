@@ -295,13 +295,25 @@ GCP_CREDITS_SCRIPT = r"""
   const cur = s => (String(s).match(/US\$|HK\$|NT\$|\$|€|£|¥|USD|EUR|CNY|HKD|TWD/) || ["$"])[0].replace("US$", "$");
   const rows = deepAll(document, "tr, [role='row']").map(r => r.innerText.replace(/\s+/g, " ").trim());
   const credits = [];
+  const MON = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+  const pad = n => String(n).padStart(2, "0");
+  const dates = r => {
+    const out = [];
+    for (const m of r.matchAll(/(\d{4})[-\/.年](\d{1,2})[-\/.月](\d{1,2})日?/g)) out.push(`${m[1]}-${pad(m[2])}-${pad(m[3])}`);
+    for (const m of r.matchAll(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.? (\d{1,2}),? (\d{4})/gi))
+      out.push(`${m[3]}-${pad(MON[m[1].toLowerCase().slice(0, 3)])}-${pad(m[2])}`);
+    return out.sort();
+  };
   for (const r of rows) {
     const amounts = r.match(money);
     if (!amounts || !amounts.length) continue;
-    const dev = /developer program|开发者计划|開發人員計畫|google ai|gemini/i.test(r);
+    const kind = /free trial|免费试用|免費試用|试用赠金/i.test(r) ? "free_trial"
+      : /developer program|开发者计划|開發人員計畫|google ai|gemini/i.test(r) ? "developer_program" : "other";
     const expired = /expired|已过期|已到期|used up|已用完/i.test(r);
-    credits.push({ label: dev ? "developer_program" : "other", remaining: num(amounts[0]),
-                   original: amounts.length > 1 ? num(amounts[1]) : null, currency: cur(amounts[0]), expired });
+    const ds = dates(r);
+    credits.push({ label: kind === "developer_program" ? "developer_program" : "other", kind,
+                   remaining: num(amounts[0]), original: amounts.length > 1 ? num(amounts[1]) : null,
+                   currency: cur(amounts[0]), expired, expires: ds.length ? ds[ds.length - 1] : null });
   }
   const t = deepText();
   return { credits: credits.slice(0, 20), no_credits_text: /没有.{0,6}赠送|no credits|no promotional/i.test(t) };
@@ -394,7 +406,10 @@ def normalize_gcp(benefits: Any, accounts: Any, credit_pages: list[Any]) -> dict
         for c in (pg or {}).get("credits") or []:
             if not isinstance(c, dict) or not isinstance(c.get("remaining"), (int, float)):
                 continue
+            exp = c.get("expires")
             credits.append({
+                "kind": c.get("kind") if c.get("kind") in ("developer_program", "free_trial", "other") else "other",
+                "expires": exp if isinstance(exp, str) and re.match(r"^\d{4}-\d{2}-\d{2}$", exp) else None,
                 "label": "developer_program" if c.get("label") == "developer_program" else "other",
                 "remaining": round(float(c["remaining"]), 2),
                 "original": round(float(c["original"]), 2) if isinstance(c.get("original"), (int, float)) else None,
@@ -403,6 +418,14 @@ def normalize_gcp(benefits: Any, accounts: Any, credit_pages: list[Any]) -> dict
             })
     live = [c for c in credits if not c["expired"]]
     dev = [c for c in live if c["label"] == "developer_program"]
+    if any(c["kind"] == "free_trial" for c in live):
+        trial_state = "active"
+    elif n_billing == 0 and accounts.get("trial_banner"):
+        trial_state = "available"
+    elif n_billing:
+        trial_state = "none"
+    else:
+        trial_state = "unknown"
     program_state = benefits.get("state") if benefits.get("state") in (
         "needs_billing", "claimable", "claimed", "unknown") else "unknown"
     if n_billing == 0:
@@ -418,6 +441,7 @@ def normalize_gcp(benefits: Any, accounts: Any, credit_pages: list[Any]) -> dict
         "billing_accounts": n_billing,
         "dev_remaining": round(sum(c["remaining"] for c in dev), 2) if dev else None,
         "other_remaining": round(sum(c["remaining"] for c in live if c["label"] == "other"), 2) if live else None,
+        "trial_state": trial_state,
         "currency": (dev or live or [{"currency": "$"}])[0]["currency"],
         "credits": credits[:10],
     }
@@ -454,7 +478,8 @@ def _read_gcp(page: _ProfilePage) -> dict[str, Any]:
             if got and (got.get("credits") or got.get("no_credits_text")):
                 pages.append(got)
                 break
-    return normalize_gcp(benefits, {"ids": accounts.get("ids") or []}, pages)
+    return normalize_gcp(benefits, {"ids": accounts.get("ids") or [], "trial_banner": bool(accounts.get("trial_banner"))},
+                         pages)
 
 
 def read_account(account: str, expected_email: str | None = None, *, flow: bool = True, gcp: bool = False,

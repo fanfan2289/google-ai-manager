@@ -54,6 +54,7 @@ EXTERNAL_URL_PREFIXES: tuple[str, ...] = (
     "https://antigravity.google/",
     "https://labs.google/",
     "https://flow.google.com/",
+    "https://drive.google.com/",
     "https://developers.google.com/",
     "https://console.cloud.google.com/",
     "https://studio.firebase.google.com/",

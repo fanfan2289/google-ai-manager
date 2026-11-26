@@ -812,6 +812,34 @@
                  border-radius: var(--radius); background: var(--amber-soft); border: 1px solid var(--amber-border); color: #fde68a; font-size: 12.5px; }
   .info-banner.show { display: flex; }
 
+  /* v2.8: Colab sub-tabs and quota detail sections */
+  .subtabs { display: none; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(148,163,184,.07);
+             border: 1px solid var(--border); width: fit-content; margin-bottom: 16px; }
+  .subtabs.show { display: flex; }
+  .subtabs button { position: relative; border: none; background: none; color: var(--text-muted); font: inherit; font-size: 12.5px;
+                    padding: 6px 14px; border-radius: 999px; cursor: pointer; }
+  .subtabs button:hover { color: var(--text); }
+  .subtabs button.on { background: var(--bg-card-2); color: var(--text); font-weight: 600; }
+  .subtabs .nav-badge { margin-left: 6px; font-size: 10.5px; padding: 0 6px; border-radius: 99px; background: rgba(148,163,184,.18); }
+  .dt-stats { display: flex; gap: 28px; flex-wrap: wrap; margin: 4px 0 14px; }
+  .dt-stat span { display: block; font-size: 11.5px; color: var(--text-dim); margin-bottom: 2px; }
+  .dt-stat b { font-family: var(--mono); font-size: 20px; color: #f8fafc; }
+  .dt-stat b small { font-size: 11.5px; color: var(--text-dim); font-weight: 500; margin-left: 3px; font-family: var(--sans); }
+  .dt-chart { width: 100%; height: 130px; display: block; }
+  .dt-axis { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--text-dim); margin-top: 2px; }
+  .dt-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+  .dt-steps { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 10px; }
+  .dt-step { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: rgba(148,163,184,.06); font-size: 12.5px; }
+  .dt-step .n { width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: #93c5fd; display: flex;
+                align-items: center; justify-content: center; font-weight: 700; font-size: 11.5px; flex-shrink: 0; }
+  .dt-step.done .n { background: var(--emerald-soft); color: #6ee7b7; }
+  .dt-step .t { flex: 1; }
+  .stack-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: rgba(148,163,184,.12); margin: 8px 0 10px; }
+  .stack-bar i { display: block; height: 100%; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); }
+  .legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; background: var(--c); }
+  .legend b { font-family: var(--mono); color: var(--text); margin-left: 4px; }
+
   /* One-click OAuth modal (v2.7) */
   .oauth-tabs { display: flex; background: rgba(148,163,184,.08); border-radius: 10px; padding: 4px; margin: 4px 0 14px; }
   .oauth-tabs span { flex: 1; text-align: center; padding: 7px 0; border-radius: 8px; font-size: 12.5px; color: var(--text-dim); }
@@ -979,17 +1007,8 @@
         <span class="ni">👤</span><span class="nl">账号管理</span><span id="navAcctBadge" class="nav-badge" style="display:none;"></span>
       </div>
       <span class="nav-sep"></span>
-      <div class="nav-item" data-view="dashboard" title="抢卡与锁卡">
-        <span class="ni">⚡</span><span class="nl">抢卡与锁卡</span><span id="navHoldBadge" class="nav-badge amber" style="display:none;">占卡中</span>
-      </div>
-      <div class="nav-item" data-view="sessions" title="会话管理">
-        <span class="ni">☁️</span><span class="nl">会话管理</span><span id="navSessBadge" class="nav-badge" style="display:none;"></span>
-      </div>
-      <div class="nav-item" data-view="runner" title="运行命令">
-        <span class="ni">⌨</span><span class="nl">运行命令</span>
-      </div>
-      <div class="nav-item" data-view="stats" title="探测统计">
-        <span class="ni">📊</span><span class="nl">探测统计</span>
+      <div class="nav-item" data-view="colab" title="Colab 算力">
+        <span class="ni">⚡</span><span class="nl">Colab</span><span id="navHoldBadge" class="nav-badge amber" style="display:none;">占卡中</span>
       </div>
       <span class="nav-sep"></span>
       <div class="nav-item" data-view="benefits" title="权益明细">
@@ -1036,6 +1055,12 @@
     </header>
 
     <div class="content-scroll">
+      <div id="colabTabs" class="subtabs">
+        <button data-sub="dashboard" onclick="switchView('dashboard')">⚡ 抢卡与锁卡</button>
+        <button data-sub="sessions" onclick="switchView('sessions')">☁️ 会话<span id="navSessBadge" class="nav-badge" style="display:none;"></span></button>
+        <button data-sub="runner" onclick="switchView('runner')">⌨ 运行命令</button>
+        <button data-sub="stats" onclick="switchView('stats')">📊 探测统计</button>
+      </div>
       <!-- Critical Alert -->
       <div id="checkBanner" class="info-banner">
         <span id="checkBannerText">环境自检发现问题</span>
@@ -1272,6 +1297,21 @@
             </div>
           </div>
           <div id="bnGrid" class="bn-grid"><div class="card-sub">加载中...</div></div>
+        </div>
+        <div class="card" id="bnFlowCard">
+          <div class="card-header"><div><div class="card-title">🎬 Flow 积分</div>
+            <div class="card-sub" id="bnFlowSub">余额变化与可用量估算（每次读取都会记录，只保存在本机，保留 90 天）</div></div></div>
+          <div id="bnFlow"><div class="card-sub">加载中...</div></div>
+        </div>
+        <div class="card" id="bnGcpCard">
+          <div class="card-header"><div><div class="card-title">☁️ Google Cloud 赠金</div>
+            <div class="card-sub">新用户 $300 免费试用（90 天）+ AI Pro 开发者计划每月 $10（每笔 12 个月有效）</div></div></div>
+          <div id="bnGcp"><div class="card-sub">加载中...</div></div>
+        </div>
+        <div class="card" id="bnDriveCard">
+          <div class="card-header"><div><div class="card-title">💾 云盘空间</div>
+            <div class="card-sub">Drive / Gmail / 相册共用；只读显示，不会删除任何文件</div></div></div>
+          <div id="bnDrive"><div class="card-sub">加载中...</div></div>
         </div>
         <div class="card">
           <details class="bn-details">
@@ -1700,13 +1740,13 @@ async function apiPost(path, body = {}) {
 // Navigation
 const VIEW_TITLES = {
   overview: "总览",
-  dashboard: "Colab 抢卡与锁卡",
-  stats: "Colab 探测统计",
+  dashboard: "Colab 算力",
+  stats: "Colab 算力",
   accounts: "Google 账号管理",
   benefits: "AI 额度权益明细",
   selfcheck: "环境自检",
-  runner: "在锁定的 GPU 上运行命令",
-  sessions: "Colab 会话管理",
+  runner: "Colab 算力",
+  sessions: "Colab 算力",
   analytics: "24 小时放卡规律分析",
   history: "探测与占卡历史记录",
   settings: "设置",
@@ -1718,10 +1758,18 @@ document.querySelectorAll(".nav-item").forEach(el => {
   });
 });
 
+const COLAB_VIEWS = ["dashboard", "sessions", "runner", "stats"];
+let lastColabView = localStorage.getItem("gamColabView") || "dashboard";
+
 function switchView(view) {
   if (view === "analytics" || view === "history") { setStatsTab(view); view = "stats"; }
+  if (view === "colab") view = COLAB_VIEWS.includes(lastColabView) ? lastColabView : "dashboard";
+  const isColab = COLAB_VIEWS.includes(view);
+  if (isColab) { lastColabView = view; localStorage.setItem("gamColabView", view); }
   currentView = view;
-  document.querySelectorAll(".nav-item").forEach(n => n.classList.toggle("active", n.dataset.view === view));
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.toggle("active", n.dataset.view === view || (isColab && n.dataset.view === "colab")));
+  document.getElementById("colabTabs").classList.toggle("show", isColab);
+  document.querySelectorAll("#colabTabs button").forEach(b => b.classList.toggle("on", b.dataset.sub === view));
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === `view-${view}`));
   document.getElementById("topbarTitle").textContent = view === "overview" ? ovGreeting() : (VIEW_TITLES[view] || "Google AI Manager");
   if (view !== "overview") document.getElementById("ovAcctSwitch").innerHTML = "";
@@ -2196,9 +2244,12 @@ function renderOverview() {
       ["设置 → 实验功能 → Google Flow 积分"], "AI Pro 每月 1000 积分");
   } else if (fs && fs.status === "ok") {
     const m = fs.metrics[0];
-    flow = ovCard("accounts", "🎬", "Flow 积分", fs.extra?.stale ? `<span class="pill amber">较旧</span>` : "",
+    const fe = fs.extra || {};
+    const lite = (fe.estimates || [])[0];
+    flow = ovCard("benefits", "🎬", "Flow 积分", fe.stale ? `<span class="pill amber">较旧</span>` : "",
       `<div class="ov-big">${Math.round(m.remaining)}<span>积分</span></div>${m.total ? ovMeter(m.remaining / m.total) : ""}`,
-      [fs.extra?.checked_at_iso ? `读取于 ${escHtml(fmtWhen(fs.extra.checked_at_iso))}` : ""], "AI Pro 每月 1000 积分 · 按订阅周期发放");
+      [`近 7 天用了 ${fe.used_7d ?? 0}${lite ? ` · 约 ${lite.clips} 条视频` : ""}`],
+      "AI Pro 每月 1000 积分 · 按订阅周期发放" + (fe.checked_at_iso ? " · 读取于 " + fmtWhen(fe.checked_at_iso) : ""));
   } else {
     const connected = hasFlowBridge() ? Boolean(flowConnected[acct]) : fs && fs.status === "error";
     flow = ovCard("accounts", "🎬", "Flow 积分", `<span class="pill ${fs?.status === "error" ? "crimson" : ""}">${fs?.status === "error" ? "读取失败" : connected ? "等待读取" : "未连接"}</span>`,
@@ -2216,6 +2267,9 @@ function renderOverview() {
     const m = gs.metrics[0];
     gcp = ovCard("benefits", "☁️", "Cloud 赠金", "", `<div class="ov-big">${escHtml(m.unit || "$")}${Number(m.remaining).toFixed(2)}<span>剩余</span></div>`,
       [gs.extra?.checked_at_iso ? `读取于 ${escHtml(fmtWhen(gs.extra.checked_at_iso))}` : ""], "开发者计划每月 $10 · 每笔 12 个月有效");
+  } else if (gs && gs.status === "ok" && gs.extra?.trial_state === "available") {
+    gcp = ovCard("benefits", "☁️", "Cloud 赠金", "", `<div class="ov-big dim" style="color:#fcd34d;">$300 可领</div>`,
+      ["免费试用未开始 · 之后再领每月 $10"], "新用户 $300 免费试用（90 天）+ 开发者计划每月 $10");
   } else if (gs && gs.status === "ok") {
     const short = { no_billing: "需先创建结算账号再领取", needs_billing: "需先关联结算账号再领取", claimable: "本月赠金可领取" }[gs.extra?.state] || "到开发者计划页面领取";
     gcp = ovCard("benefits", "☁️", "Cloud 赠金", "", `<div class="ov-big dim" style="color:#fcd34d;">未领取</div>`,
@@ -2227,10 +2281,11 @@ function renderOverview() {
 
   // Drive
   const st = metricOf(s.google_storage, "storage_total");
-  const drive = ovCard("accounts", "💾", "云盘存储", s.google_storage?.status === "unauthorized" ? `<span class="pill crimson">需重新授权</span>` : "",
+  const trashM = metricOf(s.google_storage, "storage_trash");
+  const drive = ovCard("benefits", "💾", "云盘存储", s.google_storage?.status === "unauthorized" ? `<span class="pill crimson">需重新授权</span>` : "",
     st ? `<div class="ov-big">${fmtBytes(st.used)}<span>/ ${st.total ? fmtBytes(st.total) : "--"}</span></div>${st.total ? ovMeter(st.used / st.total, false) : ""}`
        : `<div class="ov-big dim">${escHtml(s.google_storage?.error || "无法读取")}</div>`,
-    [], "Google One · Drive / Gmail / 相册共用");
+    [trashM && trashM.used > 1024 ** 3 ? `回收站 ${fmtBytes(trashM.used)}` : ""], "Google One · Drive / Gmail / 相册共用；点开看空间构成");
 
   // Antigravity
   const ag = s.antigravity;
@@ -2281,10 +2336,20 @@ function renderOverviewTodo() {
   if ((c.fail || 0) + (c.warn || 0)) add(c.fail ? "crit" : "warn", `🩺 环境自检：${c.fail || 0} 个失败、${c.warn || 0} 个警告`, "查看", "switchView('selfcheck')");
   const s = ovSnaps();
   if (s.google_storage?.status === "unauthorized") add("warn", "💾 云盘授权缺少 Drive 权限，存储额度无法读取", "去授权", "switchView('accounts')");
-  if (cfg.gcp_credits_on && s.gcp_credits?.status === "ok" && !(s.gcp_credits.metrics || []).length) {
-    add("warn", `☁️ ${escHtml(s.gcp_credits.extra?.state_text || "Cloud 赠金未领取")}`, "去领取",
-        `openExternal('${escHtml(s.gcp_credits.extra?.setup_url || "https://developers.google.com/program/my-benefits")}')`);
+  const gx = s.gcp_credits?.extra || {};
+  if (cfg.gcp_credits_on && s.gcp_credits?.status === "ok") {
+    for (const c of gx.expiring || []) {
+      add("warn", `☁️ ${c.kind === "free_trial" ? "免费试用" : c.kind === "developer_program" ? "开发者计划" : ""}赠金 ${escHtml(c.currency)}${Number(c.remaining).toFixed(2)} 将在 ${c.days_left} 天后（${escHtml(c.expires)}）到期`, "查看", "switchView('benefits')");
+    }
+    if (gx.trial_state === "available") add("warn", "☁️ 可以开始 $300 免费试用（同时建立结算账号），之后再领取每月 $10 赠金", "查看步骤", "switchView('benefits')");
+    else if (gx.state !== "active") add("warn", `☁️ ${escHtml(gx.state_text || "Cloud 赠金未领取")}`, "去领取",
+        `openExternal('${escHtml(gx.setup_url || "https://developers.google.com/program/my-benefits")}')`);
   }
+  const trashM = metricOf(s.google_storage, "storage_trash");
+  if (trashM && trashM.used > 1024 ** 3) add("", `💾 云盘回收站占用 ${fmtBytes(trashM.used)}，清空后可释放空间`, "打开回收站", "openExternal('https://drive.google.com/drive/trash')");
+  const fl = s.flow_credits;
+  const low = Number(cfg.flow_low_threshold || 0);
+  if (low && fl?.status === "ok" && fl.metrics[0].remaining < low) add("warn", `🎬 Flow 积分只剩 ${Math.round(fl.metrics[0].remaining)}（低于提醒阈值 ${low}）`, "查看", "switchView('benefits')");
   if (!cfg.flow_credits_on || !cfg.gcp_credits_on) {
     add("", `🧪 ${[!cfg.flow_credits_on && "Flow 积分", !cfg.gcp_credits_on && "Cloud 赠金"].filter(Boolean).join("、")}读取未开启`, "去开启", "switchView('settings')");
   } else if (hasFlowBridge() && !flowConnected[ovAccount()]) {
@@ -3606,6 +3671,7 @@ async function loadBenefits(force = false) {
       </div>`;
     }).join("");
     renderAgTable(data.antigravity_accounts || []);
+    renderQuotaDetails(data);
     if (force) showToast("权益数据已刷新", "emerald");
   } catch (e) {
     grid.innerHTML = `<div class="prov-err">加载失败：${escHtml(e.message)}</div>`;
@@ -3643,6 +3709,114 @@ function renderAgTable(rows) {
       <td><span class="ag-cell-sub" style="color:${ex.stale ? "#fcd34d" : "inherit"}">${ex.last_updated_iso ? fmtWhen(ex.last_updated_iso) : "--"}${ex.stale ? "（较旧）" : ""}</span></td></tr>`;
   }).join("");
   box.innerHTML = `<div style="overflow:auto;"><table class="ag-table">${head}${body}</table></div>`;
+}
+
+// ---------------------------------------------------------------- v2.8 quota detail sections
+function fmtDate(iso) { return iso ? String(iso).slice(0, 10) : "--"; }
+
+function lineChart(series) {
+  if (!series || series.length < 2) return `<div class="card-sub" style="padding:18px 0;">记录还不够画曲线：每 30 分钟会读取一次，过几次就有了</div>`;
+  const W = 600, H = 120, P = 6;
+  const xs = series.map(p => p[0]), ys = series.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const sx = t => P + (W - 2 * P) * (x1 === x0 ? 1 : (t - x0) / (x1 - x0));
+  const sy = v => H - P - (H - 2 * P) * (y1 === y0 ? 0.5 : (v - y0) / (y1 - y0));
+  const pts = series.map(p => `${sx(p[0]).toFixed(1)},${sy(p[1]).toFixed(1)}`).join(" ");
+  const d = t => new Date(t * 1000).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return `<svg class="dt-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <polygon points="${P},${H - P} ${pts} ${W - P},${H - P}" fill="rgba(59,130,246,.14)"></polygon>
+      <polyline points="${pts}" fill="none" stroke="#60a5fa" stroke-width="2" vector-effect="non-scaling-stroke"></polyline></svg>
+    <div class="dt-axis"><span>${d(x0)}</span><span>最低 ${y0} · 最高 ${y1}</span><span>${d(x1)}</span></div>`;
+}
+
+async function renderQuotaDetails(data) {
+  const byProv = Object.fromEntries((data.items || []).filter(b => b.provider).map(b => [b.provider, b.snapshot]));
+  const cfg = appState?.config || {};
+  // ---- Flow
+  const fbox = document.getElementById("bnFlow");
+  const fs = byProv.flow_credits;
+  if (!cfg.flow_credits_on) {
+    fbox.innerHTML = `<div class="card-sub">未开启 Flow 积分读取。<a style="cursor:pointer;color:#93c5fd;" onclick="switchView('settings')">去设置开启 →</a></div>`;
+  } else {
+    let series = [];
+    try { series = (await (await fetch(`/api/flow/history?account=${encodeURIComponent(data.account)}`)).json()).series || []; } catch (_) {}
+    const ex = fs?.extra || {};
+    const bal = fs?.status === "ok" ? Math.round(fs.metrics[0].remaining) : null;
+    const est = (ex.estimates || []).map(e => `<div class="dt-stat"><span>约可生成（${escHtml(e.model)} · ${e.cost} 积分/条）</span><b>${e.clips}<small>条</small></b></div>`).join("");
+    fbox.innerHTML = `<div class="dt-stats">
+        <div class="dt-stat"><span>当前余额</span><b>${bal ?? "--"}<small>积分</small></b></div>
+        <div class="dt-stat"><span>近 24 小时用了</span><b>${ex.used_24h ?? "--"}<small>积分</small></b></div>
+        <div class="dt-stat"><span>近 7 天用了</span><b>${ex.used_7d ?? "--"}<small>积分</small></b></div>${est}</div>
+      ${fs?.status === "error" ? `<div class="prov-err">${escHtml(fs.error || "")}</div>` : ""}
+      ${lineChart(series)}
+      <div class="dt-actions">
+        <button class="btn btn-sm btn-primary" onclick="openFlowLoggedIn('${escHtml(data.account)}')">🌐 打开 Flow（已登录）</button>
+        <span class="form-desc">余额低于</span>
+        <input type="number" min="0" max="100000" step="10" value="${Number(cfg.flow_low_threshold ?? 100)}" style="width:90px;"
+          onchange="updateCfg({flow_low_threshold: Number(this.value)})" />
+        <span class="form-desc">积分时桌面提醒（0 = 不提醒）· 估算按官方价格，实际以 Flow 为准</span>
+      </div>`;
+  }
+  // ---- Cloud credits
+  const gbox = document.getElementById("bnGcp");
+  const gs = byProv.gcp_credits;
+  if (!cfg.gcp_credits_on) {
+    gbox.innerHTML = `<div class="card-sub">未开启 Cloud 赠金读取。<a style="cursor:pointer;color:#93c5fd;" onclick="switchView('settings')">去设置开启 →</a></div>`;
+  } else if (!gs || gs.status !== "ok") {
+    gbox.innerHTML = `<div class="card-sub">${escHtml(gs?.error || "还没有读取结果")}</div>`;
+  } else {
+    const ex = gs.extra || {};
+    const trialDone = ex.trial_state === "active" || ex.trial_state === "none";
+    const devDone = ex.state === "active";
+    const steps = `<div class="dt-steps">
+        <div class="dt-step ${trialDone ? "done" : ""}"><span class="n">${trialDone ? "✓" : "1"}</span>
+          <span class="t"><b>开始 $300 免费试用</b>（同时建立 Cloud 结算账号；90 天内可用于云服务器等，试用账号不能用 GPU）</span>
+          ${trialDone ? "" : `<button class="btn btn-sm btn-primary" onclick="openExternal('${escHtml(ex.trial_url || "https://console.cloud.google.com/freetrial")}')">去开始 ↗</button>`}</div>
+        <div class="dt-step ${devDone ? "done" : ""}"><span class="n">${devDone ? "✓" : "2"}</span>
+          <span class="t"><b>领取开发者计划每月 $10</b>（需要已有结算账号；每笔 12 个月有效）</span>
+          ${devDone ? "" : `<button class="btn btn-sm btn-primary" onclick="openExternal('${escHtml(ex.setup_url || "https://developers.google.com/program/my-benefits")}')">去领取 ↗</button>`}</div>
+      </div>`;
+    const KIND = { developer_program: "开发者计划", free_trial: "免费试用", other: "其他赠金" };
+    const soon = new Set((ex.expiring || []).map(c => `${c.kind}|${c.expires}|${c.remaining}`));
+    const rows = (ex.credits || []).map(c => `<tr><td>${KIND[c.kind] || "其他"}</td>
+        <td><b>${escHtml(c.currency)}${Number(c.remaining).toFixed(2)}</b>${c.original != null ? ` / ${escHtml(c.currency)}${Number(c.original).toFixed(2)}` : ""}</td>
+        <td>${fmtDate(c.expires)} ${c.expired ? `<span class="pill">已过期</span>` : soon.has(`${c.kind}|${c.expires}|${c.remaining}`) ? `<span class="pill amber">快到期</span>` : ""}</td></tr>`).join("");
+    gbox.innerHTML = steps + (rows
+      ? `<div style="overflow:auto;"><table class="ag-table"><tr><th>赠金</th><th>剩余 / 原始</th><th>到期日</th></tr>${rows}</table></div>`
+      : `<div class="card-sub">结算页里还没有赠金记录${ex.checked_at_iso ? "（读取于 " + escHtml(fmtWhen(ex.checked_at_iso)) + "）" : ""}</div>`)
+      + `<div class="form-desc" style="margin-top:8px;">赠金能否用于某项服务以 Google 的 Discount Exclusions 规则为准；到期前 14 天会桌面提醒</div>`;
+  }
+  // ---- Drive
+  const dbox = document.getElementById("bnDrive");
+  const ss = byProv.google_storage;
+  const m = k => metricOf(ss, k);
+  const tot = m("storage_total"), drv = m("storage_drive"), trash = m("storage_trash"), other = m("storage_other");
+  if (!tot) {
+    dbox.innerHTML = `<div class="card-sub">${escHtml(ss?.error || "无法读取云盘用量")}</div>`;
+  } else {
+    const limit = tot.total || tot.used || 1;
+    const files = Math.max(0, (drv?.used || 0) - (trash?.used || 0));
+    const segs = [["云盘文件", files, "#3b82f6"], ["Gmail 与相册", other?.used || 0, "#a855f7"], ["回收站", trash?.used || 0, "#f59e0b"]];
+    dbox.innerHTML = `<div class="dt-stats"><div class="dt-stat"><span>已用</span><b>${fmtBytes(tot.used)}<small>/ ${tot.total ? fmtBytes(tot.total) : "不限"}</small></b></div>
+        <div class="dt-stat"><span>剩余</span><b>${tot.total ? fmtBytes(Math.max(0, tot.total - tot.used)) : "--"}</b></div></div>
+      <div class="stack-bar">${segs.map(([l, v, c]) => `<i title="${l} ${fmtBytes(v)}" style="width:${Math.max(0, v / limit * 100).toFixed(2)}%;background:${c};"></i>`).join("")}</div>
+      <div class="legend">${segs.map(([l, v, c]) => `<span style="--c:${c}">${l}<b>${fmtBytes(v)}</b></span>`).join("")}</div>
+      <div class="dt-actions">
+        <button class="btn btn-sm" onclick="openExternal('https://drive.google.com/drive/trash')">🗑 打开回收站 ↗</button>
+        <button class="btn btn-sm" onclick="openExternal('https://one.google.com/storage')">📊 管理存储空间 ↗</button>
+        ${(trash?.used || 0) > 1024 ** 3 ? `<span class="form-desc" style="color:#fcd34d;">回收站占用 ${fmtBytes(trash.used)}，清空后可释放空间</span>` : ""}
+      </div>`;
+  }
+}
+
+async function openFlowLoggedIn(account) {
+  if (window.pywebview?.api?.flow_connect) {
+    const r = await window.pywebview.api.flow_connect(account);
+    if (!r?.ok) showToast(r?.error || "无法打开浏览器", "crimson");
+    else showToast("已用专用浏览器配置打开 Flow（已登录）；用完关闭窗口即可", "emerald");
+  } else {
+    openExternal("https://flow.google.com/");
+  }
 }
 
 // ---------------------------------------------------------------- Self check (M4)

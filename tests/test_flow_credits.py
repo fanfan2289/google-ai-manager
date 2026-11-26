@@ -187,3 +187,77 @@ class PageResultTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---------------------------------------------------------------------- v2.8
+class FlowHistoryTests(unittest.TestCase):
+    def setUp(self) -> None:
+        from providers.flow_credits import FlowHistory, usage_stats
+
+        self.usage_stats = usage_stats
+        self.tmp = tempfile.TemporaryDirectory()
+        self.h = FlowHistory(Path(self.tmp.name) / "h.json")
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_usage_ignores_refills_and_dedupes(self) -> None:
+        now = 1_000_000.0
+        for ts, v in ((now - 8 * 86400, 1000), (now - 3 * 86400, 900), (now - 3 * 86400 + 60, 900),
+                      (now - 2 * 86400, 1000), (now - 3600, 970), (now - 60, 950)):
+            self.h.add("main", v, ts)
+        pts = self.h.points("main")
+        self.assertEqual(len(pts), 5)  # the unchanged 900 reading merged
+        st = self.usage_stats(pts, 950, now)
+        self.assertEqual((st["used_24h"], st["used_7d"]), (50, 150))  # 1000->900 (7d) + 1000->970->950; refill ignored
+        self.assertEqual([e["clips"] for e in st["estimates"]], [95, 47])
+        self.assertEqual(st["series"][-1], [int(now - 60), 950])
+
+    def test_old_points_are_dropped(self) -> None:
+        self.h.add("main", 500, 0.0)
+        self.h.add("main", 400, 100 * 86400.0)
+        self.assertEqual(self.h.points("main"), [[8640000.0, 400]])
+
+
+class GcpDetailTests(unittest.TestCase):
+    def test_credits_and_expiry(self) -> None:
+        import datetime as dt
+        from providers.gcp_credits import expiring, validate_gcp_report
+
+        now = dt.datetime(2026, 11, 26, 12).timestamp()
+        rep = validate_gcp_report({"account": "main", "ok": True, "state": "billing_no_program_credit",
+                                   "trial_state": "active", "credits": [
+                                       {"kind": "free_trial", "remaining": 250, "original": 300, "currency": "$", "expires": "2026-12-05"},
+                                       {"kind": "developer_program", "remaining": 10, "expires": "2027-11-01"},
+                                       {"kind": "bogus", "remaining": 1, "expires": "next week"}]}, ["main"])["record"]
+        self.assertEqual([c["kind"] for c in rep["credits"]], ["free_trial", "developer_program", "other"])
+        self.assertIsNone(rep["credits"][2]["expires"])
+        soon = expiring(rep["credits"], now)
+        self.assertEqual([(c["kind"], c["days_left"]) for c in soon], [("free_trial", 9)])
+
+    def test_trial_metric_shown_before_program_credit(self) -> None:
+        from providers.gcp_credits import GcpCreditsProvider, validate_gcp_report
+
+        with tempfile.TemporaryDirectory() as tmp:
+            p = GcpCreditsProvider(FlowCreditsStore(Path(tmp) / "g.json"), enabled=lambda: True)
+            rec = validate_gcp_report({"account": "main", "ok": True, "state": "no_billing", "trial_state": "active",
+                                       "credits": [{"kind": "free_trial", "remaining": 280, "currency": "$"}]}, ["main"])["record"]
+            p.store.put("main", rec)
+            snap = p.snapshot("main")
+            self.assertEqual([m.key for m in snap.metrics], ["gcp_trial_credit"])
+            self.assertEqual(snap.extra["trial_state"], "active")
+
+
+@unittest.skipIf(desktop_flow is None, "desktop flow reader not importable")
+class GcpTrialPageTests(unittest.TestCase):
+    def test_trial_states(self) -> None:
+        f = desktop_flow.normalize_gcp
+        self.assertEqual(f({}, {"ids": [], "trial_banner": True}, [])["trial_state"], "available")
+        self.assertEqual(f({}, {"ids": ["X"]}, [{"credits": [{"kind": "free_trial", "remaining": 1, "expired": False}]}])["trial_state"], "active")
+        self.assertEqual(f({}, {"ids": ["X"]}, [])["trial_state"], "none")
+
+    def test_expiry_date_is_validated(self) -> None:
+        out = desktop_flow.normalize_gcp({}, {"ids": ["X"]}, [{"credits": [
+            {"kind": "developer_program", "label": "developer_program", "remaining": 10, "expires": "2027-11-01"},
+            {"kind": "other", "remaining": 5, "expires": "<script>"}]}])
+        self.assertEqual([c["expires"] for c in out["credits"]], ["2027-11-01", None])

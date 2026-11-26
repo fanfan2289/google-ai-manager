@@ -40,7 +40,7 @@ APP_TITLE = "Google AI Manager"
 BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 8765
 BACKEND_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}"
-EXPECTED_VERSION = "2.7"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
+EXPECTED_VERSION = "2.8"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
 # Google pages the UI may open in the default browser (keep in sync with providers/benefits.py).
 EXTERNAL_URL_PREFIXES = (
     "https://accounts.google.com/",
@@ -49,6 +49,7 @@ EXTERNAL_URL_PREFIXES = (
     "https://antigravity.google/",
     "https://labs.google/",
     "https://flow.google.com/",
+    "https://drive.google.com/",
     "https://developers.google.com/",
     "https://console.cloud.google.com/",
     "https://studio.firebase.google.com/",
@@ -377,7 +378,7 @@ class DesktopController:
             self._gcp_last[account] = now
             g = res["gcp"]
             report = {k: g.get(k) for k in ("ok", "connected", "state", "billing_accounts", "dev_remaining",
-                                            "other_remaining", "currency", "error")}
+                                            "other_remaining", "currency", "trial_state", "credits", "error")}
             out["gcp"] = report
             try:
                 _http_json("/api/gcp/report", method="POST", payload={"account": account, **report}, timeout=10)

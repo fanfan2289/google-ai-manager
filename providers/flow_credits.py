@@ -19,6 +19,9 @@ from . import paths
 from .base import ERROR, NOT_CONFIGURED, OK, Metric, ProviderSnapshot, QuotaProvider
 
 PRO_MONTHLY_CREDITS = 1000
+HISTORY_DAYS = 90
+# Published per-clip costs for AI Pro (Flow help, "Manage your Google Flow credits"): used for estimates only.
+VIDEO_COSTS = (("Veo 3.1 Lite", 10), ("Veo 3.1 Fast", 20))
 STALE_SECONDS = 3 * 3600
 MAX_CREDITS = 10_000_000
 
@@ -87,6 +90,66 @@ class FlowCreditsStore:
                 paths.write_private_json(self.path, data)
 
 
+def history_path() -> Path:
+    return paths.app_home() / "flow_history.json"
+
+
+class FlowHistory:
+    """Balance readings per account ([ts, credits] pairs, last HISTORY_DAYS days) for trends."""
+
+    def __init__(self, path: Path | None = None) -> None:
+        self._path = path
+        self._lock = threading.Lock()
+
+    @property
+    def path(self) -> Path:
+        return self._path or history_path()
+
+    def load(self) -> dict[str, list[list[float]]]:
+        data = paths.read_json(self.path, {})
+        return data if isinstance(data, dict) else {}
+
+    def add(self, account: str, credits: int, ts: float) -> None:
+        with self._lock:
+            data = self.load()
+            pts = [p for p in data.get(account) or [] if isinstance(p, list) and len(p) == 2
+                   and ts - float(p[0]) <= HISTORY_DAYS * 86400]
+            if pts and int(pts[-1][1]) == credits and ts - float(pts[-1][0]) < 6 * 3600:
+                pts[-1] = [pts[-1][0], credits]  # unchanged balance: keep one point per 6 h
+            else:
+                pts.append([round(ts, 1), credits])
+            data[account] = pts
+            paths.write_private_json(self.path, data)
+
+    def points(self, account: str) -> list[list[float]]:
+        return [p for p in self.load().get(account) or [] if isinstance(p, list) and len(p) == 2]
+
+    def forget(self, account: str) -> None:
+        with self._lock:
+            data = self.load()
+            if data.pop(account, None) is not None:
+                paths.write_private_json(self.path, data)
+
+
+def usage_stats(points: list[list[float]], credits: int | None, now: float) -> dict[str, Any]:
+    """Credits spent in the last 24 h / 7 d (sum of decreases; refills and top-ups are ignored)."""
+
+    def spent(since: float) -> int:
+        total, prev = 0, None
+        for ts, val in points:
+            if prev is not None and ts >= since and val < prev:
+                total += int(prev - val)
+            prev = val
+        return total
+
+    out: dict[str, Any] = {"used_24h": spent(now - 86400), "used_7d": spent(now - 7 * 86400)}
+    if credits is not None:
+        out["estimates"] = [{"model": m, "cost": c, "clips": credits // c} for m, c in VIDEO_COSTS]
+    step = max(1, len(points) // 200)
+    out["series"] = [[int(ts), int(v)] for ts, v in points[::step]][-200:]
+    return out
+
+
 def _iso(ts: float | None) -> str | None:
     if not ts:
         return None
@@ -103,8 +166,10 @@ class FlowCreditsProvider(QuotaProvider):
     docs_url = "https://support.google.com/flow/answer/16526234"
     description = "Flow 网页自身的只读余额查询（由桌面端专用浏览器配置读取，实验性，默认关闭）"
 
-    def __init__(self, store: FlowCreditsStore | None = None, enabled: Callable[[], bool] | None = None) -> None:
+    def __init__(self, store: FlowCreditsStore | None = None, enabled: Callable[[], bool] | None = None,
+                 history: FlowHistory | None = None) -> None:
         self.store = store or FlowCreditsStore()
+        self.history = history or FlowHistory(self.store.path.with_name("flow_history.json") if store else None)
         self._enabled = enabled or (lambda: True)
 
     def availability(self) -> tuple[bool, str]:
@@ -139,5 +204,8 @@ class FlowCreditsProvider(QuotaProvider):
         )
         if metric.total:
             metric.used = metric.total - credits
+        stats = usage_stats(self.history.points(account), credits, now)
+        stats.pop("series", None)  # the chart fetches the series separately (GET /api/flow/history)
+        extra.update(stats)
         return ProviderSnapshot(provider=self.id, account=account, status=OK, metrics=[metric],
                                 updated_at_iso=_iso(checked) or "", extra=extra)
