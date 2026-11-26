@@ -9,11 +9,12 @@ for people who use **Google AI Pro** across one or more Google accounts. It trac
 grabs scarce Colab GPUs with strict anti-ghost-billing guards, and puts the quotas of the other Pro
 tools in one place.
 
-## Features (v2.2)
+## Features (v2.3)
 
 - **Colab GPU monitor & auto-hold**: probes `G4 / A100 / H100 / L4 / T4` capacity at zero cost (a
-  503 costs nothing), optionally holds a GPU on a hit, mounts Google Drive silently and shuts the VM
-  down automatically when nobody claims it (independent 1-second watchdog, persisted hold state).
+  503 costs nothing), optionally holds a GPU on a hit and shuts the VM down
+  automatically when nobody claims it (independent 1-second watchdog, persisted hold state); Google
+  Drive can be mounted on demand.
 - **Anti-ghost-billing**: every probe allocation that is not intentionally held is released in a
   `finally` block and verified; emergency stop kills all VMs (including orphans) and re-checks for 0.
 - **Multi-account hub**: add / re-login / Drive-consent Google accounts from the UI (copy & paste
@@ -27,8 +28,11 @@ tools in one place.
   credits, Firebase Studio and more.
 - **Antigravity quota**: read-only from the Antigravity Tools local cache, matched to accounts by
   e-mail — no tokens are ever read or used.
-- **Remote task templates**: `tasks/templates/*.json` describe jobs that run on a held GPU (the
-  MiniMax-H3 drama pipeline is just one example). Templates cannot disable the auto-shutdown watchdog.
+- **Run a command on the held GPU**: one shell command runs on the held session; when it exits the
+  VM is stopped and reconciled, and the watchdog kills it at the time limit. The runner owns the
+  session / GPU / account / time-limit flags, so a command cannot disable auto-shutdown.
+- **Example workflow**: `cloud_workstation/` (ComfyUI + MiniMax-H3 short drama) is kept as a
+  command-line example (`cloud_workstation/run_drama.sh`); the app itself has no drama-specific code.
 - **Proxy settings** (auto-detect / manual / direct) shared by the backend and all scripts, and a
   **first-run self-check** with fix hints.
 

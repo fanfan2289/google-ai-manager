@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Sync local `cloud_workstation/` scripts & workflows directly to Google Drive via API v3.
 
-Runs locally inside WSL2 (zero Colab VM / zero CCU cost!).
+Runs locally inside WSL2 (zero Colab VM / zero CCU cost!). `cloud_workstation/local/` (local-only
+helpers such as this script) is skipped.
 Any edits made on Windows to `cloud_workstation/workflows/.../drama_config.json` are
 synced to `/content/drive/MyDrive/AI_Workstation/...` in ~2 seconds.
 """
@@ -21,7 +22,7 @@ from pathlib import Path
 
 def _ensure_proxy() -> None:
     """Apply the user-configured proxy (~/.google-ai-manager/settings.json, default: auto-detect)."""
-    project_dir = str(Path(__file__).resolve().parent.parent)
+    project_dir = str(Path(__file__).resolve().parents[2])
     if project_dir not in sys.path:
         sys.path.insert(0, project_dir)
     try:
@@ -151,7 +152,7 @@ class DriveClient:
 
 
 def main() -> int:
-    project_dir = Path(__file__).resolve().parent.parent
+    project_dir = Path(__file__).resolve().parents[2]
     local_root = project_dir / "cloud_workstation"
     if not local_root.is_dir():
         print(f"[sync] ERROR: {local_root} not found", file=sys.stderr)
@@ -183,6 +184,8 @@ def main() -> int:
         if path.is_dir() or path.name.startswith(".") or "__pycache__" in path.parts:
             continue
         rel = path.relative_to(local_root)
+        if rel.parts[0] == "local":  # local-only helpers (this script etc.) are not uploaded
+            continue
         parent_parts = ["AI_Workstation", *rel.parent.parts]
         parent_id = drive.ensure_path(parent_parts)
         drive.upsert_file(parent_id, path)

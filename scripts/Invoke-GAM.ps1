@@ -1,6 +1,6 @@
 ﻿param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("auth", "download", "run", "stop", "status", "dry-run", "monitor")]
+    [ValidateSet("auth", "download", "run", "drama", "stop", "status", "dry-run", "monitor")]
     [string]$Mode,
 
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -27,7 +27,7 @@ switch ($Mode) {
     }
     "download" {
         try {
-            wsl.exe -d Ubuntu -e bash "$WslProjectRoot/scripts/wsl_download_models.sh" @PassThruArgs
+            wsl.exe -d Ubuntu -e bash "$WslProjectRoot/cloud_workstation/local/wsl_download_models.sh" @PassThruArgs
             exit $LASTEXITCODE
         }
         finally {
@@ -43,17 +43,20 @@ switch ($Mode) {
         exit $LASTEXITCODE
     }
     "dry-run" {
-        wsl.exe -d Ubuntu -e bash "$WslProjectRoot/scripts/wsl_run_h3.sh" --dry-run @PassThruArgs
+        wsl.exe -d Ubuntu -e bash "$WslProjectRoot/scripts/wsl_run_remote.sh" --dry-run @PassThruArgs
         exit $LASTEXITCODE
     }
     "monitor" {
         wsl.exe -d Ubuntu -e python3 "$WslProjectRoot/scripts/colab_gpu_monitor.py" @PassThruArgs
         exit $LASTEXITCODE
     }
-    "run" {
+    { $_ -in "run", "drama" } {
+        # run   = 通用远端命令运行器（需 -c "SHELL_CMD"）
+        # drama = 示例短剧流水线（cloud_workstation/run_drama.sh）
+        $runScript = if ($Mode -eq "drama") { "$WslProjectRoot/cloud_workstation/run_drama.sh" } else { "$WslProjectRoot/scripts/wsl_run_remote.sh" }
         $exitCode = 1
         try {
-            wsl.exe -d Ubuntu -e bash "$WslProjectRoot/scripts/wsl_run_h3.sh" @PassThruArgs
+            wsl.exe -d Ubuntu -e bash "$runScript" @PassThruArgs
             $exitCode = $LASTEXITCODE
         }
         finally {

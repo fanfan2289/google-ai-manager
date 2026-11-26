@@ -75,7 +75,7 @@ class EngineAccountTests(unittest.TestCase):
 
     def _hold(self, account: str) -> None:
         self.engine.active_hold = {"account": account, "endpoint": "ep", "state": "HOLDING", "gpu": "T4",
-                                   "session_name": "h3work", "locked_at_ts": 0, "expires_at_ts": 9e12}
+                                   "session_name": "gpuwork", "locked_at_ts": 0, "expires_at_ts": 9e12}
 
     # -------------------------------------------------------------- stop-all targets
     def test_default_stop_covers_hold_account_and_clears_hold(self) -> None:
@@ -137,6 +137,54 @@ class EngineAccountTests(unittest.TestCase):
                                          "min_ccu_threshold": "-3", "failover_on": 1})
         self.assertEqual((cfg["failover_accounts"], cfg["min_ccu_threshold"], cfg["failover_on"]),
                          (["backup"], 0.0, True))
+
+    # -------------------------------------------------------------- v2.3: config migration & command runner
+    def test_migration_turns_off_auto_mount_once_and_renames_legacy_session(self) -> None:
+        cfg, changed = mon.migrate_config({"auto_mount_drive": True, "hold_session_name": "h3work"})
+        self.assertTrue(changed)
+        self.assertEqual((cfg["auto_mount_drive"], cfg["hold_session_name"], cfg["config_version"]),
+                         (False, "gpuwork", mon.CONFIG_VERSION))
+        custom, _ = mon.migrate_config({"hold_session_name": "mybox"})
+        self.assertEqual(custom["hold_session_name"], "mybox")
+        again, changed = mon.migrate_config({**cfg, "auto_mount_drive": True})  # user re-enabled it later
+        self.assertFalse(changed)
+        self.assertTrue(again["auto_mount_drive"])
+
+    def test_saved_v2_config_is_migrated_on_load(self) -> None:
+        mon.CONFIG_PATH.write_text('{"auto_mount_drive": true, "hold_session_name": "h3work"}', encoding="utf-8")
+        cfg = self.engine._load_config()
+        self.assertFalse(cfg["auto_mount_drive"])
+        self.assertIn('"config_version": 3', mon.CONFIG_PATH.read_text(encoding="utf-8"))
+
+    def test_run_command_requires_hold(self) -> None:
+        with self.assertRaises(ValueError):
+            self.engine.run_command("nvidia-smi")
+
+    def test_run_command_runner_owns_safety_flags(self) -> None:
+        self._hold("backup")
+        started = {}
+
+        class FakeProc:
+            pid = 4242
+
+            def poll(self):
+                return None
+
+        def fake_popen(argv, **kw):
+            started["argv"] = argv
+            return FakeProc()
+
+        with mock.patch.object(mon.subprocess, "Popen", side_effect=fake_popen),                 mock.patch.object(mon, "LOGS_DIR", Path(self.tmp.name)):
+            res = self.engine.run_command("echo hi --keep-alive", max_minutes=9999, mount_drive=True)
+        argv = started["argv"]
+        self.assertTrue(res["ok"])
+        self.assertEqual(argv[-2:], ["-c", "echo hi --keep-alive"])  # user text stays one argv element
+        self.assertNotIn("--keep-alive", argv[:-1])
+        self.assertEqual(argv[argv.index("--max-minutes") + 1], "360")
+        self.assertEqual(argv[argv.index("-a") + 1], "backup")
+        self.assertIn("--mount-drive", argv)
+        self.assertEqual(self.engine.active_hold["state"], "CLAIMED_JOB")
+        self.engine._job_proc = None
 
 
 if __name__ == "__main__":

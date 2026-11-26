@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pull the latest rendered `final_drama.mp4` and shot clips from Google Drive to Desktop `outputs/`."""
+"""Pull the latest rendered `final_drama.mp4` and shot clips from Google Drive to the project `outputs/` folder."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from pathlib import Path
 
 def _ensure_proxy() -> None:
     """Apply the user-configured proxy (~/.google-ai-manager/settings.json, default: auto-detect)."""
-    project_dir = str(Path(__file__).resolve().parent.parent)
+    project_dir = str(Path(__file__).resolve().parents[2])
     if project_dir not in sys.path:
         sys.path.insert(0, project_dir)
     try:
@@ -71,7 +71,7 @@ def main() -> int:
         ).read().decode()
     )
     folder_name = folder_meta.get("name", "latest")
-    out_dir = Path(__file__).resolve().parent.parent / "outputs" / folder_name
+    out_dir = Path(__file__).resolve().parents[2] / "outputs" / folder_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
     list_params = urllib.parse.urlencode({

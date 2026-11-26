@@ -44,7 +44,7 @@ DB_PATH = LOGS_DIR / "gpu_monitor.db"
 CONFIG_PATH = LOGS_DIR / "gpu_monitor_config.json"
 HOLD_STATE_PATH = LOGS_DIR / "active_hold.json"
 UI_HTML_PATH = SCRIPT_DIR / "monitor_ui.html"
-APP_VERSION = "2.2"
+APP_VERSION = "2.3"
 
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
@@ -124,7 +124,7 @@ from providers.google_storage import GoogleStorageProvider  # noqa: E402
 from providers import benefits as benefits_catalog  # noqa: E402
 from providers import paths as app_paths  # noqa: E402
 from providers import selfcheck  # noqa: E402
-from providers import task_templates  # noqa: E402
+from providers import remote_runner  # noqa: E402
 from providers.antigravity import AntigravityProvider  # noqa: E402
 from providers.gemini_cli import GeminiCliProvider  # noqa: E402
 from providers.accounts_hub import (  # noqa: E402
@@ -142,7 +142,7 @@ GPU_CATALOG: list[dict[str, Any]] = [
         "vram": "96 GB",
         "ccu_hint": "~10–14 CCU/hr",
         "tier": "primary",
-        "note": "MiniMax-H3 首选 · 满血 96GB 显存",
+        "note": "满血 96GB 显存 · 大模型首选",
         "default_enabled": True,
     },
     {
@@ -151,7 +151,7 @@ GPU_CATALOG: list[dict[str, Any]] = [
         "vram": "40 / 80 GB",
         "ccu_hint": "~7–12 CCU/hr",
         "tier": "secondary",
-        "note": "MiniMax-H3 备选 · 高速算力",
+        "note": "40 / 80GB 显存 · 高速算力",
         "default_enabled": True,
     },
     {
@@ -195,18 +195,35 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "browser_sound": True,
     "browser_notify": True,
     "account": None,
-    # 命中即锁定（自动占卡 + 自动挂盘 + 超时自动关机）
+    # 命中即锁定（自动占卡 + 超时自动关机；云盘默认不自动挂载，可在占卡卡片上手动挂载）
     "hold_on_hit": True,
     "hold_gpus": ["G4", "A100"],
     "hold_minutes": 15,
-    "auto_mount_drive": True,
-    "hold_session_name": "h3work",
+    "auto_mount_drive": False,
+    "hold_session_name": "gpuwork",
     "manual_claim_max_minutes": 120,
     # 多账号自动切换（M3）：主号 CCU 低于阈值 / 429 限流 / 412 实例上限 / 授权失效时换用备用号
     "failover_on": False,
     "failover_accounts": [],
     "min_ccu_threshold": 5.0,
 }
+
+# Saved-config schema version. v3 (app 2.3): Drive auto-mount defaults to off and the default
+# hold session name changed from the old drama-specific "h3work" to "gpuwork".
+CONFIG_VERSION = 3
+LEGACY_SESSION_NAME = "h3work"
+
+
+def migrate_config(raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """Upgrade a saved config dict in place; returns (config, changed)."""
+    if int(raw.get("config_version") or 0) >= CONFIG_VERSION:
+        return raw, False
+    raw["auto_mount_drive"] = False
+    if str(raw.get("hold_session_name") or "").strip() in ("", LEGACY_SESSION_NAME):
+        raw["hold_session_name"] = DEFAULT_CONFIG["hold_session_name"]
+    raw["config_version"] = CONFIG_VERSION
+    return raw, True
+
 
 # Per-account "blocked" windows used by failover (seconds), keyed by probe status.
 ACCOUNT_BLOCK_SECONDS = {"RATE_LIMITED": 180.0, "LIMIT_REACHED": 300.0, "AUTH_ERROR": 600.0}
@@ -659,10 +676,13 @@ class MonitorEngine:
 
     def _load_config(self) -> dict[str, Any]:
         cfg = dict(DEFAULT_CONFIG)
+        cfg["config_version"] = CONFIG_VERSION
+        migrated = False
         if CONFIG_PATH.is_file():
             try:
                 raw = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
                 if isinstance(raw, dict):
+                    raw, migrated = migrate_config(raw)
                     cfg.update(raw)
             except Exception:
                 pass
@@ -675,10 +695,15 @@ class MonitorEngine:
         cfg["hit_cooldown_seconds"] = max(0, min(7200, int(cfg.get("hit_cooldown_seconds", 600))))
         cfg["hold_minutes"] = max(5, min(180, int(cfg.get("hold_minutes", 15))))
         cfg["manual_claim_max_minutes"] = max(15, min(360, int(cfg.get("manual_claim_max_minutes", 120))))
-        cfg["hold_session_name"] = str(cfg.get("hold_session_name") or "h3work").strip() or "h3work"
+        cfg["hold_session_name"] = str(cfg.get("hold_session_name") or "gpuwork").strip() or "gpuwork"
         cfg["failover_on"] = bool(cfg.get("failover_on", False))
         cfg["failover_accounts"] = _clean_account_list(cfg.get("failover_accounts"))
         cfg["min_ccu_threshold"] = _clamp_float(cfg.get("min_ccu_threshold", 5.0), 0.0, 10000.0, 5.0)
+        if migrated:
+            try:
+                CONFIG_PATH.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+            except OSError:
+                pass
         return cfg
 
     def _save_config(self) -> None:
@@ -708,8 +733,8 @@ class MonitorEngine:
                     15, min(360, int(patch["manual_claim_max_minutes"]))
                 )
             if "hold_session_name" in patch:
-                val = str(patch["hold_session_name"] or "h3work").strip()
-                if val:
+                val = str(patch["hold_session_name"] or "").strip()
+                if val and remote_runner.SESSION_RE.match(val):
                     self.config["hold_session_name"] = val
             if "min_ccu_threshold" in patch:
                 self.config["min_ccu_threshold"] = _clamp_float(patch["min_ccu_threshold"], 0.0, 10000.0, 5.0)
@@ -928,10 +953,12 @@ class MonitorEngine:
             rows = self.accounts.list_accounts()["accounts"]
             ready = [r["name"] for r in rows if r["drive"]["ready"]]
             bad = [n for n in ready if self.providers.snapshot("google_storage", n).status == "unauthorized"]
+            # Without auto-mount, Drive consent is only needed for manual mounts / storage quota.
+            level = selfcheck.WARN if self.config.get("auto_mount_drive") else selfcheck.INFO
             if not ready:
-                return selfcheck.WARN, "没有账号授权 Google Drive（抢卡后无法自动挂盘）", "「账号管理」→ 授权云盘"
+                return level, "没有账号授权 Google Drive（无法挂载云盘、无法显示存储额度）", "「账号管理」→ 授权云盘"
             if bad:
-                return selfcheck.WARN, f"{len(bad)} 个账号的云盘授权缺少 Drive 权限", "在账号卡片点「重新授权云盘」并勾选 Drive 权限"
+                return level, f"{len(bad)} 个账号的云盘授权缺少 Drive 权限（挂载云盘与存储额度需要）", "在账号卡片点「重新授权云盘」并勾选 Drive 权限"
             return selfcheck.OK, f"{len(ready)}/{len(rows)} 个账号已授权云盘"
 
         def network():
@@ -1101,7 +1128,7 @@ class MonitorEngine:
         the last probe used. `all_accounts=True` covers every registered profile; `accounts`
         names an explicit list (Accounts Hub per-account stop).
         """
-        # Stop any running drama subprocess first so it doesn't race
+        # Stop any running remote command subprocess first so it doesn't race
         self._terminate_job_proc_only()
         with self._probe_lock:
             hold_acct = self._hold_account()
@@ -1345,7 +1372,7 @@ class MonitorEngine:
             )
             combined = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
             ok = proc.returncode == 0
-            detail = "Google Drive 已挂载至 /content/drive（模型与剧本已就绪）" if ok else f"挂盘失败 (rc={proc.returncode}): {combined[-200:]}"
+            detail = "Google Drive 已挂载至 /content/drive" if ok else f"挂盘失败 (rc={proc.returncode}): {combined[-200:]}"
         except Exception as exc:
             ok = False
             detail = f"挂盘异常: {exc}"
@@ -1377,7 +1404,7 @@ class MonitorEngine:
             if not self.active_hold:
                 raise ValueError("当前没有正在锁定的 GPU 实例")
             if self.active_hold["state"] == "CLAIMED_JOB":
-                raise ValueError("短剧任务运行中，已由任务看门狗自动托管")
+                raise ValueError("远端命令运行中，已由任务看门狗自动托管")
             base = max(_now_ts(), float(self.active_hold["expires_at_ts"]))
             new_exp = base + extra_minutes * 60.0
             self.active_hold["expires_at_ts"] = new_exp
@@ -1397,7 +1424,7 @@ class MonitorEngine:
             if not self.active_hold:
                 raise ValueError("当前没有正在锁定的 GPU 实例")
             if self.active_hold["state"] == "CLAIMED_JOB":
-                raise ValueError("短剧任务正在运行中")
+                raise ValueError("远端命令正在运行中")
             ttl = int(max_minutes or self.config.get("manual_claim_max_minutes", 120))
             ttl = max(15, min(360, ttl))
             new_exp = _now_ts() + ttl * 60.0
@@ -1525,75 +1552,45 @@ class MonitorEngine:
                     pass
         self._job_proc = None
 
-    def start_drama_job(
-        self,
-        *,
-        workflow: str | None = None,
-        config_file: str | None = None,
-        max_minutes: int = 180,
-    ) -> dict[str, Any]:
-        """Backward-compatible entry point: the MiniMax-H3 drama template."""
-        params = {k: v for k, v in (("workflow", workflow), ("config", config_file)) if v}
-        return self.start_task("minimax_h3_drama", params, max_minutes=max_minutes)
+    def run_command(self, command: str, *, max_minutes: int = 180, mount_drive: bool = False) -> dict[str, Any]:
+        """Claim the held GPU and run one shell command on it via `wsl_run_remote.sh --reuse-session`.
 
-    def task_templates_payload(self) -> dict[str, Any]:
-        templates, errors = task_templates.load_templates()
-        return {"templates": templates, "errors": errors}
-
-    def start_task(self, template_id: str, params: dict[str, Any] | None = None, *, max_minutes: int = 180) -> dict[str, Any]:
-        """Claim the locked GPU and run a task template via `wsl_run_h3.sh --reuse-session`.
-
-        The runner always sets session / GPU / account / `--fallback-gpu none` / `--max-minutes`
-        itself, so no template can disable the auto-shutdown watchdog.
+        The runner sets session / GPU / account / `--fallback-gpu none` / `--max-minutes` itself
+        (see providers/remote_runner.py), so the command can never disable the auto-shutdown
+        watchdog. When the command exits the GPU is released and reconciled.
         """
-        templates, _errors = task_templates.load_templates()
-        template = next((t for t in templates if t["id"] == template_id), None)
-        if template is None:
-            raise ValueError(f"未找到任务模板：{template_id}")
-        extra_args = task_templates.build_args(template, params or {})
-        max_minutes = max(30, min(360, int(max_minutes)))
         with self._state_lock:
             hold = dict(self.active_hold) if self.active_hold else None
             if self._job_proc is not None and self._job_proc.poll() is None:
-                raise ValueError("已有云端任务正在运行中")
+                raise ValueError("已有远端命令正在运行中")
             if not hold:
-                raise ValueError("当前没有已锁定的 GPU 实例，请先抢到/锁定 G4 或 A100 后再一键接管")
-
-        run_script = SCRIPT_DIR / "wsl_run_h3.sh"
-        if not run_script.is_file():
-            raise ValueError(f"未找到推理脚本: {run_script}")
+                raise ValueError("当前没有已锁定的 GPU 实例，请先抢到 / 锁定 GPU 后再运行命令")
+        argv = remote_runner.build_runner_argv(
+            session=hold["session_name"],
+            gpu=hold["gpu"],
+            account=hold.get("account"),
+            max_minutes=max_minutes,
+            command=command,
+            mount_drive=bool(mount_drive),
+        )
+        if not remote_runner.RUN_SCRIPT.is_file():
+            raise ValueError(f"未找到运行脚本: {remote_runner.RUN_SCRIPT}")
+        minutes = remote_runner.clamp_minutes(max_minutes)
 
         ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-        job_log = LOGS_DIR / f"desktop_task_{template['id']}_{ts}.log"
+        job_log = LOGS_DIR / f"remote_command_{ts}.log"
         LOGS_DIR.mkdir(parents=True, exist_ok=True)
-
-        cmd = [
-            "bash",
-            str(run_script),
-            "--reuse-session",
-            "-s",
-            hold["session_name"],
-            "-g",
-            hold["gpu"],
-            "--fallback-gpu",
-            "none",
-            "--max-minutes",
-            str(max_minutes),
-        ]
-        if hold.get("account"):
-            cmd.extend(["-a", str(hold["account"])])
-        cmd.extend(extra_args)
-
-        log_fh = open(job_log, "w", encoding="utf-8", buffering=1)
-        proc = subprocess.Popen(
-            cmd,
-            stdout=log_fh,
-            stderr=subprocess.STDOUT,
-            text=True,
-            start_new_session=True,
-            env=self._colab_env(),
-        )
+        with open(job_log, "w", encoding="utf-8", buffering=1) as log_fh:  # the child keeps its own copy
+            proc = subprocess.Popen(
+                argv,
+                stdout=log_fh,
+                stderr=subprocess.STDOUT,
+                text=True,
+                start_new_session=True,
+                env=self._colab_env(),
+            )
         self._job_proc = proc
+        preview = argv[-1].splitlines()[0][:80]
 
         with self._state_lock:
             self.last_job_log_path = str(job_log)
@@ -1603,27 +1600,27 @@ class MonitorEngine:
                 self.active_hold["job_pid"] = proc.pid
                 self.active_hold["job_log_path"] = str(job_log)
                 self.active_hold["job_status"] = "RUNNING"
-                self.active_hold["task_template"] = template["id"]
-                self.active_hold["task_name"] = template["name"]
-                self.active_hold["expires_at_ts"] = _now_ts() + max_minutes * 60.0
+                self.active_hold["task_name"] = "远端命令"
+                self.active_hold["command_preview"] = preview
+                self.active_hold["expires_at_ts"] = _now_ts() + minutes * 60.0
                 self.active_hold["expires_at_iso"] = _now_iso(self.active_hold["expires_at_ts"])
                 self._save_hold_state_locked()
             hold_copy = dict(self.active_hold) if self.active_hold else None
 
-        print(f"[{_now_iso()}] [gpu_monitor] 已接管 {hold['gpu']} 启动任务「{template['name']}」(PID={proc.pid}, log={job_log})", flush=True)
+        print(f"[{_now_iso()}] [gpu_monitor] 已接管 {hold['gpu']} 运行远端命令 (PID={proc.pid}, log={job_log})", flush=True)
         self.broadcast_state()
         return {"ok": True, "pid": proc.pid, "log_path": str(job_log), "hold": hold_copy}
 
-    def stop_drama_job(self) -> dict[str, Any]:
-        """Stop running drama job and force-release all Colab GPU VMs."""
-        return self.release_hold(reason="用户手动中止短剧任务并回收 GPU")
+    def stop_job(self) -> dict[str, Any]:
+        """Stop the running remote command and force-release the held GPU."""
+        return self.release_hold(reason="用户手动中止远端命令并回收 GPU")
 
     def get_job_log(self, tail_bytes: int = 32768) -> dict[str, Any]:
         with self._state_lock:
             path_str = (self.active_hold or {}).get("job_log_path") or self.last_job_log_path
             status = (self.active_hold or {}).get("job_status") or self.last_job_status or "IDLE"
         if not path_str:
-            # Fallback to newest run_h3work_*.log if present
+            # Fallback to the newest runner log (run_<session>_*.log) if present
             candidates = sorted(LOGS_DIR.glob("run_*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
             if candidates:
                 path_str = str(candidates[0])
@@ -1643,7 +1640,7 @@ class MonitorEngine:
         }
 
     def _hold_watchdog_loop(self) -> None:
-        """1s background watchdog: enforces hold countdown auto-shutdown & monitors claimed drama jobs."""
+        """1s background watchdog: enforces hold countdown auto-shutdown & monitors claimed remote commands."""
         last_sync_ts = 0.0
         while not self._stop_event.is_set():
             try:
@@ -1653,7 +1650,7 @@ class MonitorEngine:
 
                 if hold:
                     state = hold.get("state")
-                    # 1) Check claimed drama job completion
+                    # 1) Check claimed remote command completion
                     if state == "CLAIMED_JOB":
                         proc = self._job_proc
                         job_done = False
@@ -1675,7 +1672,7 @@ class MonitorEngine:
                                 self.last_job_status = "DONE" if ok_job else f"FAILED (rc={rc})"
                             # Verify server has 0 lingering VMs
                             self.release_hold(
-                                reason="短剧推理任务已完成并自动回收 GPU" if ok_job else f"短剧推理任务异常结束 (rc={rc})，已安全回收 GPU"
+                                reason="远端命令已完成并自动回收 GPU" if ok_job else f"远端命令异常结束 (rc={rc})，已安全回收 GPU"
                             )
                             continue
 
@@ -1870,8 +1867,8 @@ class MonitorEngine:
                         cfg_hold_on_hit = bool(self.config.get("hold_on_hit", True))
                         cfg_hold_gpus = set(self.config.get("hold_gpus") or ["G4", "A100"])
                         cfg_hold_mins = int(hold_minutes_override or self.config.get("hold_minutes", 15))
-                        cfg_auto_mount = bool(self.config.get("auto_mount_drive", True))
-                        cfg_session = str(self.config.get("hold_session_name") or "h3work")
+                        cfg_auto_mount = bool(self.config.get("auto_mount_drive", False))
+                        cfg_session = str(self.config.get("hold_session_name") or "gpuwork")
                         already_holding = self.active_hold is not None
 
                     should_hold = (
@@ -2319,10 +2316,6 @@ def make_handler(engine: MonitorEngine):
                     self._send_json({"error": str(exc)}, status=500)
                 return
 
-            if path == "/api/tasks":
-                self._send_json(engine.task_templates_payload())
-                return
-
             if path == "/api/job/log":
                 tail = int((qs.get("tail") or ["32768"])[0])
                 self._send_json(engine.get_job_log(tail_bytes=max(2048, min(262144, tail))))
@@ -2384,6 +2377,8 @@ def make_handler(engine: MonitorEngine):
             parsed = urllib.parse.urlparse(self.path)
             path = parsed.path
             if self._cross_origin():
+                # The body is left unread, so the keep-alive connection must not be reused.
+                self.close_connection = True
                 self._send_json({"error": "cross-origin request refused"}, status=403)
                 return
             try:
@@ -2484,26 +2479,12 @@ def make_handler(engine: MonitorEngine):
                     self._send_json({"error": str(exc)}, status=500)
                 return
 
-            if path == "/api/tasks/start":
+            if path == "/api/hold/run-command":
                 try:
-                    res = engine.start_task(
-                        str(body.get("template") or ""),
-                        body.get("params") if isinstance(body.get("params"), dict) else {},
-                        max_minutes=int(body.get("max_minutes", 180)),
-                    )
-                    self._send_json(res)
-                except ValueError as exc:
-                    self._send_json({"error": str(exc)}, status=400)
-                except Exception as exc:
-                    self._send_json({"error": str(exc)}, status=500)
-                return
-
-            if path == "/api/hold/run-drama":
-                try:
-                    res = engine.start_drama_job(
-                        workflow=body.get("workflow"),
-                        config_file=body.get("config"),
-                        max_minutes=int(body.get("max_minutes", 180)),
+                    res = engine.run_command(
+                        str(body.get("command") or ""),
+                        max_minutes=body.get("max_minutes", 180),
+                        mount_drive=bool(body.get("mount_drive")),
                     )
                     self._send_json(res)
                 except ValueError as exc:
@@ -2514,7 +2495,7 @@ def make_handler(engine: MonitorEngine):
 
             if path == "/api/job/stop":
                 try:
-                    res = engine.stop_drama_job()
+                    res = engine.stop_job()
                     self._send_json(res)
                 except Exception as exc:
                     self._send_json({"error": str(exc)}, status=500)

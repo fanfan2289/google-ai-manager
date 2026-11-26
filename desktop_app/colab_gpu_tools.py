@@ -3,7 +3,7 @@
 
 Antigravity Tools-style native desktop shell using Windows built-in Edge WebView2
 (`pywebview`) + System Tray (`pystray`), managing the WSL2 Colab GPU monitor &
-auto-hold/auto-mount/countdown-shutdown backend with zero console windows.
+auto-hold/countdown-shutdown backend with zero console windows.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ APP_TITLE = "Colab GPU Tools"
 BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 8765
 BACKEND_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}"
-EXPECTED_VERSION = "2.2"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
+EXPECTED_VERSION = "2.3"  # must match APP_VERSION in scripts/colab_gpu_monitor.py
 # Google pages the UI may open in the default browser (keep in sync with providers/benefits.py).
 EXTERNAL_URL_PREFIXES = (
     "https://accounts.google.com/",
@@ -48,8 +48,6 @@ EXTERNAL_URL_PREFIXES = (
 APP_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = APP_DIR.parent
 LOGS_DIR = PROJECT_DIR / "logs"
-OUTPUTS_DIR = PROJECT_DIR / "outputs"
-DRAMA_CONFIG_PATH = PROJECT_DIR / "cloud_workstation" / "workflows" / "02_eastern_fantasy_xianxia" / "drama_config.json"
 ICON_PATH = APP_DIR / "colab_gpu_tools.ico"
 DESKTOP_LOG_PATH = LOGS_DIR / "desktop_app.log"
 WEBVIEW_STORAGE_DIR = APP_DIR / "webview_data"
@@ -260,17 +258,6 @@ class DesktopController:
         self._last_icon_key = "ok"
 
     # ---- JS Bridge Methods (window.pywebview.api.*) ----
-    def open_outputs_folder(self) -> dict[str, Any]:
-        OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
-        os.startfile(str(OUTPUTS_DIR))
-        return {"ok": True}
-
-    def open_drama_config(self) -> dict[str, Any]:
-        if DRAMA_CONFIG_PATH.is_file():
-            os.startfile(str(DRAMA_CONFIG_PATH))
-            return {"ok": True}
-        return {"ok": False, "error": "drama_config.json not found"}
-
     def open_external_url(self, url: str) -> dict[str, Any]:
         """Open an allow-listed Google page (OAuth consent, benefit pages) in the default browser."""
         url = str(url or "").strip()
@@ -289,7 +276,7 @@ class DesktopController:
         if self.tray:
             gpu = (payload or {}).get("gpu", "GPU")
             try:
-                self.tray.notify(f"已锁定 {gpu} 并自动挂载 Google Drive，请在倒计时内认领或启动短剧！", f"🔒 {APP_TITLE}")
+                self.tray.notify(f"已锁定 {gpu}，请在倒计时内认领使用或运行命令，超时将自动关机", f"🔒 {APP_TITLE}")
             except Exception:
                 pass
         return {"ok": True}
@@ -423,12 +410,6 @@ class JsBridge:
 
     def __init__(self, controller: "DesktopController") -> None:
         self._ctrl = controller
-
-    def open_outputs_folder(self) -> dict[str, Any]:
-        return self._ctrl.open_outputs_folder()
-
-    def open_drama_config(self) -> dict[str, Any]:
-        return self._ctrl.open_drama_config()
 
     def minimize_to_tray(self) -> dict[str, Any]:
         return self._ctrl.minimize_to_tray()

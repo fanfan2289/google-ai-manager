@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Colab G4 + 33B MiniMax-H3 一键全自动推理 + 双重防幽灵计费脚本 (WSL2)
+# Colab 远端命令运行器 + 双重防幽灵计费 (WSL2)
 #
 # 功能：
 #   1. 记录启动前 CCU 基准余额 + 启动独立后台死人开关看门狗 (防 kill -9 / 终端崩溃 / 超时挂死)
 #   2. 注册 bash EXIT/INT/TERM/HUP 全信号兜底 trap，任何报错或中断必强杀实例
-#   3. colab new -s h3work --gpu G4 拉起 96GB G4 实例
-#   4. colab dfs mount -s h3work 零浏览器静默挂载 Google Drive (/content/drive)
-#   5. 保活流式执行 MiniMax-H3 冷启动与 4 段式影视短剧生成，严格透传远端退出码
+#   3. 复用已锁定的会话 (--reuse-session)，或 colab new 拉起指定 GPU 实例
+#   4. 可选 (--mount-drive)：colab dfs mount 零浏览器静默挂载 Google Drive (/content/drive)
+#   5. 在远端脱离 WebSocket 后台运行 -c 指定的 Shell 命令，自动重连拉日志，严格透传远端退出码
 #   6. 跑完（或异常退出）自动强杀全部残留实例、校验 0 活跃会话并输出 CCU 对账单
 # ==============================================================================
 set -Eeuo pipefail
@@ -31,7 +31,7 @@ LOG_DIR="$PROJECT_DIR/logs"
 mkdir -p "$LOG_DIR"
 
 # ------------------------------ 可配置参数 ------------------------------
-SESSION_NAME="${COLAB_SESSION:-h3work}"
+SESSION_NAME="${COLAB_SESSION:-gpuwork}"
 GPU_TYPE="${COLAB_GPU:-G4}"
 FALLBACK_GPU="${COLAB_FALLBACK_GPU:-A100}"
 GPU_RETRY_MINUTES="${COLAB_GPU_RETRY_MINUTES:-10}"
@@ -39,15 +39,8 @@ ACCOUNT_NAME="${COLAB_ACCOUNT:-}"
 MAX_MINUTES="${COLAB_MAX_MINUTES:-180}"
 KEEP_ALIVE="${COLAB_KEEP_ALIVE:-0}"
 REUSE_SESSION="${COLAB_REUSE_SESSION:-0}"
-
-# 远端工作流参数（默认：模板 2 东方玄幻《青莲剑劫》4 段式短剧）
-LAUNCH_SCRIPT="${H3_LAUNCH_SCRIPT:-/content/drive/MyDrive/AI_Workstation/scripts/launch_g4_comfyui_fast.py}"
-LAUNCH_PROFILE="${H3_PROFILE:-scheme_a}"
-WORKFLOW_DIR="${H3_WORKFLOW_DIR:-/content/drive/MyDrive/AI_Workstation/workflows/02_eastern_fantasy_xianxia}"
-DRAMA_SCRIPT="${H3_DRAMA_SCRIPT:-run_drama.py}"
-DRAMA_CONFIG="${H3_DRAMA_CONFIG:-drama_config.json}"
-DRAMA_WORKFLOW="${H3_DRAMA_WORKFLOW:-workflow_h3_fl2va_turbo.json}"
-CUSTOM_REMOTE_CMD="${H3_REMOTE_CMD:-}"
+MOUNT_DRIVE="${COLAB_MOUNT_DRIVE:-0}"
+REMOTE_SHELL_CMD="${COLAB_REMOTE_CMD:-}"
 
 usage() {
     cat <<EOF
@@ -59,11 +52,8 @@ usage() {
   --fallback-gpu TYPE      首选 GPU 抢卡超时后的备选型号，传 none 禁用 (默认: $FALLBACK_GPU)
   --gpu-retry-minutes MIN  首选 GPU 缺货时最多抢卡时长/分钟 (默认: $GPU_RETRY_MINUTES)
   -a, --account NAME       指定 colab-ext 账户配置名
-  --profile NAME           launch_g4_comfyui_fast.py 的 --profile (默认: $LAUNCH_PROFILE)
-  --workflow-dir DIR       远端短剧目录 (默认: $WORKFLOW_DIR)
-  --config FILE            run_drama.py 的 --config (默认: $DRAMA_CONFIG)
-  --workflow FILE          run_drama.py 的 --workflow (默认: $DRAMA_WORKFLOW)
-  -c, --cmd "SHELL_CMD"    自定义远端执行的完整 Shell 命令（覆盖默认短剧命令）
+  -c, --cmd "SHELL_CMD"    要在远端执行的完整 Shell 命令（必填，工作目录 /content）
+  --mount-drive            运行前挂载 Google Drive 到 /content/drive（默认不挂载）
   --max-minutes MIN        看门狗最大允许运行时长/分钟，超时强杀防跑飞 (默认: $MAX_MINUTES)
   --reuse-session          复用已锁定的现有 Colab 会话（跳过清理与重新抢卡，适合监控占卡接管）
   --keep-alive             跑完不自动关机（仅调试用，⚠️ 会持续消耗 CCU！）
@@ -80,11 +70,8 @@ while [[ $# -gt 0 ]]; do
         --fallback-gpu) FALLBACK_GPU="$2"; shift 2 ;;
         --gpu-retry-minutes) GPU_RETRY_MINUTES="$2"; shift 2 ;;
         -a|--account) ACCOUNT_NAME="$2"; shift 2 ;;
-        --profile) LAUNCH_PROFILE="$2"; shift 2 ;;
-        --workflow-dir) WORKFLOW_DIR="$2"; shift 2 ;;
-        --config) DRAMA_CONFIG="$2"; shift 2 ;;
-        --workflow) DRAMA_WORKFLOW="$2"; shift 2 ;;
-        -c|--cmd) CUSTOM_REMOTE_CMD="$2"; shift 2 ;;
+        -c|--cmd) REMOTE_SHELL_CMD="$2"; shift 2 ;;
+        --mount-drive) MOUNT_DRIVE=1; shift ;;
         --max-minutes) MAX_MINUTES="$2"; shift 2 ;;
         --reuse-session) REUSE_SESSION=1; shift ;;
         --keep-alive) KEEP_ALIVE=1; shift ;;
@@ -99,10 +86,10 @@ if [[ -n "$ACCOUNT_NAME" ]]; then
     ACCT_ARGS=(-a "$ACCOUNT_NAME")
 fi
 
-if [[ -n "$CUSTOM_REMOTE_CMD" ]]; then
-    REMOTE_SHELL_CMD="$CUSTOM_REMOTE_CMD"
-else
-    REMOTE_SHELL_CMD="python3 -u ${LAUNCH_SCRIPT} --profile ${LAUNCH_PROFILE} && cd ${WORKFLOW_DIR} && python3 -u ${DRAMA_SCRIPT} --config ${DRAMA_CONFIG} --workflow ${DRAMA_WORKFLOW}"
+if [[ -z "$REMOTE_SHELL_CMD" ]] && [[ "$DRY_RUN" -ne 1 ]]; then
+    echo "[ERROR] 请用 -c \"SHELL_CMD\" 指定要在远端运行的命令" >&2
+    usage
+    exit 2
 fi
 
 RUN_TS="$(date +%Y%m%d_%H%M%S)"
@@ -147,10 +134,6 @@ cleanup() {
     if [[ -n "$WATCHDOG_PID" ]] && kill -0 "$WATCHDOG_PID" 2>/dev/null; then
         kill "$WATCHDOG_PID" 2>/dev/null || true
     fi
-    if [[ "$exit_code" -eq 0 ]] && [[ -f "$SCRIPT_DIR/pull_latest_outputs.py" ]]; then
-        log "📥 正在从 Google Drive 拉取最新成品视频到本地 outputs/ 目录 (0 CCU)..."
-        python3 -u "$SCRIPT_DIR/pull_latest_outputs.py" 2>&1 | tee -a "$RUN_LOG" || true
-    fi
     log "📄 完整运行日志已保存至: $RUN_LOG"
     exit "$exit_code"
 }
@@ -162,10 +145,11 @@ trap 'log "收到终端挂断信号 (SIGHUP)，立即中止并回收 GPU..."; ex
 
 # ------------------------ 1. 预检环境与授权 ------------------------
 log "=================================================================="
-log "🚀 Colab ${GPU_TYPE} + MiniMax-H3 自动化流水线启动"
+log "🚀 Colab ${GPU_TYPE} 远端命令运行器启动"
 log "   Session     : $SESSION_NAME"
 log "   GPU         : $GPU_TYPE"
 log "   Watchdog TTL: ${MAX_MINUTES} 分钟"
+log "   Mount Drive : $([[ "$MOUNT_DRIVE" -eq 1 ]] && echo yes || echo no)"
 log "   Log File    : $RUN_LOG"
 log "=================================================================="
 
@@ -180,6 +164,7 @@ if ! colab "${ACCT_ARGS[@]}" whoami >/dev/null 2>&1; then
     exit 1
 fi
 
+if [[ "$MOUNT_DRIVE" -eq 1 ]]; then
 DFS_CRED="$(colab "${ACCT_ARGS[@]}" account current --json | python3 -c 'import json,sys; print(json.load(sys.stdin).get("dfs_credentials_path",""))' 2>/dev/null || true)"
 if [[ -z "$DFS_CRED" ]] || [[ ! -s "$DFS_CRED" ]]; then
     log "[ERROR] 未检测到零浏览器 DriveFS 授权凭据 (${DFS_CRED:-unknown})！"
@@ -188,8 +173,9 @@ if [[ -z "$DFS_CRED" ]] || [[ ! -s "$DFS_CRED" ]]; then
 fi
 if ! colab "${ACCT_ARGS[@]}" dfs token >/dev/null 2>&1; then
     log "[ERROR] DriveFS 云盘凭据校验失败（通常是授权时未勾选「查看、编辑、创建和删除您的所有 Google 云端硬盘文件」复选框）！"
-    log "        为避免白扣 G4 CCU，已提前中止。请先双击运行 1_首次授权_Auth.bat 并务必勾选云盘复选框！"
+    log "        为避免白扣 CCU，已提前中止。请在「账号管理」重新授权云盘并务必勾选云盘复选框！"
     exit 1
+fi
 fi
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -197,12 +183,6 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     python3 "$SCRIPT_DIR/colab_meter.py" status "${ACCT_ARGS[@]}" 2>&1 | tee -a "$RUN_LOG"
     log "[DRY-RUN] 将要执行的远端命令: $REMOTE_SHELL_CMD"
     exit 0
-fi
-
-# 启动前自动把本地 cloud_workstation/ 剧本与脚本同步到 Google Drive (0 CCU)
-if [[ -d "$PROJECT_DIR/cloud_workstation" ]] && [[ -f "$SCRIPT_DIR/sync_workstation_to_drive.py" ]]; then
-    log "[Step 0a/3] 同步本地剧本配置与脚本到 Google Drive (0 CCU)..."
-    python3 -u "$SCRIPT_DIR/sync_workstation_to_drive.py" 2>&1 | tee -a "$RUN_LOG"
 fi
 
 # 启动前先确保没有残留幽灵实例，并记录 CCU 对账基线
@@ -290,6 +270,7 @@ if [[ -z "$ALLOCATED_GPU" ]]; then
     fi
 fi
 
+if [[ "$MOUNT_DRIVE" -eq 1 ]]; then
 log "[Step 2/3] 检查并挂载 Google Drive -> /content/drive (当前硬件: ${ALLOCATED_GPU})..."
 DRIVE_ALREADY_OK=0
 if [[ "$REUSE_SESSION" -eq 1 ]]; then
@@ -302,13 +283,16 @@ if [[ "$REUSE_SESSION" -eq 1 ]]; then
     done
 fi
 if [[ "$DRIVE_ALREADY_OK" -eq 1 ]]; then
-    log "✅ Google Drive 已在锁卡时挂载完毕 (/content/drive/MyDrive)，直接跳过重复挂载！"
+    log "✅ Google Drive 已挂载 (/content/drive/MyDrive)，跳过重复挂载"
 else
     timeout 120 colab "${ACCT_ARGS[@]}" dfs mount -s "$SESSION_NAME" 2>&1 | tee -a "$RUN_LOG"
 fi
+else
+    log "[Step 2/3] 未要求挂载 Google Drive（需要时加 --mount-drive），跳过"
+fi
 
-# ------------------------ 3. 断连自愈流式执行短剧推理 ------------------------
-log "[Step 3/3] 开始执行远端 MiniMax-H3 启动与短剧推理（脱离 WebSocket 后台运行 + 自动重连拉日志）..."
+# ------------------------ 3. 断连自愈流式执行远端命令 ------------------------
+log "[Step 3/3] 开始执行远端命令（脱离 WebSocket 后台运行 + 自动重连拉日志）..."
 log "   远端命令: $REMOTE_SHELL_CMD"
 
 REMOTE_B64="$(printf '%s' "$REMOTE_SHELL_CMD" | base64 -w0)"
@@ -321,29 +305,29 @@ import base64, os, subprocess, sys
 from pathlib import Path
 
 cmd = base64.b64decode("${REMOTE_B64}").decode("utf-8")
-Path("/tmp/h3_job.sh").write_text("#!/usr/bin/env bash\nset -e\n" + cmd + "\n", encoding="utf-8")
-Path("/tmp/h3_job.log").write_text("", encoding="utf-8")
-Path("/tmp/h3_job.rc").unlink(missing_ok=True)
+Path("/tmp/gam_job.sh").write_text("#!/usr/bin/env bash\nset -e\ncd /content\n" + cmd + "\n", encoding="utf-8")
+Path("/tmp/gam_job.log").write_text("", encoding="utf-8")
+Path("/tmp/gam_job.rc").unlink(missing_ok=True)
 
 wrapper = r'''
 import os, subprocess
 from pathlib import Path
 print(f"[remote] Node={os.uname().nodename}", flush=True)
-subprocess.run("nvidia-smi --query-gpu=name,memory.total --format=csv,noheader", shell=True)
-rc = subprocess.call(["bash", "/tmp/h3_job.sh"])
-Path("/tmp/h3_job.rc").write_text(str(rc), encoding="utf-8")
+subprocess.run("nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || true", shell=True)
+rc = subprocess.call(["bash", "/tmp/gam_job.sh"])
+Path("/tmp/gam_job.rc").write_text(str(rc), encoding="utf-8")
 '''
-Path("/tmp/h3_job_wrap.py").write_text(wrapper, encoding="utf-8")
+Path("/tmp/gam_job_wrap.py").write_text(wrapper, encoding="utf-8")
 
-log_fh = open("/tmp/h3_job.log", "wb")
+log_fh = open("/tmp/gam_job.log", "wb")
 p = subprocess.Popen(
-    [sys.executable, "-u", "/tmp/h3_job_wrap.py"],
+    [sys.executable, "-u", "/tmp/gam_job_wrap.py"],
     stdout=log_fh,
     stderr=subprocess.STDOUT,
     start_new_session=True,
 )
-Path("/tmp/h3_job.pid").write_text(str(p.pid), encoding="utf-8")
-print(f"[remote] Detached G4 pipeline started (PID={p.pid})", flush=True)
+Path("/tmp/gam_job.pid").write_text(str(p.pid), encoding="utf-8")
+print(f"[remote] Detached remote job started (PID={p.pid})", flush=True)
 PYEOF
     L_RC=${PIPESTATUS[0]}
     set -e
@@ -351,11 +335,11 @@ PYEOF
         LAUNCH_OK=1
         break
     fi
-    log "⚠️ 启动远端推理脚本 WebSocket 抖动 (${_l}/3, rc=${L_RC})，4 秒后重试..."
+    log "⚠️ 启动远端命令 WebSocket 抖动 (${_l}/3, rc=${L_RC})，4 秒后重试..."
     sleep 4
 done
 if [[ "$LAUNCH_OK" -ne 1 ]]; then
-    log "❌ 连续 3 次启动远端推理脚本失败，立即中止并回收 GPU。"
+    log "❌ 连续 3 次启动远端命令失败，立即中止并回收 GPU。"
     exit 1
 fi
 
@@ -369,9 +353,9 @@ while true; do
     POLL_OUT="$(timeout 65 colab "${ACCT_ARGS[@]}" exec -s "$SESSION_NAME" --timeout 45 <<PYEOF 2>&1
 import os
 from pathlib import Path
-log_p = Path("/tmp/h3_job.log")
-rc_p = Path("/tmp/h3_job.rc")
-pid_p = Path("/tmp/h3_job.pid")
+log_p = Path("/tmp/gam_job.log")
+rc_p = Path("/tmp/gam_job.rc")
+pid_p = Path("/tmp/gam_job.pid")
 offset = ${OFFSET}
 new_offset = offset
 chunk = ""
@@ -403,7 +387,7 @@ PYEOF
 
     if [[ "$POLL_RC" -ne 0 ]] || ! grep -q "^__META__:" <<<"$POLL_OUT"; then
         CONSECUTIVE_ERRS=$((CONSECUTIVE_ERRS + 1))
-        log "⚠️ [reconnect] WebSocket 临时抖动 ($CONSECUTIVE_ERRS/12)，远端 G4 仍在正常渲染，5 秒后自动重连..."
+        log "⚠️ [reconnect] WebSocket 临时抖动 ($CONSECUTIVE_ERRS/12)，远端任务仍在运行，5 秒后自动重连..."
         if [[ "$CONSECUTIVE_ERRS" -ge 12 ]]; then
             log "❌ [ERROR] 连续 12 次重连失败，为防幽灵计费立即强杀实例！"
             exit 1
@@ -430,14 +414,14 @@ PYEOF
         REMOTE_RC="${RC_VAL:-1}"
         break
     elif [[ "$STATE" == "DEAD" ]]; then
-        log "❌ [ERROR] 远端推理进程意外中止（未写入退出码），立即回收 GPU。"
+        log "❌ [ERROR] 远端进程意外中止（未写入退出码），立即回收 GPU。"
         exit 1
     fi
 done
 
 if [[ "$REMOTE_RC" != "0" ]]; then
-    log "❌ [ERROR] 远端推理脚本返回非零退出码 (exit_code=$REMOTE_RC)！"
+    log "❌ [ERROR] 远端命令返回非零退出码 (exit_code=$REMOTE_RC)！"
     exit "$REMOTE_RC"
 fi
 
-log "✅ 远端 MiniMax-H3 短剧推理任务顺利跑完！即将自动强杀实例并核对 CCU..."
+log "✅ 远端命令顺利跑完！即将自动强杀实例并核对 CCU..."

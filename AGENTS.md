@@ -11,7 +11,7 @@ This repository (`google-ai-manager`) is collaboratively developed by multiple A
   - Keep `js_api` bound to a minimal `JsBridge` wrapper (never expose objects containing `PIL.Image`, `pystray.Icon`, or `threading.Event`).
 - **Backend Daemon & Anti-Ghost-Billing Core (`scripts/colab_gpu_monitor.py`, `scripts/colab_meter.py`)**
   - Runs inside WSL2 Ubuntu using `google-colab-cli`'s `uv` tool venv (`~/.local/share/uv/tools/google-colab-cli/bin/python`).
-  - Serves `scripts/monitor_ui.html`, REST APIs (`/api/health`, `/api/state`, `/api/probe-now`, `/api/grab-now`, `/api/hold/*`, `/api/job/*`, `/api/stop-all`, `/api/shutdown`), and SSE (`/api/events`) on `127.0.0.1:8765`.
+  - Serves `scripts/monitor_ui.html`, REST APIs (`/api/health`, `/api/state`, `/api/probe-now`, `/api/grab-now`, `/api/hold/*` incl. `run-command` / `mount-drive`, `/api/job/{log,stop}`, `/api/stop-all`, `/api/shutdown`), and SSE (`/api/events`) on `127.0.0.1:8765`.
   - Persists probe history in `logs/gpu_monitor.db`, user config in `logs/gpu_monitor_config.json`, and active lock state in `logs/active_hold.json`.
 - **Quota Providers (`providers/`)**
   - `base.py`: `QuotaProvider` interface → `ProviderSnapshot` of generic `Metric`s (read-only, never carry tokens). `ProviderHub` (`__init__.py`) caches per (provider, account), serialises refreshes and converts exceptions into `status="error"` snapshots.
@@ -35,9 +35,11 @@ This repository (`google-ai-manager`) is collaboratively developed by multiple A
   - `antigravity.py` reads the Antigravity Tools cache (`<Windows home>/.antigravity_tools`, found via `paths.windows_home()`); the per-account `token` block is dropped on load and must never be used. `gemini_cli.py` only checks install / login *file presence* — never open another tool's credential files.
   - `benefits.py`: static Pro catalog + `EXTERNAL_URL_PREFIXES`, which must equal the desktop shell's allow-list (`JsBridge.open_external_url`; a test enforces it).
   - `selfcheck.py` + `MonitorEngine.self_check()` → `GET /api/selfcheck`; `GET /api/benefits`.
-  - `task_templates.py` + `tasks/templates/*.json` → `GET /api/tasks`, `POST /api/tasks/start`. The runner owns session / GPU / account / `--fallback-gpu none` / `--max-minutes`; templates may never set those or `--keep-alive`.
-- **Cloud Workflow Runner (`scripts/wsl_run_h3.sh`, `cloud_workstation/`)**
-  - Supports `--reuse-session` to take over an already-locked Colab session without stopping/re-allocating it, skipping `colab dfs mount` when `/content/drive/MyDrive` is already mounted.
+- **v2.3: generic runner, no drama-specific code in the app**
+  - `remote_runner.py` builds the argv for `scripts/wsl_run_remote.sh` → `POST /api/hold/run-command {command, max_minutes, mount_drive}`. The runner owns session / GPU / account / `--fallback-gpu none` / `--max-minutes` / `--reuse-session`; the user command is passed as the single argv element after `-c` (never through a local shell).
+  - `wsl_run_remote.sh` requires `-c`; Drive is mounted only with `--mount-drive` (DriveFS credentials are checked only then).
+  - Drive auto-mount after a hold defaults to off (`auto_mount_drive`); `migrate_config()` turns it off once for configs saved before `config_version` 3 and renames the legacy `h3work` session default to `gpuwork`.
+  - `cloud_workstation/` is an optional example workflow (ComfyUI + MiniMax-H3 drama): `run_drama.sh` wraps the generic runner; `cloud_workstation/local/` holds local-only helpers and is skipped by the Drive sync. Never add drama-specific code to the app, backend or desktop shell.
 
 ## 2. Non-Negotiable Safety Invariants
 
@@ -59,7 +61,7 @@ This repository (`google-ai-manager`) is collaboratively developed by multiple A
      - `gemini_api` (AI Studio / Gemini API keys, RPM/RPD quotas, health checks)
      - `gcp_vertex` / additional Google AI credit sources
 3. **Cross-Platform & Decoupling**:
-   - Make proxy configuration and remote task templates user-configurable in the UI (decouple personal workflows into optional templates).
+   - Keep personal workflows out of the app: they run through the generic command runner (`scripts/wsl_run_remote.sh`).
    - Long-term: move Colab HTTPS/OAuth monitoring & hold logic to pure cross-platform Python so WSL2 is only optional (needed only for `colab dfs mount`).
 
 ## 4. Quick Verification Commands
@@ -69,7 +71,7 @@ This repository (`google-ai-manager`) is collaboratively developed by multiple A
 .\.venv-desktop\Scripts\python.exe -m py_compile desktop_app\colab_gpu_tools.py
 
 # WSL backend syntax check
-wsl.exe -d Ubuntu -e bash -lc 'bash -n scripts/wsl_run_h3.sh && $HOME/.local/share/uv/tools/google-colab-cli/bin/python -m py_compile scripts/colab_gpu_monitor.py scripts/colab_meter.py'
+wsl.exe -d Ubuntu -e bash -lc 'bash -n scripts/wsl_run_remote.sh cloud_workstation/run_drama.sh && $HOME/.local/share/uv/tools/google-colab-cli/bin/python -m py_compile scripts/colab_gpu_monitor.py scripts/colab_meter.py'
 
 # Offline unit tests (no network / Colab / credentials)
 .\.venv-desktop\Scripts\python.exe -m unittest discover -s tests -v

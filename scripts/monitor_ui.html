@@ -889,7 +889,7 @@
         <span id="navCheckBadge" class="nav-badge amber" style="display:none;"></span>
       </div>
       <div class="nav-item" data-view="runner">
-        <span>🧩</span><span>占卡与任务模板</span>
+        <span>⌨</span><span>占卡后运行命令</span>
       </div>
       <div class="nav-item" data-view="analytics">
         <span>📊</span><span>放卡规律热力图</span>
@@ -965,7 +965,7 @@
                 <span id="holdStateTag" class="pill amber">🔒 已锁卡 · 待认领</span>
                 <span id="holdGpuTitle">A100</span>
               </div>
-              <div id="holdEndpointSub" class="hold-sub">会话: h3work · 显卡检测中...</div>
+              <div id="holdEndpointSub" class="hold-sub">会话: - · 显卡检测中...</div>
             </div>
             <div class="hold-countdown-box">
               <div id="holdCountdownLabel" class="hold-countdown-label">超时自动关机倒计时</div>
@@ -976,14 +976,14 @@
           <div class="hold-drive-row">
             <div>
               <strong>Google Drive 云盘：</strong>
-              <span id="holdDriveBadge" class="pill blue" style="margin:0 6px;">挂载中...</span>
-              <span id="holdDriveDetail" style="color:var(--text-muted);">正在静默挂载 /content/drive...</span>
+              <span id="holdDriveBadge" class="pill" style="margin:0 6px;">未挂载</span>
+              <span id="holdDriveDetail" style="color:var(--text-muted);">需要时可手动挂载到 /content/drive</span>
             </div>
-            <button class="btn btn-sm" onclick="mountDriveNow()">🔄 重新挂载云盘</button>
+            <button id="btnHeroMount" class="btn btn-sm" onclick="mountDriveNow()">☁️ 挂载云盘</button>
           </div>
 
           <div class="hold-actions">
-            <button id="btnHeroRunDrama" class="btn btn-emerald" onclick="switchView('runner')">🧩 接管运行任务模板</button>
+            <button id="btnHeroRunDrama" class="btn btn-emerald" onclick="switchView('runner')">⌨ 在此 GPU 上运行命令</button>
             <button id="btnHeroClaimManual" class="btn btn-primary" onclick="claimManual()">🛠 认领手动使用（转 120m 兜底）</button>
             <button id="btnHeroExtend10" class="btn btn-amber" onclick="extendHold(10)">⏱ +10 分钟续期</button>
             <button id="btnHeroExtend20" class="btn btn-amber" onclick="extendHold(20)">⏱ +20 分钟</button>
@@ -1011,9 +1011,9 @@
           </div>
           <div class="policy-group">
             <label class="switch">
-              <input type="checkbox" id="chkAutoMount" checked onchange="updateCfg({auto_mount_drive: this.checked})" />
+              <input type="checkbox" id="chkAutoMount" onchange="updateCfg({auto_mount_drive: this.checked})" />
               <span class="switch-track"></span>
-              <span>锁卡自动挂 Google Drive</span>
+              <span>锁卡后自动挂载 Google Drive</span>
             </label>
           </div>
         </div>
@@ -1128,29 +1128,24 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <div class="card-title">🧩 远端任务模板</div>
-              <div class="card-sub">复用已锁定并挂好云盘的 Colab GPU（跳过重新抢卡）运行任务模板；结束后自动关机对账，超时由看门狗强杀。模板位于 tasks/templates/</div>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button id="btnOpenOutputs" class="btn btn-sm" onclick="openOutputsFolder()">📂 打开 outputs 成品目录</button>
-              <button id="btnOpenDramaCfg" class="btn btn-sm" onclick="openDramaConfig()">📝 编辑剧本 drama_config.json</button>
+              <div class="card-title">⌨ 在锁定的 GPU 上运行命令</div>
+              <div class="card-sub">复用已锁定的 Colab GPU（跳过重新抢卡）在 /content 下运行一条 Shell 命令；命令结束后自动关机对账，超过最大运行时长由看门狗强杀</div>
             </div>
           </div>
 
-          <div class="form-row" style="padding-top:0;">
-            <div style="min-width:0;">
-              <div class="form-title">任务模板</div>
-              <div id="tplDesc" class="form-desc">加载中...</div>
-            </div>
-            <select id="tplSelect" onchange="renderTemplateForm()" style="min-width:220px;"></select>
-          </div>
-          <div id="tplParams" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:10px 0 12px;"></div>
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
-            <label style="font-size:12px;color:var(--text-muted);">最大兜底(分)：
+          <textarea id="inpRemoteCmd" rows="4" spellcheck="false" placeholder="例如：nvidia-smi && python3 train.py"
+            style="width:100%;font-family:var(--mono);font-size:12.5px;margin-bottom:10px;"></textarea>
+          <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+            <label style="font-size:12px;color:var(--text-muted);">最大运行时长(分)：
               <input id="inpMaxMin" type="number" value="180" min="30" max="360" style="width:76px;margin-left:4px;" />
             </label>
-            <button id="btnStartDrama" class="btn btn-emerald" onclick="runTaskOnHold()">▶ 接管锁定 GPU 运行</button>
-            <button id="btnStopDrama" class="btn btn-danger" onclick="stopDramaJob()">⏹ 中止并强杀 GPU</button>
+            <label class="switch">
+              <input type="checkbox" id="chkCmdMount" />
+              <span class="switch-track"></span>
+              <span>运行前挂载 Google Drive（/content/drive）</span>
+            </label>
+            <button id="btnStartDrama" class="btn btn-emerald" onclick="runCommandOnHold()">▶ 接管锁定 GPU 运行</button>
+            <button id="btnStopDrama" class="btn btn-danger" onclick="stopRemoteJob()">⏹ 中止并强杀 GPU</button>
           </div>
 
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
@@ -1159,8 +1154,8 @@
           </div>
           <div id="jobLogBox" class="log-box">暂无运行中的云端任务日志。
 提示：
-1. 开启「命中即占卡」后，一旦抢到 G4 或 A100，系统会自动占住 15 分钟并静默挂载 Google Drive。
-2. 收到通知后，在这里选择任务模板并点「接管锁定 GPU 运行」，即可直接复用该机器。
+1. 开启「命中即占卡」后，一旦抢到 GPU，系统会自动占住（默认 15 分钟）。
+2. 收到通知后，在这里填写命令并点「接管锁定 GPU 运行」，即可直接复用该机器；需要云盘时勾选「运行前挂载 Google Drive」。
 3. 如果超过设定时间你未操作，后台看门狗会自动强杀实例，绝不白扣 CCU。</div>
         </div>
       </section>
@@ -1481,7 +1476,7 @@ const VIEW_TITLES = {
   accounts: "Google 账号管理中心",
   benefits: "Google AI Pro 权益中心",
   selfcheck: "环境自检",
-  runner: "占卡与远端任务模板",
+  runner: "在锁定的 GPU 上运行命令",
   analytics: "24 小时放卡规律分析",
   history: "探测与占卡历史记录",
   settings: "系统与防幽灵计费设置",
@@ -1500,7 +1495,7 @@ function switchView(view) {
   document.getElementById("topbarTitle").textContent = VIEW_TITLES[view] || "Colab GPU Tools";
   if (view === "analytics") loadAnalytics();
   if (view === "history") loadHistory();
-  if (view === "runner") { refreshJobLog(); loadTemplates(); }
+  if (view === "runner") { refreshJobLog(); loadRunnerForm(); }
   if (view === "settings") loadProxySettings();
   if (view === "dashboard") { loadProviders(false); loadAccountAggregate(false); }
   if (view === "accounts") loadAccounts(false);
@@ -1527,7 +1522,7 @@ function renderState(st) {
     stTxt.textContent = "发现残留告警";
   } else if (hold) {
     dot.classList.add("holding");
-    stTxt.textContent = hold.state === "CLAIMED_JOB" ? `渲染中 · ${hold.gpu}` : `已锁卡 · ${hold.gpu}`;
+    stTxt.textContent = hold.state === "CLAIMED_JOB" ? `命令运行中 · ${hold.gpu}` : `已锁卡 · ${hold.gpu}`;
   } else if (st.probing) {
     dot.classList.add("probing");
     stTxt.textContent = `探测 ${st.current_probe_gpu || "..."}`;
@@ -1619,7 +1614,7 @@ function renderState(st) {
       document.getElementById("holdCountdownLabel").textContent = "最大兜底保护倒计时";
     } else {
       tag.className = "pill emerald";
-      tag.textContent = `🧩 ${hold.task_name || "云端任务"}运行中`;
+      tag.textContent = `⌨ ${hold.task_name || "远端命令"}运行中`;
       document.getElementById("holdCountdownLabel").textContent = "任务最大保护时长";
     }
     document.getElementById("holdGpuTitle").textContent = `${hold.gpu}${hold.gpu_model ? " · " + hold.gpu_model : ""}`;
@@ -1640,6 +1635,8 @@ function renderState(st) {
       dBadge.textContent = "未挂载";
     }
     document.getElementById("holdDriveDetail").textContent = hold.drive_detail || "";
+    document.getElementById("btnHeroMount").textContent = hold.drive_status === "MOUNTED" ? "🔄 重新挂载云盘" : "☁️ 挂载云盘";
+    document.getElementById("btnHeroMount").disabled = hold.drive_status === "MOUNTING";
 
     const isJob = hold.state === "CLAIMED_JOB";
     document.getElementById("btnHeroRunDrama").style.display = isJob ? "none" : "inline-flex";
@@ -1777,10 +1774,10 @@ async function probeNow(gpu = null) {
 
 async function grabNow(gpu) {
   try {
-    showToast(`正在尝试直接抢占 ${gpu} 并自动挂载云盘...`, "amber");
+    showToast(`正在尝试直接抢占 ${gpu}...`, "amber");
     const res = await apiPost("/api/grab-now", { gpu });
     if (res.locked) {
-      showToast(`🔒 抢占成功！已锁定 ${gpu} 并开始挂载 Google Drive`, "emerald");
+      showToast(`🔒 抢占成功！已锁定 ${gpu}${appState?.config?.auto_mount_drive ? "，正在挂载 Google Drive" : ""}`, "emerald");
       playChime(true);
     } else {
       showToast(`${gpu} 当前暂不可用：${res.record?.detail || "503 缺货"}`, "crimson");
@@ -1821,7 +1818,7 @@ async function claimManual() {
 async function mountDriveNow() {
   try {
     await apiPost("/api/hold/mount-drive", {});
-    showToast("正在重新挂载 Google Drive...", "amber");
+    showToast("正在挂载 Google Drive 到 /content/drive...", "amber");
   } catch (e) {
     showToast(e.message, "crimson");
   }
@@ -1837,67 +1834,34 @@ async function releaseHold() {
   }
 }
 
-// ---------------------------------------------------------------- Task templates (M4)
-let taskTemplates = [];
-async function loadTemplates() {
-  if (taskTemplates.length) return;
-  try {
-    const data = await (await fetch("/api/tasks")).json();
-    taskTemplates = data.templates || [];
-    const sel = document.getElementById("tplSelect");
-    sel.innerHTML = taskTemplates.map(t => `<option value="${escHtml(t.id)}">${escHtml(t.name)}</option>`).join("");
-    const last = localStorage.getItem("gamLastTemplate");
-    if (last && taskTemplates.find(t => t.id === last)) sel.value = last;
-    renderTemplateForm();
-    if ((data.errors || []).length) showToast(`有 ${data.errors.length} 个模板无效：${data.errors[0]}`, "amber");
-  } catch (e) {
-    document.getElementById("tplDesc").textContent = "模板加载失败：" + e.message;
+// ---------------------------------------------------------------- Remote command runner (v2.3)
+function loadRunnerForm() {
+  const box = document.getElementById("inpRemoteCmd");
+  if (!box.dataset.loaded) {
+    box.value = localStorage.getItem("gamRemoteCmd") || "nvidia-smi";
+    document.getElementById("chkCmdMount").checked = localStorage.getItem("gamRemoteCmdMount") === "1";
+    box.dataset.loaded = "1";
   }
 }
 
-function currentTemplate() {
-  return taskTemplates.find(t => t.id === document.getElementById("tplSelect").value);
-}
-
-function renderTemplateForm() {
-  const t = currentTemplate();
-  const box = document.getElementById("tplParams");
-  if (!t) { box.innerHTML = ""; document.getElementById("tplDesc").textContent = "没有可用模板"; return; }
-  localStorage.setItem("gamLastTemplate", t.id);
-  document.getElementById("tplDesc").textContent = t.description;
-  let saved = {};
-  try { saved = JSON.parse(localStorage.getItem(`gamTpl_${t.id}`) || "{}"); } catch (_) {}
-  box.innerHTML = t.params.map(p => {
-    const v = saved[p.key] ?? p.default ?? "";
-    const input = p.type === "shell"
-      ? `<textarea data-k="${escHtml(p.key)}" rows="3" style="width:520px;max-width:100%;font-family:var(--mono);">${escHtml(v)}</textarea>`
-      : `<input data-k="${escHtml(p.key)}" type="${p.type === "number" ? "number" : "text"}" value="${escHtml(v)}"
-           ${p.min != null ? `min="${p.min}"` : ""} ${p.max != null ? `max="${p.max}"` : ""}
-           style="width:${p.type === "path" && String(v).length > 30 ? 380 : 220}px;" />`;
-    return `<label style="font-size:12px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;">${escHtml(p.label)}${p.required ? " *" : ""}${input}</label>`;
-  }).join("") || `<span class="form-desc">该模板无需参数</span>`;
-  document.getElementById("btnOpenDramaCfg").style.display = t.ui_extras.includes("drama_config") ? "" : "none";
-  document.getElementById("btnOpenOutputs").style.display = t.ui_extras.includes("outputs_folder") ? "" : "none";
-}
-
-async function runTaskOnHold() {
-  const t = currentTemplate();
-  if (!t) return showToast("请先选择任务模板", "amber");
-  const params = {};
-  document.querySelectorAll("#tplParams [data-k]").forEach(el => { params[el.dataset.k] = el.value; });
-  localStorage.setItem(`gamTpl_${t.id}`, JSON.stringify(params));
+async function runCommandOnHold() {
+  const command = document.getElementById("inpRemoteCmd").value.trim();
+  if (!command) return showToast("请先填写要运行的命令", "amber");
+  const mount_drive = document.getElementById("chkCmdMount").checked;
+  localStorage.setItem("gamRemoteCmd", command);
+  localStorage.setItem("gamRemoteCmdMount", mount_drive ? "1" : "0");
   try {
     const max_minutes = Number(document.getElementById("inpMaxMin").value || 180);
-    await apiPost("/api/tasks/start", { template: t.id, params, max_minutes });
-    showToast(`🧩 已接管锁定 GPU 启动「${t.name}」，结束后将自动关机！`, "emerald");
+    await apiPost("/api/hold/run-command", { command, max_minutes, mount_drive });
+    showToast("⌨ 已接管锁定 GPU 运行命令，结束后将自动关机！", "emerald");
     refreshJobLog();
   } catch (e) {
-    showToast("启动任务失败: " + e.message, "crimson");
+    showToast("启动命令失败: " + e.message, "crimson");
   }
 }
 
-async function stopDramaJob() {
-  if (!confirm("确定中止当前云端任务并立即强杀 GPU 吗？")) return;
+async function stopRemoteJob() {
+  if (!confirm("确定中止当前远端命令并立即强杀 GPU 吗？")) return;
   try {
     const res = await apiPost("/api/job/stop", {});
     showToast(res.detail || "已中止并回收 GPU", "emerald");
@@ -2091,20 +2055,6 @@ async function loadHistory() {
 }
 
 // Native Desktop Bridge Actions (pywebview)
-function openOutputsFolder() {
-  if (window.pywebview?.api?.open_outputs_folder) {
-    window.pywebview.api.open_outputs_folder();
-  } else {
-    showToast("成品目录位于项目 outputs/ 文件夹", "amber");
-  }
-}
-function openDramaConfig() {
-  if (window.pywebview?.api?.open_drama_config) {
-    window.pywebview.api.open_drama_config();
-  } else {
-    showToast("剧本配置位于 cloud_workstation/workflows/02_eastern_fantasy_xianxia/drama_config.json", "amber");
-  }
-}
 function minimizeToTray() {
   if (window.pywebview?.api?.minimize_to_tray) {
     window.pywebview.api.minimize_to_tray();
@@ -2519,7 +2469,7 @@ function renderWizard() {
         <button class="btn btn-primary" onclick="wizardFinish()" ${dis}>${w.busy ? "验证中..." : "完成授权"}</button></div>`;
   } else if (w.step === "offer-drive") {
     body = `<h3>✅ Colab 登录成功 · ${escHtml(w.name)}</h3>${wizardSteps("drive")}
-      <p>建议继续授权 Google Drive：抢到 GPU 后可自动静默挂载云盘，并能在总览里看到这个账号的存储额度。</p>
+      <p>建议继续授权 Google Drive：锁卡后可一键静默挂载云盘，并能在总览里看到这个账号的存储额度。</p>
       ${err}
       <div class="modal-actions"><button class="btn" onclick="acctModalClose()" ${dis}>以后再说</button>
         <button class="btn btn-primary" onclick="wizardStartDrive()" ${dis}>${w.busy ? "生成中..." : "授权云盘"}</button></div>`;
@@ -2840,7 +2790,7 @@ function connectSSE() {
       const a = JSON.parse(e.data);
       if (a.kind === "locked") {
         playChime(true);
-        showToast(`🔒 已自动抢占并锁定 ${a.gpu}！正在挂载 Google Drive...`, "amber");
+        showToast(`🔒 已自动抢占并锁定 ${a.gpu}！${appState?.config?.auto_mount_drive ? "正在挂载 Google Drive..." : "请在倒计时内认领使用"}`, "amber");
         if (window.pywebview?.api?.on_gpu_locked) {
           window.pywebview.api.on_gpu_locked(a);
         }

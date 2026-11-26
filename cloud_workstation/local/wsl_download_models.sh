@@ -15,14 +15,15 @@ export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
 export NO_PROXY="localhost,127.0.0.1,::1"
 export no_proxy="localhost,127.0.0.1,::1"
 # 网络代理：统一读取 ~/.google-ai-manager/settings.json（面板「设置 → 网络代理」可视化配置，默认自动探测）
-_GAM_NETCFG="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)/providers/netcfg.py"
+_GAM_NETCFG="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../.." && pwd)/providers/netcfg.py"
 if command -v python3 >/dev/null 2>&1 && [[ -f "$_GAM_NETCFG" ]]; then
     eval "$(python3 "$_GAM_NETCFG" shell-env)" || true
 fi
 unset _GAM_NETCFG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+METER="$PROJECT_DIR/scripts/colab_meter.py"
 LOG_DIR="$PROJECT_DIR/logs"
 mkdir -p "$LOG_DIR"
 
@@ -48,7 +49,7 @@ cleanup() {
 
     echo "" | tee -a "$RUN_LOG"
     log "🛡️ [防幽灵计费守卫] 下载流程结束 (exit_code=$exit_code)，正在强杀 CPU 实例并核对 CCU..."
-    python3 -u "$SCRIPT_DIR/colab_meter.py" stop 2>&1 | tee -a "$RUN_LOG"
+    python3 -u "$METER" stop 2>&1 | tee -a "$RUN_LOG"
     if [[ -n "$WATCHDOG_PID" ]] && kill -0 "$WATCHDOG_PID" 2>/dev/null; then
         kill "$WATCHDOG_PID" 2>/dev/null || true
     fi
@@ -70,10 +71,10 @@ log "[Step 0/3] 同步本地东方玄幻工作流与启动脚本到 Google Drive
 python3 -u "$SCRIPT_DIR/sync_workstation_to_drive.py" 2>&1 | tee -a "$RUN_LOG"
 
 log "[Step 1/3] 清理残留实例、记录 CCU 基线并启动看门狗 (TTL=${MAX_MINUTES}m)..."
-python3 -u "$SCRIPT_DIR/colab_meter.py" stop 2>&1 | tee -a "$RUN_LOG"
-python3 -u "$SCRIPT_DIR/colab_meter.py" start -s "$SESSION_NAME" 2>&1 | tee -a "$RUN_LOG"
+python3 -u "$METER" stop 2>&1 | tee -a "$RUN_LOG"
+python3 -u "$METER" start -s "$SESSION_NAME" 2>&1 | tee -a "$RUN_LOG"
 
-nohup python3 -u "$SCRIPT_DIR/colab_meter.py" watch \
+nohup python3 -u "$METER" watch \
     --parent-pid "$$" \
     --max-minutes "$MAX_MINUTES" \
     >/dev/null 2>&1 &
