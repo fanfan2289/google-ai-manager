@@ -782,6 +782,18 @@
                  border-radius: var(--radius); background: var(--amber-soft); border: 1px solid var(--amber-border); color: #fde68a; font-size: 12.5px; }
   .info-banner.show { display: flex; }
 
+  /* Colab session manager */
+  .sess-acct { margin-bottom: 16px; }
+  .sess-acct-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 8px; font-size: 12.5px; color: var(--text-muted); }
+  .sess-acct-head b { color: var(--text); font-size: 13px; }
+  .sess-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+  .sess-actions .btn { padding: 4px 8px; font-size: 11.5px; }
+  .sess-create { display: none; gap: 10px; align-items: flex-end; flex-wrap: wrap; padding: 12px; margin-bottom: 14px;
+                 border: 1px dashed var(--border); border-radius: 10px; }
+  .sess-create.show { display: flex; }
+  .sess-create label { font-size: 12px; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px; }
+  .sess-sub { font-size: 10.5px; color: var(--text-dim); }
+
   /* Accounts Hub */
   .acct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
   .acct-card {
@@ -880,6 +892,10 @@
       <div class="nav-item" data-view="accounts">
         <span>👤</span><span>账号管理</span>
         <span id="navAcctBadge" class="nav-badge" style="display:none;"></span>
+      </div>
+      <div class="nav-item" data-view="sessions">
+        <span>☁️</span><span>Colab 会话</span>
+        <span id="navSessBadge" class="nav-badge" style="display:none;"></span>
       </div>
       <div class="nav-item" data-view="benefits">
         <span>🎁</span><span>Pro 权益中心</span>
@@ -1081,6 +1097,81 @@
             <select id="acctPinSelect" onchange="useAccount(this.value)" style="min-width:220px;"></select>
           </div>
           <div id="acctGrid" class="acct-grid"><div class="card-sub">账号加载中...</div></div>
+        </div>
+      </section>
+
+      <!-- VIEW: COLAB SESSIONS -->
+      <section id="view-sessions" class="view">
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">运行中的会话</div>
+            <div id="kpiSessCount" class="kpi-value">--</div>
+            <div id="kpiSessCountFoot" class="kpi-foot">所有已添加账号</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">未跟踪的会话</div>
+            <div id="kpiSessUntracked" class="kpi-value">--</div>
+            <div class="kpi-foot">网页端打开或遗留的实例，不会自动关机</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">合计消耗</div>
+            <div id="kpiSessRate" class="kpi-value">--</div>
+            <div class="kpi-foot">CCU/hr（各账号当前消耗之和）</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">更新时间</div>
+            <div id="kpiSessUpdated" class="kpi-value">--</div>
+            <div class="kpi-foot">打开本页时每 15 秒自动刷新</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">☁️ Colab 会话</div>
+              <div id="sessSub" class="card-sub">列出所有账号正在运行（正在计费）的 Colab 实例</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-sm" onclick="openDownloads()">📂 下载目录</button>
+              <button class="btn btn-sm btn-primary" onclick="toggleSessCreate()">➕ 新建会话</button>
+              <button class="btn btn-sm" onclick="loadSessions(true)">🔄 刷新</button>
+            </div>
+          </div>
+          <div id="sessCreate" class="sess-create">
+            <label>账号<select id="sessNewAcct" style="min-width:160px;"></select></label>
+            <label>GPU<select id="sessNewGpu" style="min-width:110px;"></select></label>
+            <label>自动关机（分钟，必填）<input id="sessNewMin" type="number" min="5" max="180" value="30" style="width:110px;" /></label>
+            <button id="btnSessCreate" class="btn btn-emerald" onclick="sessCreate()">⚡ 立即开机</button>
+            <div class="sess-sub" style="flex-basis:100%;">新会话由锁卡看门狗守护：到时间未认领或续期就自动关机。同一时间只能有一台由本工具锁定的 GPU；缺货时不会扣费。</div>
+          </div>
+          <div id="sessList"><div class="card-sub">加载中...</div></div>
+        </div>
+
+        <div id="sessPanel" class="card" style="display:none;">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🔍 <span id="sessPanelTitle">-</span></div>
+              <div class="card-sub">只读查看不会影响正在运行的任务；上传 / 下载通过 colab 命令行完成</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-sm" onclick="openSessPanel('info')">📊 状态</button>
+              <button class="btn btn-sm" onclick="openSessPanel('files')">📁 文件</button>
+              <button class="btn btn-sm" onclick="openSessPanel('log')">📜 执行历史</button>
+              <button class="btn btn-sm" onclick="document.getElementById('sessPanel').style.display='none'">✕</button>
+            </div>
+          </div>
+          <div id="sessFiles" style="display:none;margin-bottom:10px;">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+              <input id="sessPath" type="text" value="/content" style="width:320px;font-family:var(--mono);" />
+              <button class="btn btn-sm" onclick="sessLs()">📂 列出</button>
+              <button class="btn btn-sm btn-primary" onclick="sessUpload()">⬆ 上传文件到此目录</button>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <input id="sessDlPath" type="text" placeholder="/content/result.zip" style="width:320px;font-family:var(--mono);" />
+              <button class="btn btn-sm btn-emerald" onclick="sessDownload()">⬇ 下载到本地 downloads/</button>
+            </div>
+          </div>
+          <div id="sessOut" class="log-box" style="min-height:120px;">-</div>
         </div>
       </section>
 
@@ -1477,6 +1568,7 @@ const VIEW_TITLES = {
   benefits: "Google AI Pro 权益中心",
   selfcheck: "环境自检",
   runner: "在锁定的 GPU 上运行命令",
+  sessions: "Colab 会话管理",
   analytics: "24 小时放卡规律分析",
   history: "探测与占卡历史记录",
   settings: "系统与防幽灵计费设置",
@@ -1500,6 +1592,7 @@ function switchView(view) {
   if (view === "dashboard") { loadProviders(false); loadAccountAggregate(false); }
   if (view === "accounts") loadAccounts(false);
   if (view === "benefits") loadBenefits(false);
+  if (view === "sessions") loadSessions(false);
   if (view === "selfcheck") loadSelfCheck(false);
 }
 
@@ -1833,6 +1926,269 @@ async function releaseHold() {
     showToast("释放失败: " + e.message, "crimson");
   }
 }
+
+// ---------------------------------------------------------------- Colab session manager (v2.3)
+let sessData = null;
+let sessRows = [];
+let sessSel = null;
+const SESS_SRC = {
+  hold: ["🔒 本工具锁卡", "amber"],
+  cli: ["⌨ 命令行", "blue"],
+  untracked: ["❓ 未跟踪", "crimson"],
+};
+
+function fmtDurShort(sec) {
+  if (sec == null) return "-";
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+  return h ? `${h} 小时 ${m} 分` : `${m} 分钟`;
+}
+
+function fmtSize(n) {
+  if (typeof n !== "number") return "-";
+  const u = ["B", "KB", "MB", "GB"];
+  let i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(i ? 1 : 0)} ${u[i]}`;
+}
+
+async function loadSessions(force) {
+  const sub = document.getElementById("sessSub");
+  if (force) sub.textContent = "正在刷新...";
+  try {
+    const data = await (await fetch(`/api/colab/sessions${force ? "?refresh=1" : ""}`)).json();
+    if (data.error) throw new Error(data.error);
+    sessData = data;
+    renderSessions();
+  } catch (e) {
+    sub.textContent = "会话加载失败：" + e.message;
+  }
+}
+
+function renderSessions() {
+  const d = sessData;
+  if (!d) return;
+  const t = d.totals || {};
+  const nowS = Date.now() / 1000;
+  document.getElementById("kpiSessCount").textContent = t.sessions ?? "--";
+  document.getElementById("kpiSessCountFoot").textContent = `${(d.accounts || []).length} 个账号`;
+  const un = document.getElementById("kpiSessUntracked");
+  un.textContent = t.untracked ?? "--";
+  un.style.color = t.untracked ? "var(--crimson, #f87171)" : "";
+  document.getElementById("kpiSessRate").textContent = typeof t.rate_hourly === "number" ? t.rate_hourly.toFixed(2) : "--";
+  document.getElementById("kpiSessUpdated").textContent = (d.updated_at_iso || "").slice(11, 19) || "--";
+  document.getElementById("sessSub").textContent = d.probe_disabled
+    ? "后端为只读模式：可以查看与停止会话，新建会话已禁用"
+    : "列出所有账号正在运行（正在计费）的 Colab 实例";
+  const badge = document.getElementById("navSessBadge");
+  badge.style.display = t.sessions ? "inline-block" : "none";
+  badge.textContent = t.sessions || "";
+  badge.className = `nav-badge ${t.untracked ? "amber" : ""}`;
+
+  // New-session form
+  const accSel = document.getElementById("sessNewAcct");
+  const prevAcct = accSel.value;
+  accSel.innerHTML = (d.accounts || []).map(a => `<option value="${escHtml(a.account)}">${escHtml(a.account)}</option>`).join("");
+  const hasOpt = v => v && [...accSel.options].some(o => o.value === v);
+  if (hasOpt(prevAcct)) accSel.value = prevAcct;
+  else if (hasOpt(appState?.primary_account)) accSel.value = appState.primary_account;
+  else if (accSel.options.length) accSel.selectedIndex = 0;
+  const gpuSel = document.getElementById("sessNewGpu");
+  if (!gpuSel.options.length) {
+    gpuSel.innerHTML = (d.hold_gpus || []).map(g => `<option value="${escHtml(g)}">${escHtml(g)}</option>`).join("");
+  }
+  const holding = Boolean(appState?.active_hold);
+  const btn = document.getElementById("btnSessCreate");
+  btn.disabled = d.probe_disabled || holding;
+  btn.title = d.probe_disabled ? "只读模式" : holding ? "已有一台锁定中的 GPU，请先释放" : "";
+
+  sessRows = [];
+  document.getElementById("sessList").innerHTML = (d.accounts || []).map(a => {
+    const bal = typeof a.balance === "number" ? `${a.balance.toFixed(2)} CCU` : "--";
+    const rate = typeof a.rate_hourly === "number" ? `${a.rate_hourly.toFixed(2)} CCU/hr` : "--";
+    const err = a.error || (a.balance == null ? a.usage_error : null);
+    const head = `<div class="sess-acct-head"><b>👤 ${escHtml(a.account)}</b><span>余额 ${bal}</span><span>消耗 ${rate}</span>
+      ${err ? `<span class="pill crimson" title="${escHtml(err)}">查询失败</span>` : ""}</div>`;
+    if (!a.sessions.length) return `<div class="sess-acct">${head}<div class="card-sub">没有运行中的会话</div></div>`;
+    const rows = a.sessions.map(r => {
+      const i = sessRows.push({ ...r, account: a.account }) - 1;
+      const [srcTxt, srcTone] = SESS_SRC[r.source] || ["?", ""];
+      let age = r.seen_for_s != null ? `≥ ${fmtDurShort(r.seen_for_s)}` : "-";
+      let ageTitle = "自本工具开始看到它起算";
+      let auto = r.source === "untracked" ? `<span style="color:#fca5a5;">不会自动关机</span>` : `<span class="ag-cell-sub">需手动停止</span>`;
+      if (r.hold) {
+        age = fmtDurShort(Math.max(0, nowS - (r.hold.locked_at_ts || nowS)));
+        ageTitle = "自锁卡起算";
+        auto = r.hold.state === "CLAIMED_JOB" ? `命令运行中 · 剩 ${fmtMMSS(r.hold.remaining_s)}` : `剩 ${fmtMMSS(r.hold.remaining_s)}`;
+      }
+      const name = r.name ? `<b>${escHtml(r.name)}</b>` : `<span class="ag-cell-sub">${escHtml(r.endpoint)}</span>`;
+      const hw = `${escHtml(r.hardware)}${r.hold?.gpu_model ? `<div class="ag-cell-sub">${escHtml(r.hold.gpu_model)}</div>` : ""}${/HIGH/i.test(r.shape) ? `<div class="ag-cell-sub">高内存</div>` : ""}`;
+      const act = r.tracked ? `
+        <button class="btn btn-sm" title="在 Colab 网页中打开（连接到这台实例）" onclick="sessAct(${i},'url')">🌐 网页</button>
+        <button class="btn btn-sm" title="打开终端" onclick="sessAct(${i},'terminal')">🖥 终端</button>
+        <button class="btn btn-sm" title="GPU / 内存 / 磁盘状态" onclick="sessAct(${i},'info')">📊</button>
+        <button class="btn btn-sm" title="文件：浏览 / 上传 / 下载" onclick="sessAct(${i},'files')">📁</button>
+        <button class="btn btn-sm" title="执行历史" onclick="sessAct(${i},'log')">📜</button>
+        <button class="btn btn-sm" title="重启内核（清空 Python 变量，文件保留）" onclick="sessAct(${i},'restart-kernel')">🔄</button>` : "";
+      return `<tr>
+        <td><span class="pill ${srcTone}">${srcTxt}</span></td>
+        <td>${name}</td>
+        <td>${hw}</td>
+        <td title="${ageTitle}">${age}</td>
+        <td>${auto}</td>
+        <td><div class="sess-actions">${act}<button class="btn btn-sm btn-danger" onclick="sessAct(${i},'stop')">⏹ 停止</button></div></td>
+      </tr>`;
+    }).join("");
+    return `<div class="sess-acct">${head}<div style="overflow:auto;"><table class="ag-table">
+      <tr><th>来源</th><th>会话</th><th>硬件</th><th>已运行</th><th>自动关机</th><th>操作</th></tr>${rows}</table></div></div>`;
+  }).join("") || `<div class="card-sub">还没有添加账号</div>`;
+}
+
+function toggleSessCreate() {
+  document.getElementById("sessCreate").classList.toggle("show");
+  const min = document.getElementById("sessNewMin");
+  if (appState?.config?.hold_minutes && !min.dataset.touched) min.value = appState.config.hold_minutes;
+  min.oninput = () => { min.dataset.touched = "1"; };
+}
+
+async function sessCreate() {
+  const account = document.getElementById("sessNewAcct").value;
+  const gpu = document.getElementById("sessNewGpu").value;
+  const minutes = Number(document.getElementById("sessNewMin").value);
+  if (!account || !gpu) return showToast("请选择账号和 GPU", "amber");
+  if (!(minutes >= 5 && minutes <= 180)) return showToast("自动关机时长需在 5–180 分钟之间", "amber");
+  if (!confirm(`用账号 ${account} 立即申请一台 ${gpu}？\n\n开机后立即开始消耗 CCU；${minutes} 分钟内未认领或续期会自动关机。缺货时不扣费。`)) return;
+  const btn = document.getElementById("btnSessCreate");
+  btn.disabled = true;
+  showToast(`正在申请 ${gpu}...`, "amber");
+  try {
+    const res = await apiPost("/api/grab-now", { gpu, account, hold_minutes: minutes });
+    if (res.locked) {
+      showToast(`🔒 已开机并锁定 ${gpu}，${minutes} 分钟后未认领将自动关机`, "emerald");
+      playChime(true);
+    } else {
+      showToast(`${gpu} 暂时无法开机：${res.record?.detail || "缺货"}`, "crimson");
+    }
+  } catch (e) {
+    showToast("开机失败: " + e.message, "crimson");
+  } finally {
+    btn.disabled = false;
+    loadSessions(true);
+  }
+}
+
+async function sessAct(i, action) {
+  const r = sessRows[i];
+  if (!r) return;
+  if (action === "stop") {
+    const label = r.name || `未跟踪会话 ${r.endpoint}`;
+    const extra = r.source === "hold" ? "\n这是本工具锁定的 GPU，停止后锁卡结束。" : "";
+    if (!confirm(`确定停止 ${r.account} / ${label} 吗？${extra}\n\n实例上未保存到云盘或本地的文件会全部丢失，计费随即结束。`)) return;
+    try {
+      const res = await apiPost("/api/colab/session/stop", { account: r.account, endpoint: r.endpoint });
+      showToast(res.ok ? "已停止，计费结束" : "停止后实例仍在运行，请重试或使用紧急强杀", res.ok ? "emerald" : "crimson");
+    } catch (e) {
+      showToast("停止失败: " + e.message, "crimson");
+    }
+    loadSessions(true);
+    return;
+  }
+  if (action === "terminal") {
+    if (window.pywebview?.api?.open_session_terminal) {
+      const res = await window.pywebview.api.open_session_terminal(r.account, r.name);
+      if (!res?.ok) showToast(res?.error || "无法打开终端", "crimson");
+    } else {
+      copyText(`colab -a ${r.account} ssh -s ${r.name}`);
+      showToast("浏览器模式无法直接打开终端，已复制命令，请在 WSL 中运行", "amber");
+    }
+    return;
+  }
+  if (action === "url") {
+    showToast("正在生成 Colab 网页链接...", "amber");
+    try {
+      const res = await apiPost("/api/colab/session/url", { account: r.account, name: r.name });
+      openExternal(res.url);
+      showToast("已在浏览器中打开（浏览器需登录同一个 Google 账号）", "emerald");
+    } catch (e) {
+      showToast("打开失败: " + e.message, "crimson");
+    }
+    return;
+  }
+  if (action === "restart-kernel") {
+    if (!confirm(`重启 ${r.name} 的内核？Python 变量会被清空，文件保留。`)) return;
+    try {
+      await apiPost("/api/colab/session/restart-kernel", { account: r.account, name: r.name });
+      showToast("内核已重启", "emerald");
+    } catch (e) {
+      showToast("重启失败: " + e.message, "crimson");
+    }
+    return;
+  }
+  sessSel = { account: r.account, name: r.name };
+  openSessPanel(action);
+}
+
+function openSessPanel(kind) {
+  if (!sessSel) return;
+  const panel = document.getElementById("sessPanel");
+  panel.style.display = "";
+  document.getElementById("sessPanelTitle").textContent = `${sessSel.account} / ${sessSel.name}`;
+  document.getElementById("sessFiles").style.display = kind === "files" ? "" : "none";
+  if (kind === "info") sessRun("info", {}, "正在读取 GPU / 内存 / 磁盘状态（约 5–20 秒）...");
+  if (kind === "log") sessRun("log", {}, "正在读取执行历史...");
+  if (kind === "files") sessLs();
+  panel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function sessRun(action, extra, waitMsg) {
+  const box = document.getElementById("sessOut");
+  box.textContent = waitMsg;
+  try {
+    const res = await apiPost(`/api/colab/session/${action}`, { ...sessSel, ...extra });
+    box.textContent = res.text || "(无输出)";
+    return res;
+  } catch (e) {
+    box.textContent = "失败：" + e.message;
+  }
+}
+
+function sessLs() {
+  const path = document.getElementById("sessPath").value.trim() || "/content";
+  sessRun("ls", { path }, `正在列出 ${path} ...`);
+}
+
+async function sessDownload() {
+  const path = document.getElementById("sessDlPath").value.trim();
+  if (!path) return showToast("请填写要下载的远端文件路径", "amber");
+  showToast(`正在下载 ${path}...`, "amber");
+  try {
+    const res = await apiPost("/api/colab/session/download", { ...sessSel, path });
+    showToast(`已下载到 ${res.relative}（${fmtSize(res.size)}）`, "emerald");
+  } catch (e) {
+    showToast("下载失败: " + e.message, "crimson");
+  }
+}
+
+async function sessUpload() {
+  if (!window.pywebview?.api?.choose_upload_file) return showToast("上传需要在桌面客户端中使用", "amber");
+  const pick = await window.pywebview.api.choose_upload_file();
+  if (!pick?.ok) return;
+  const path = document.getElementById("sessPath").value.trim() || "/content";
+  showToast("正在上传...", "amber");
+  try {
+    const res = await apiPost("/api/colab/session/upload", { ...sessSel, local_path: pick.path, path });
+    showToast(`已上传到 ${res.remote_path}`, "emerald");
+    sessLs();
+  } catch (e) {
+    showToast("上传失败: " + e.message, "crimson");
+  }
+}
+
+function openDownloads() {
+  if (window.pywebview?.api?.open_downloads_folder) window.pywebview.api.open_downloads_folder();
+  else showToast("下载的文件位于项目 downloads/ 文件夹", "amber");
+}
+
+setInterval(() => { if (currentView === "sessions" && !document.hidden) loadSessions(false); }, 15000);
 
 // ---------------------------------------------------------------- Remote command runner (v2.3)
 function loadRunnerForm() {

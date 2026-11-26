@@ -186,6 +186,61 @@ class EngineAccountTests(unittest.TestCase):
         self.assertEqual(self.engine.active_hold["state"], "CLAIMED_JOB")
         self.engine._job_proc = None
 
+    # -------------------------------------------------------------- v2.3: Colab session manager
+    def _listing(self, *rows):
+        q = {"account": "main", "balance": 50.0, "rate_hourly": 1.0, "usage_error": None, "assignments": list(rows)}
+        return mock.patch.object(
+            mon.colab_meter, "_query_account",
+            side_effect=lambda n, st: q if n == "main" else {**q, "account": n, "assignments": []})
+
+    def test_sessions_listing_marks_hold_and_untracked(self) -> None:
+        self._hold("main")
+        self.engine.active_hold["endpoint"] = "ep-hold"
+        with self._listing({"name": "gpuwork", "endpoint": "ep-hold", "hardware": "T4", "shape": "STANDARD", "variant": "GPU"},
+                           {"name": "?", "endpoint": "ep-x", "hardware": "CPU", "shape": "STANDARD", "variant": "DEFAULT"}):
+            out = self.engine.colab_sessions_payload(force=True)
+        main = next(a for a in out["accounts"] if a["account"] == "main")
+        self.assertEqual([r["source"] for r in main["sessions"]], ["hold", "untracked"])
+
+    def test_stop_session_only_targets_one_endpoint(self) -> None:
+        calls = []
+        with self._listing({"name": "?", "endpoint": "ep-x", "hardware": "CPU", "shape": "", "variant": ""}), \
+                mock.patch.object(mon.colab_meter, "_terminate_endpoint",
+                                  side_effect=lambda a, st, ep: calls.append((a, ep)) or (True, False)):
+            res = self.engine.stop_session("main", "ep-x")
+        self.assertEqual(calls, [("main", "ep-x")])
+        self.assertTrue(res["ok"])
+        self.assertEqual(self.killed, [])  # no account-wide kill
+
+    def test_stop_session_on_hold_goes_through_release(self) -> None:
+        self._hold("main")
+        self.engine.active_hold["endpoint"] = "ep-hold"
+        with self._listing({"name": "gpuwork", "endpoint": "ep-hold", "hardware": "T4", "shape": "", "variant": ""}):
+            self.engine.stop_session("main", "ep-hold")
+        self.assertEqual(self.killed, ["main"])
+        self.assertIsNone(self.engine.active_hold)
+
+    def test_session_actions_validate_input(self) -> None:
+        with self._listing({"name": "?", "endpoint": "ep-x", "hardware": "CPU", "shape": "", "variant": ""},
+                           {"name": "train", "endpoint": "ep-t", "hardware": "T4", "shape": "", "variant": ""}):
+            for body, action in (({"account": "ghost", "name": "train"}, "info"),
+                                 ({"account": "main", "name": "nope"}, "info"),
+                                 ({"account": "main", "name": "-s x"}, "info"),
+                                 ({"account": "main", "name": "train", "path": "--help"}, "ls"),
+                                 ({"account": "main", "name": "train"}, "bogus")):
+                with self.subTest(action=action, body=body), self.assertRaises(ValueError):
+                    self.engine.session_action(action, body)
+            ran = []
+
+            def fake_cli(acct, args, **kw):
+                ran.append((acct, args))
+                return mon.subprocess.CompletedProcess(args, 0, "[colab] x\nfile.txt", "")
+
+            with mock.patch.object(self.engine, "_colab_cli", side_effect=fake_cli):
+                res = self.engine.session_action("ls", {"account": "main", "name": "train", "path": "/content/x"})
+            self.assertEqual(ran, [("main", ["ls", "-s", "train", "/content/x"])])
+            self.assertEqual(res["text"], "file.txt")
+
 
 if __name__ == "__main__":
     unittest.main()

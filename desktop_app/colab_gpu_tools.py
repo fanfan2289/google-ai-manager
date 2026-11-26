@@ -11,6 +11,8 @@ from __future__ import annotations
 import ctypes
 import json
 import os
+import re
+import shlex
 import subprocess
 import sys
 import threading
@@ -53,6 +55,11 @@ DESKTOP_LOG_PATH = LOGS_DIR / "desktop_app.log"
 WEBVIEW_STORAGE_DIR = APP_DIR / "webview_data"
 
 CREATE_NO_WINDOW = 0x08000000
+CREATE_NEW_CONSOLE = 0x00000010
+DOWNLOADS_DIR = PROJECT_DIR / "downloads"
+# Must match providers/colab_sessions.py (the backend re-validates everything it receives).
+_SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+_ACCOUNT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+-]{0,63}$")
 _BACKEND_PROC: subprocess.Popen[Any] | None = None
 _BACKEND_LOG_FH: Any = None
 
@@ -266,6 +273,42 @@ class DesktopController:
         os.startfile(url)  # ShellExecute: no WinForms access, safe off the UI thread
         return {"ok": True}
 
+    def open_session_terminal(self, account: str, session: str) -> dict[str, Any]:
+        """Open a new console attached to a Colab session (`colab ssh`, or `colab repl` without an SSH key)."""
+        account, session = str(account or "").strip(), str(session or "").strip()
+        if not (_ACCOUNT_RE.match(account) and _SESSION_RE.match(session)):
+            return {"ok": False, "error": "invalid account or session name"}
+        netcfg = _to_wsl_path(PROJECT_DIR / "providers" / "netcfg.py")
+        a, s = shlex.quote(account), shlex.quote(session)
+        script = (
+            'export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"; '
+            f'eval "$(python3 {shlex.quote(netcfg)} shell-env 2>/dev/null)" || true; '
+            f'echo "Colab 会话 {session}（账号 {account}）"; '
+            'if [ -f ~/.ssh/id_ed25519.pub ] || [ -f ~/.ssh/id_ecdsa.pub ]; then '
+            f'colab -a {a} ssh -s {s}; '
+            'else echo "未找到 SSH 公钥（~/.ssh/id_ed25519.pub），改用 Python REPL（在命令前加 ! 可运行 Shell 命令）。'
+            '需要完整终端可先在 WSL 中运行: ssh-keygen -t ed25519"; '
+            f'colab -a {a} repl -s {s}; fi; '
+            'echo; read -rp "按回车关闭窗口..." _'
+        )
+        # New console process only; no WinForms access, safe off the UI thread.
+        subprocess.Popen(["wsl.exe", "-d", "Ubuntu", "-e", "bash", "-lc", script], creationflags=CREATE_NEW_CONSOLE)
+        return {"ok": True}
+
+    def choose_upload_file(self) -> dict[str, Any]:
+        """Native open-file dialog (pywebview marshals it to the GUI thread)."""
+        if not self.window:
+            return {"ok": False, "error": "window not ready"}
+        picked = self.window.create_file_dialog(webview.FileDialog.OPEN, allow_multiple=False)
+        if not picked:
+            return {"ok": False, "cancelled": True}
+        return {"ok": True, "path": str(picked[0])}
+
+    def open_downloads_folder(self) -> dict[str, Any]:
+        DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+        os.startfile(str(DOWNLOADS_DIR))
+        return {"ok": True}
+
     def minimize_to_tray(self) -> dict[str, Any]:
         if self.window:
             self.window.hide()
@@ -416,6 +459,15 @@ class JsBridge:
 
     def open_external_url(self, url: str) -> dict[str, Any]:
         return self._ctrl.open_external_url(url)
+
+    def open_session_terminal(self, account: str, session: str) -> dict[str, Any]:
+        return self._ctrl.open_session_terminal(account, session)
+
+    def choose_upload_file(self) -> dict[str, Any]:
+        return self._ctrl.choose_upload_file()
+
+    def open_downloads_folder(self) -> dict[str, Any]:
+        return self._ctrl.open_downloads_folder()
 
     def on_gpu_locked(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         return self._ctrl.on_gpu_locked(payload)

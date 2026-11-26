@@ -361,6 +361,48 @@ def _terminate_account_sessions(
         return killed_count, final_snap["assignments"]
 
 
+def _terminate_endpoint(acct_name: str, st: State, endpoint: str) -> tuple[bool, bool]:
+    """Stop exactly one server-side VM (`endpoint`) and verify it is gone.
+
+    Returns (unassigned_ok, still_live). Never touches the account's other VMs.
+    """
+    with _activate_ext_context(acct_name):
+        local_sessions = st.store.list()
+        target = next((a for a in (st.client.list_assignments() or []) if a.endpoint == endpoint), None)
+        if target is None:
+            return True, False
+        local_s = next((s for s in local_sessions.values() if s.endpoint == endpoint), None)
+        rpi = getattr(target, "runtime_proxy_info", None)
+        url = local_s.url if local_s else getattr(rpi, "url", "")
+        tok = local_s.token if local_s else getattr(rpi, "token", "")
+        if url and tok:
+            try:  # best-effort kernel shutdown first
+                ColabRuntime(url, tok, kernel_id=local_s.kernel_id if local_s else None).stop(shutdown_kernel=True)
+            except Exception:
+                pass
+        ok = False
+        for attempt in range(1, 4):
+            try:
+                st.client.unassign(endpoint)
+                ok = True
+                break
+            except Exception as exc:
+                sys.stderr.write(f"[colab_meter] unassign attempt {attempt}/3 for {endpoint} failed: {exc}\n")
+                time.sleep(1.5 * attempt)
+        still = True
+        for _ in range(5):
+            still = any(a.endpoint == endpoint for a in (st.client.list_assignments() or []))
+            if not still:
+                break
+            time.sleep(2.0)
+        if not still and local_s is not None:
+            try:
+                st.store.remove(local_s.name)
+            except Exception:
+                pass
+        return ok, still
+
+
 def cmd_stop(args: argparse.Namespace) -> int:
     # Signal any running watchdog that explicit cleanup is happening
     STATE_DIR.mkdir(parents=True, exist_ok=True)

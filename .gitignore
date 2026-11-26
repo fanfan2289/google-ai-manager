@@ -1,6 +1,7 @@
 # Runtime logs, SQLite monitor DB & local state
 logs/
 outputs/
+downloads/
 *.log
 *.db
 *.db-shm

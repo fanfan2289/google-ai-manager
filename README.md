@@ -8,8 +8,9 @@
 
 ---
 
-## v2.3 变更：通用化（不再绑定短剧工作流）
+## v2.3 变更：Colab 会话管理 + 通用化（不再绑定短剧工作流）
 
+- **☁️ Colab 会话管理**（新页面）：列出所有账号正在运行（正在计费）的 Colab 实例，区分「本工具锁卡 / 命令行 / 未跟踪（网页端或遗留）」；每个会话可在 Colab 网页中打开、打开终端（`colab ssh`，无 SSH 密钥时用 `colab repl`）、查看 GPU / 内存 / 磁盘状态、浏览 / 上传 / 下载文件、查看执行历史、重启内核、单独停止（不影响同账号的其他实例）；新建会话必须设置自动关机时长，并由锁卡看门狗守护。功能设计参考了 [colab-playground](https://github.com/scarletkc/colab-playground) 与 [colab-monitor](https://github.com/hohieuai/colab-monitor)（未复用其代码）。
 - **⌨ 在锁定的 GPU 上运行命令**：取代任务模板，「占卡」页面直接填一条 Shell 命令，命令结束后自动关机对账，超时由看门狗强杀；运行器自己控制会话 / GPU / 账号 / 超时参数，命令无法关闭自动关机。
 - **☁️ 云盘挂载改为按需**：锁卡后默认不再自动挂载 Google Drive，可在锁卡卡片上点「挂载云盘」，或在设置中重新打开自动挂载；从旧版升级时会自动关闭一次。
 - **短剧工作流降级为示例**：`cloud_workstation/`（工作流、剧本与素材）原样保留，改由命令行 `cloud_workstation/run_drama.sh`（或 `2_一键运行短剧_RunH3.bat`）运行；桌面端与后端不再包含任何短剧专用功能。
@@ -53,7 +54,8 @@
   - [x] **M2** 图形化多 Google 账号中心（添加 / 切换 / 删除 / 标签备注 / OAuth + 云盘授权引导）+ 多账号额度聚合看板
   - [x] **M3** 指定账号抢卡 + 主号 CCU 不足 / 限流 / 实例上限 / 授权失效时自动切换备用号 + 按账号 / 全部账号强杀
   - [x] **M4** Antigravity / Gemini CLI 额度、Pro 权益中心、首次启动环境自检、中英文 README
-- [x] **v2.3**：去除短剧专用功能（改为示例工作流）、锁卡后运行命令、云盘按需挂载
+- [x] **v2.3**：Colab 会话管理页面、去除短剧专用功能（改为示例工作流）、锁卡后运行命令、云盘按需挂载
+- [ ] **会话管理后续**：余额下限自动停机、端口转发（实例端口映射到本机 127.0.0.1）、一键部署插件
 - [ ] **Phase 2（多服务额度插件生态）**：
   - 接入 Jules 任务数、Flow 积分（实验性）、Gemini / AI Studio API Key 池、GCP / Vertex AI 配额等其他 Google AI 额度
   - 核心监控与抢卡脱离 WSL2 强依赖，支持纯原生 Windows / macOS / Linux 运行与自动构建安装包
@@ -65,7 +67,7 @@
 ```text
 google-ai-manager/
 ├── providers/                    # 额度插件层：colab / google_storage / antigravity / gemini_cli / accounts_hub(多账号)
-│                                 #   benefits(权益中心) / selfcheck / remote_runner(运行命令) / netcfg(代理) / paths
+│                                 #   benefits(权益中心) / selfcheck / remote_runner(运行命令) / colab_sessions(会话管理) / netcfg(代理) / paths
 ├── tests/                        # 离线单元测试（python -m unittest discover -s tests）
 ├── desktop_app/
 │   ├── colab_gpu_tools.py        # Windows 原生 Edge WebView2 桌面外壳 + 系统托盘

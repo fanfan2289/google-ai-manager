@@ -28,6 +28,13 @@ tools in one place.
   credits, Firebase Studio and more.
 - **Antigravity quota**: read-only from the Antigravity Tools local cache, matched to accounts by
   e-mail — no tokens are ever read or used.
+- **Colab session manager**: every live (billed) Colab VM across all accounts, labelled as held by
+  this app / CLI / untracked (opened in the browser or orphaned). Per session: open in Colab web,
+  open a terminal (`colab ssh`, or `colab repl` without an SSH key), GPU / memory / disk status,
+  browse / upload / download files, execution history, restart kernel, and stop just that VM. New
+  sessions require an auto-shutdown time and are guarded by the hold watchdog. Feature ideas from
+  [colab-playground](https://github.com/scarletkc/colab-playground) and
+  [colab-monitor](https://github.com/hohieuai/colab-monitor) (no code reused).
 - **Run a command on the held GPU**: one shell command runs on the held session; when it exits the
   VM is stopped and reconciled, and the watchdog kills it at the time limit. The runner owns the
   session / GPU / account / time-limit flags, so a command cannot disable auto-shutdown.

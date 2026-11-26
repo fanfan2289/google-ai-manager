@@ -32,6 +32,7 @@ import threading
 import time
 import urllib.parse
 import uuid
+from pathlib import PurePosixPath
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -43,6 +44,7 @@ LOGS_DIR = PROJECT_DIR / "logs"
 DB_PATH = LOGS_DIR / "gpu_monitor.db"
 CONFIG_PATH = LOGS_DIR / "gpu_monitor_config.json"
 HOLD_STATE_PATH = LOGS_DIR / "active_hold.json"
+DOWNLOADS_DIR = PROJECT_DIR / "downloads"
 UI_HTML_PATH = SCRIPT_DIR / "monitor_ui.html"
 APP_VERSION = "2.3"
 
@@ -125,6 +127,7 @@ from providers import benefits as benefits_catalog  # noqa: E402
 from providers import paths as app_paths  # noqa: E402
 from providers import selfcheck  # noqa: E402
 from providers import remote_runner  # noqa: E402
+from providers import colab_sessions  # noqa: E402
 from providers.antigravity import AntigravityProvider  # noqa: E402
 from providers.gemini_cli import GeminiCliProvider  # noqa: E402
 from providers.accounts_hub import (  # noqa: E402
@@ -601,6 +604,10 @@ class MonitorEngine:
         self.providers.register(AntigravityProvider(email_of=self.accounts.email_of))
         self.providers.register(GeminiCliProvider(email_of=self.accounts.email_of))
         self._selfcheck_cache: tuple[float, dict[str, Any]] | None = None
+        # Colab session manager: cached live listing + when each VM endpoint was first seen.
+        self._sessions_cache: tuple[float, dict[str, Any]] | None = None
+        self._sessions_lock = threading.Lock()
+        self._session_first_seen: dict[str, float] = {}
         self._state_lock = threading.Lock()
         self._probe_lock = threading.Lock()
         self._stop_event = threading.Event()
@@ -1045,6 +1052,155 @@ class MonitorEngine:
         per = {name: self.providers.snapshot_many(name, ["colab", "google_storage", "antigravity"], force=force)
                for name in names}
         return {"accounts": per, "totals": aggregate_account_totals(per)}
+
+    # ------------------------------------------------------------------ Colab session manager (v2.3)
+    def colab_sessions_payload(self, *, force: bool = False) -> dict[str, Any]:
+        """Every live Colab VM across all registered accounts (no proxy tokens / URLs)."""
+        with self._sessions_lock:
+            cached = self._sessions_cache
+            if cached and not force and time.time() - cached[0] < 10:
+                return cached[1]
+            raw = []
+            for acct_name, st in colab_meter._iter_states(None):
+                try:
+                    q = colab_meter._query_account(acct_name, st)
+                    raw.append({
+                        "account": acct_name,
+                        "balance": q.get("balance"),
+                        "rate_hourly": q.get("rate_hourly"),
+                        "usage_error": q.get("usage_error"),
+                        "assignments": [
+                            {k: a.get(k) for k in ("name", "endpoint", "hardware", "shape", "variant")}
+                            for a in q.get("assignments") or []
+                        ],
+                    })
+                except Exception as exc:
+                    raw.append({"account": acct_name, "assignments": [], "error": str(exc)[:300]})
+            now = _now_ts()
+            live = {a["endpoint"] for r in raw for a in r["assignments"]}
+            for ep in live:
+                self._session_first_seen.setdefault(ep, now)
+            for ep in list(self._session_first_seen):
+                if ep not in live:
+                    self._session_first_seen.pop(ep, None)
+            with self._state_lock:
+                hold = dict(self.active_hold) if self.active_hold else None
+                job_running = self._job_proc is not None and self._job_proc.poll() is None
+            payload = colab_sessions.build_sessions_payload(
+                raw, hold=hold, first_seen=dict(self._session_first_seen), now=now)
+            payload.update({
+                "updated_at_iso": _now_iso(now),
+                "job_running": job_running,
+                "probe_disabled": self.probe_disabled,
+                "hold_gpus": [g["id"] for g in GPU_CATALOG],
+            })
+            self._sessions_cache = (time.time(), payload)
+            return payload
+
+    def _live_session(self, account: Any, name: Any = None, endpoint: Any = None) -> dict[str, Any]:
+        """Validate (account, session name or endpoint) against the live listing."""
+        acct = colab_sessions.check_account_name(account, self.accounts.names())
+        if name is not None:
+            name = colab_sessions.check_session_name(name)
+        for force in (False, True):
+            listing = self.colab_sessions_payload(force=force)
+            for a in listing["accounts"]:
+                if a["account"] != acct:
+                    continue
+                for row in a["sessions"]:
+                    if (name is not None and row["name"] == name) or (endpoint is not None and row["endpoint"] == endpoint):
+                        return {**row, "account": acct}
+        raise colab_sessions.SessionError("该会话已不在运行（或不属于这个账号），请刷新列表")
+
+    def _colab_cli(self, account: str, args: list[str], *, stdin: str | None = None,
+                   timeout: float = 60.0) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [self._colab_bin(), "-a", account, *args],
+            input=stdin, text=True, capture_output=True, timeout=timeout, env=self._colab_env(),
+        )
+
+    def _job_on(self, row: dict[str, Any]) -> bool:
+        with self._state_lock:
+            hold = self.active_hold or {}
+        return row["source"] == "hold" and hold.get("state") == "CLAIMED_JOB"
+
+    def session_action(self, action: str, body: dict[str, Any]) -> dict[str, Any]:
+        """Run one per-session action through the colab CLI. Read-only unless stated."""
+        if action == "stop":
+            return self.stop_session(body.get("account"), str(body.get("endpoint") or ""))
+        row = self._live_session(body.get("account"), body.get("name"))
+        if not row["tracked"]:
+            raise colab_sessions.SessionError("该会话未被 colab 命令行记录，只能停止")
+        acct, name = row["account"], row["name"]
+        if action == "url":
+            proc = self._colab_cli(acct, ["url", "-s", name], timeout=40)
+            if proc.returncode != 0:
+                raise colab_sessions.SessionError(colab_sessions.clean_cli_output(proc.stderr or proc.stdout, 400) or "colab url 失败")
+            return {"ok": True, "url": colab_sessions.parse_session_url(proc.stdout)}
+        if action == "info":
+            proc = self._colab_cli(acct, ["exec", "-s", name, "--timeout", "40"],
+                                   stdin=colab_sessions.GPU_INFO_SCRIPT, timeout=60)
+            return {"ok": proc.returncode == 0, "text": colab_sessions.clean_cli_output(proc.stdout + "\n" + proc.stderr)}
+        if action == "ls":
+            path = colab_sessions.check_remote_path(body.get("path"))
+            proc = self._colab_cli(acct, ["ls", "-s", name, path], timeout=60)
+            return {"ok": proc.returncode == 0, "path": path,
+                    "text": colab_sessions.clean_cli_output(proc.stdout + "\n" + proc.stderr)}
+        if action == "log":
+            proc = self._colab_cli(acct, ["log", "-s", name, "-n", "80"], timeout=40)
+            return {"ok": proc.returncode == 0, "text": colab_sessions.clean_cli_output(proc.stdout + "\n" + proc.stderr)}
+        if action == "download":
+            remote = colab_sessions.check_remote_path(body.get("path"), default="")
+            target = colab_sessions.download_target(DOWNLOADS_DIR, acct, name, remote)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            proc = self._colab_cli(acct, ["download", "-s", name, remote, str(target)], timeout=1800)
+            if proc.returncode != 0 or not target.is_file():
+                raise colab_sessions.SessionError(colab_sessions.clean_cli_output(proc.stderr or proc.stdout, 600) or "下载失败")
+            return {"ok": True, "local_path": str(target), "size": target.stat().st_size,
+                    "relative": str(target.relative_to(PROJECT_DIR))}
+        if action == "upload":
+            local = app_paths._wsl_path(str(body.get("local_path") or "")) or Path(str(body.get("local_path") or ""))
+            if not local.is_file():
+                raise colab_sessions.SessionError("本地文件不存在")
+            remote_dir = colab_sessions.check_remote_path(body.get("path"))
+            remote = str(PurePosixPath(remote_dir) / local.name)
+            proc = self._colab_cli(acct, ["upload", "-s", name, str(local), remote], timeout=1800)
+            if proc.returncode != 0:
+                raise colab_sessions.SessionError(colab_sessions.clean_cli_output(proc.stderr or proc.stdout, 600) or "上传失败")
+            return {"ok": True, "remote_path": remote}
+        if action == "restart-kernel":
+            if self._job_on(row):
+                raise colab_sessions.SessionError("该会话正在运行远端命令，不能重启内核")
+            proc = self._colab_cli(acct, ["restart-kernel", "-s", name], timeout=60)
+            if proc.returncode != 0:
+                raise colab_sessions.SessionError(colab_sessions.clean_cli_output(proc.stderr or proc.stdout, 400) or "重启内核失败")
+            return {"ok": True}
+        raise colab_sessions.SessionError(f"未知操作：{action}")
+
+    def stop_session(self, account: Any, endpoint: str) -> dict[str, Any]:
+        """Stop one VM (billing ends). The held GPU goes through release_hold()."""
+        row = self._live_session(account, endpoint=endpoint)
+        acct = row["account"]
+        if row["source"] == "hold":
+            res = self.release_hold(reason="在 Colab 会话管理中手动停止")
+            self._sessions_cache = None
+            return {**res, "account": acct, "endpoint": endpoint}
+        _name, st = self._get_account_state(acct)
+        ok, still = colab_meter._terminate_endpoint(acct, st, endpoint)
+        self._sessions_cache = None
+        self.providers.invalidate(acct)
+        label = row["name"] or "未跟踪会话"
+        print(f"[{_now_iso()}] [gpu_monitor] 会话管理：停止 {acct}/{label} ({endpoint}) ok={ok} still={still}", flush=True)
+        if still:
+            with self._state_lock:
+                self.critical_alert = f"⚠️ 会话 {label} 停止后仍在运行，请再次停止或使用紧急强杀！"
+        try:
+            if acct == self._primary_name_safe() or acct == self._hold_account():
+                self.refresh_account_snapshot()
+        except Exception:
+            pass
+        self.broadcast_state()
+        return {"ok": ok and not still, "account": acct, "endpoint": endpoint, "still_live": still}
 
     def _hold_account(self) -> str | None:
         with self._state_lock:
@@ -2316,6 +2472,14 @@ def make_handler(engine: MonitorEngine):
                     self._send_json({"error": str(exc)}, status=500)
                 return
 
+            if path == "/api/colab/sessions":
+                force = (qs.get("refresh") or ["0"])[0] in ("1", "true", "yes")
+                try:
+                    self._send_json(engine.colab_sessions_payload(force=force))
+                except Exception as exc:
+                    self._send_json({"error": str(exc)}, status=500)
+                return
+
             if path == "/api/job/log":
                 tail = int((qs.get("tail") or ["32768"])[0])
                 self._send_json(engine.get_job_log(tail_bytes=max(2048, min(262144, tail))))
@@ -2420,6 +2584,18 @@ def make_handler(engine: MonitorEngine):
                     self._send_json(res)
                 except AccountsError as exc:
                     self._send_json({"error": str(exc)}, status=400)
+                except Exception as exc:
+                    self._send_json({"error": str(exc)}, status=500)
+                return
+
+            if path.startswith("/api/colab/session/"):
+                action = path[len("/api/colab/session/"):]
+                try:
+                    self._send_json(engine.session_action(action, body))
+                except (colab_sessions.SessionError, AccountsError) as exc:
+                    self._send_json({"error": str(exc)}, status=400)
+                except subprocess.TimeoutExpired:
+                    self._send_json({"error": "colab 命令超时"}, status=504)
                 except Exception as exc:
                     self._send_json({"error": str(exc)}, status=500)
                 return
