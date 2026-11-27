@@ -103,18 +103,9 @@ def _ensure_single_instance() -> Any:
     return mutex
 
 
-# Gemini-style blue → violet → rose (brand colours only; the gauge + sparkle shape is our own).
-ICON_GRADIENT = ((66, 133, 244), (155, 114, 203), (217, 101, 112))
+# Google palette: blue, red, yellow, green (colours only; the gauge + sparkle shape is our own).
+GOOGLE_COLORS = ((66, 133, 244), (234, 67, 53), (251, 188, 5), (52, 168, 83))
 ICON_SIZES = (256, 128, 64, 48, 32, 24, 16)
-
-
-def _lerp_stops(t: float) -> tuple[int, int, int, int]:
-    stops = ICON_GRADIENT
-    t = min(1.0, max(0.0, t)) * (len(stops) - 1)
-    i = min(int(t), len(stops) - 2)
-    f = t - i
-    a, b = stops[i], stops[i + 1]
-    return (*(round(a[k] + (b[k] - a[k]) * f) for k in range(3)), 255)
 
 
 def _sparkle(cx: float, cy: float, r: float, waist: float) -> list[tuple[float, float]]:
@@ -134,48 +125,39 @@ def _sparkle(cx: float, cy: float, r: float, waist: float) -> list[tuple[float, 
 
 
 def _draw_app_icon(dot_color: tuple[int, int, int, int] | None = None, size: int = 64) -> Image.Image:
-    """Quota gauge + sparkle on a Gemini-style gradient tile, with an optional status dot.
+    """Quota gauge in the four Google colours + a blue sparkle on a white tile (optional status dot).
 
     Drawn 4x larger and downsampled for smooth edges; strokes get thicker at small sizes.
     """
     ss = 4
     S = size * ss
     small = size <= 24
-    # Diagonal gradient (top-left → bottom-right)
-    grad = Image.new("RGBA", (S, S))
-    gd = ImageDraw.Draw(grad)
-    for i in range(2 * S):
-        gd.line([(i, 0), (0, i)], fill=_lerp_stops(i / (2 * S - 1)), width=2)
-    mask = Image.new("L", (S, S), 0)
-    pad = S * 0.03
-    ImageDraw.Draw(mask).rounded_rectangle([pad, pad, S - pad, S - pad], radius=S * 0.24, fill=255)
     img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    img.paste(grad, (0, 0), mask)
-    # Gauge: faint full track (bottom-left → over the top → bottom-right) + bright progress arc.
+    draw = ImageDraw.Draw(img)
+    pad = S * 0.03
+    draw.rounded_rectangle([pad, pad, S - pad, S - pad], radius=S * 0.24, fill=(255, 255, 255, 255),
+                           outline=(218, 220, 224, 255), width=max(ss, round(S * 0.012)))
+
+    # Gauge: bottom-left → over the top → bottom-right, four colour segments with small gaps.
     cx, cy = S * 0.5, S * 0.54
     rad = S * (0.29 if not small else 0.30)
-    w = S * (0.085 if not small else 0.13)
+    w = S * (0.09 if not small else 0.13)
     half = w / 2
     # PIL strokes arcs inward from the box edge: widen the box by w/2 so the stroke is centred on `rad`.
     box = [cx - rad - half, cy - rad - half, cx + rad + half, cy + rad + half]
+    gap = 0 if small else 5
+    seg = 270 / len(GOOGLE_COLORS)
+    for i, rgb in enumerate(GOOGLE_COLORS):
+        start, end = 135 + i * seg, 135 + (i + 1) * seg
+        col = (*rgb, 255)
+        draw.arc(box, start + (gap / 2 if i else 0), end - (gap / 2 if i < 3 else 0), fill=col, width=round(w))
+        for deg, edge in ((start, i == 0), (end, i == len(GOOGLE_COLORS) - 1)):
+            if edge:  # round caps on the two outer ends only
+                x, y = cx + rad * math.cos(math.radians(deg)), cy + rad * math.sin(math.radians(deg))
+                draw.ellipse([x - half, y - half, x + half, y + half], fill=col)
 
-    def stroke(layer: Image.Image, start: float, end: float) -> None:
-        d = ImageDraw.Draw(layer)
-        d.arc(box, start, end, fill=(255, 255, 255, 255), width=round(w))
-        for deg in (start, end):  # round caps
-            x, y = cx + rad * math.cos(math.radians(deg)), cy + rad * math.sin(math.radians(deg))
-            d.ellipse([x - half, y - half, x + half, y + half], fill=(255, 255, 255, 255))
-
-    if not small:
-        track = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-        stroke(track, 135, 405)
-        track.putalpha(track.getchannel("A").point(lambda v: v * 38 // 100))
-        img.alpha_composite(track)
-    bright = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    stroke(bright, 135, 315)
     r = S * (0.17 if not small else 0.21)
-    ImageDraw.Draw(bright).polygon(_sparkle(cx, cy, r, r * 0.12), fill=(255, 255, 255, 255))
-    img.alpha_composite(bright)
+    draw.polygon(_sparkle(cx, cy, r, r * 0.12), fill=(*GOOGLE_COLORS[0], 255))
 
     img = img.resize((size, size), Image.LANCZOS)
     if dot_color is not None:
