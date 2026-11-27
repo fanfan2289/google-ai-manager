@@ -74,6 +74,9 @@ DOWNLOADS_DIR = PROJECT_DIR / "downloads"
 _SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _ACCOUNT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+-]{0,63}$")
 TERMINAL_KEY_NAME = "gam_colab_ed25519"  # app-owned key pair in WSL ~/.ssh (never the user's own keys)
+# Own taskbar identity: without it Windows groups the window under pythonw.exe (Python icon,
+# shared with IDLE); with it the taskbar button uses the window icon set via WM_SETICON.
+APP_USER_MODEL_ID = "GoogleAIManager.Desktop"
 _BACKEND_PROC: subprocess.Popen[Any] | None = None
 _BACKEND_LOG_FH: Any = None
 
@@ -122,6 +125,70 @@ def _sparkle(cx: float, cy: float, r: float, waist: float) -> list[tuple[float, 
             pts.append((cx + u * u * x0 + 2 * u * t * qx + t * t * x1,
                         cy + u * u * y0 + 2 * u * t * qy + t * t * y1))
     return pts
+
+
+def _set_app_user_model_id() -> None:
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(ctypes.c_wchar_p(APP_USER_MODEL_ID))
+    except Exception as exc:  # cosmetic only
+        _log_desktop(f"SetCurrentProcessExplicitAppUserModelID failed: {exc}")
+
+
+def _set_window_app_id(hwnd: int) -> None:
+    """Set PKEY_AppUserModel_ID on one window (plain Win32 shell property, no WinForms access)."""
+    from ctypes import wintypes
+
+    class GUID(ctypes.Structure):
+        _fields_ = [("d1", ctypes.c_uint32), ("d2", ctypes.c_uint16), ("d3", ctypes.c_uint16), ("d4", ctypes.c_ubyte * 8)]
+
+    class PROPERTYKEY(ctypes.Structure):
+        _fields_ = [("fmtid", GUID), ("pid", ctypes.c_uint32)]
+
+    class PROPVARIANT(ctypes.Structure):
+        _fields_ = [("vt", ctypes.c_ushort), ("r1", ctypes.c_ushort), ("r2", ctypes.c_ushort), ("r3", ctypes.c_ushort),
+                    ("ptr", ctypes.c_void_p), ("pad", ctypes.c_void_p)]
+
+    ole32 = ctypes.windll.ole32
+
+    def guid(text: str) -> GUID:
+        g = GUID()
+        ole32.CLSIDFromString(ctypes.c_wchar_p(text), ctypes.byref(g))
+        return g
+
+    try:
+        ole32.CoInitialize(None)
+        iid = guid("{886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99}")  # IID_IPropertyStore
+        store = ctypes.c_void_p()
+        hr = ctypes.windll.shell32.SHGetPropertyStoreForWindow(wintypes.HWND(hwnd), ctypes.byref(iid), ctypes.byref(store))
+        if hr != 0 or not store:
+            _log_desktop(f"SHGetPropertyStoreForWindow failed: {hr}")
+            return
+        vtbl = ctypes.cast(ctypes.cast(store, ctypes.POINTER(ctypes.c_void_p))[0], ctypes.POINTER(ctypes.c_void_p))
+        set_value = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, ctypes.POINTER(PROPERTYKEY),
+                                       ctypes.POINTER(PROPVARIANT))(vtbl[6])
+        release = ctypes.WINFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p)(vtbl[2])
+        # PKEY_AppUserModel_*: the taskbar takes a button's icon / pin target from the Relaunch*
+        # properties (otherwise from the exe, i.e. the Python icon). The ID is set last.
+        venv_w = PROJECT_DIR / ".venv-desktop" / "Scripts" / "pythonw.exe"
+        exe = venv_w if venv_w.is_file() else Path(sys.executable)
+        props = [
+            (2, f'"{exe}" "{Path(__file__).resolve()}"'),  # RelaunchCommand
+            (3, f"{ICON_PATH},0"),                         # RelaunchIconResource
+            (4, APP_TITLE),                                # RelaunchDisplayNameResource
+            (5, APP_USER_MODEL_ID),                        # ID
+        ]
+        for pid, value in props:
+            key = PROPERTYKEY(guid("{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}"), pid)
+            buf = ctypes.create_unicode_buffer(value)
+            pv = PROPVARIANT()
+            pv.vt = 31  # VT_LPWSTR (SetValue copies it)
+            pv.ptr = ctypes.cast(buf, ctypes.c_void_p).value
+            hr = set_value(store, ctypes.byref(key), ctypes.byref(pv))
+            if hr != 0:
+                _log_desktop(f"window AppUserModel property {pid} failed: {hr}")
+        release(store)
+    except Exception as exc:  # cosmetic only
+        _log_desktop(f"window AppUserModelID failed: {exc}")
 
 
 def _draw_app_icon(dot_color: tuple[int, int, int, int] | None = None, size: int = 64) -> Image.Image:
@@ -635,6 +702,13 @@ def _apply_win32_icon_and_focus(ico_path: Path) -> int:
         time.sleep(0.1)
     if not hwnd:
         return 0
+    # Taskbar identity: hide → stamp the window's AppUserModelID → shown again below, so the
+    # taskbar regroups it as its own app (own icon) instead of under pythonw.exe / IDLE.
+    try:
+        user32.ShowWindow(hwnd, 0)  # SW_HIDE
+        _set_window_app_id(hwnd)
+    except Exception:
+        pass
     try:
         IMAGE_ICON = 1
         LR_LOADFROMFILE = 0x0010
@@ -660,6 +734,7 @@ def _apply_win32_icon_and_focus(ico_path: Path) -> int:
 def main() -> int:
     try:
         _mutex = _ensure_single_instance()
+        _set_app_user_model_id()
         ico_path = ensure_ico_file()
         WEBVIEW_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
         ensure_wsl_backend()

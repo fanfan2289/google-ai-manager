@@ -374,6 +374,10 @@
   .pill.crimson { background: var(--crimson-soft); border-color: var(--crimson-border); color: var(--text-crimson); }
   .pill.blue { background: var(--accent-soft); border-color: var(--accent-border); color: var(--text-blue); }
 
+  .view-hidden { display: none !important; }
+  .view-acct { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); font-weight: 600; }
+  .view-acct select { padding: 6px 30px 6px 12px; border-radius: 99px; border: 1px solid var(--border); background-color: var(--bg-card);
+                      color: var(--text-strong); font-weight: 700; font-size: 12.5px; cursor: pointer; }
   .topbar-right {
     display: flex;
     align-items: center;
@@ -825,6 +829,24 @@
   .meter > i { display: block; height: 100%; background: var(--emerald); border-radius: 99px; }
   .meter > i.warn { background: var(--amber); }
   .meter > i.crit { background: var(--crimson); }
+  /* Antigravity quota bars (v2.9.1, Antigravity Tools style) */
+  .agq-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .agq { border: 1px solid var(--border); border-radius: 9px; padding: 6px 8px 0; background: var(--bg-card); overflow: hidden; min-width: 0; }
+  .agq.wide { grid-column: 1 / -1; }
+  .agq-grid.one { grid-template-columns: minmax(0, 1fr); }
+  .agq-row { display: flex; align-items: center; gap: 5px; font-size: 12px; min-width: 0; }
+  .agq-ico { width: 15px; height: 15px; flex-shrink: 0; }
+  .agq-name { font-weight: 700; color: var(--text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .agq-win { font-size: 11px; font-weight: 700; color: var(--text-dim); white-space: nowrap; }
+  .agq-reset { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; white-space: nowrap; color: var(--text-blue); }
+  .agq-reset.soon { color: var(--text-amber); }
+  .agq-pct { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text-emerald); }
+  .agq-pct.warn { color: var(--text-amber); }
+  .agq-pct.crit { color: var(--text-crimson); }
+  .agq-bar { height: 4px; margin: 6px -8px 0; background: rgba(148, 163, 184, 0.18); }
+  .agq-bar > i { display: block; height: 100%; background: var(--emerald); }
+  .agq-bar > i.warn { background: var(--amber); }
+  .agq-bar > i.crit { background: var(--crimson); }
   .proxy-result { font-size: 12px; font-family: var(--mono); color: var(--text-muted); }
   .form-title { font-weight: 600; color: var(--text); }
   .form-desc { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
@@ -1916,6 +1938,8 @@ function switchView(view) {
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === `view-${view}`));
   document.getElementById("topbarTitle").textContent = view === "overview" ? ovGreeting() : (VIEW_TITLES[view] || "Google AI Manager");
   if (view !== "overview") document.getElementById("ovAcctSwitch").innerHTML = "";
+  // On the benefits page the account picker replaces the "probe account" pill.
+  document.getElementById("topAcctPill").classList.toggle("view-hidden", view === "benefits");
   if (view === "stats") { statsTab === "history" ? loadHistory() : loadAnalytics(); }
   if (view === "overview") loadOverview(false);
   if (view === "runner") { refreshJobLog(); loadRunnerForm(); }
@@ -2339,8 +2363,26 @@ function renderAggregateStrip() {
   box.style.display = "flex";
 }
 
+function viewAccountNames() {
+  const names = new Set(Object.keys(acctOverview?.accounts || {}));
+  (acctData?.accounts || []).forEach(r => r.name && names.add(r.name));
+  return [...names];
+}
+
+// Account picker shown in the top bar of the overview / benefits views (view-only: it never
+// changes the account used for probing or grabbing GPUs).
+function renderViewAccountSwitch(onChange) {
+  const names = viewAccountNames();
+  const acct = ovAccount();
+  const box = document.getElementById("ovAcctSwitch");
+  box.innerHTML = names.length > 1 ? `<label class="view-acct">查看账号
+      <select>${names.map(n => `<option value="${escHtml(n)}" ${n === acct ? "selected" : ""}>${escHtml(n)}</option>`).join("")}</select></label>` : "";
+  const sel = box.querySelector("select");
+  if (sel) sel.onchange = () => { localStorage.setItem("gamOvAccount", sel.value); onChange(); };
+}
+
 function ovAccount() {
-  const names = Object.keys(acctOverview?.accounts || {});
+  const names = viewAccountNames();
   const pick = localStorage.getItem("gamOvAccount");
   if (pick && names.includes(pick)) return pick;
   const primary = appState?.primary_account || acctData?.current;
@@ -2384,9 +2426,7 @@ function renderOverview() {
   document.querySelector("#view-overview .ov-top").style.display = Object.keys(acctOverview?.accounts || {}).length > 1 ? "" : "none";
   if (currentView === "overview") document.getElementById("topbarTitle").textContent = ovGreeting();
   const names = Object.keys(acctOverview?.accounts || {});
-  document.getElementById("ovAcctSwitch").innerHTML = names.length > 1 && currentView === "overview"
-    ? `<select onchange="localStorage.setItem('gamOvAccount', this.value); renderOverview(); renderSidebarMini();">
-        ${names.map(n => `<option value="${escHtml(n)}" ${n === acct ? "selected" : ""}>${escHtml(n)}</option>`).join("")}</select>` : "";
+  if (currentView === "overview") renderViewAccountSwitch(() => { renderOverview(); renderSidebarMini(); });
   const cfg = appState?.config || {};
 
   // Colab
@@ -3307,7 +3347,7 @@ function renderAccountCard(r) {
     </div>
     <div class="acct-badges">${b.join("")}</div>
     ${stats}
-    ${agLine(snaps.antigravity)}
+    ${agBars(snaps.antigravity)}
     ${flowLine(snaps.flow_credits, r.name)}
     ${gcpLine(snaps.gcp_credits, r.name)}
     ${colabErr && !loading ? `<div class="prov-err">Colab：${escHtml(colabErr)}</div>` : ""}
@@ -3675,11 +3715,44 @@ function renderPctLine(m) {
     ${m.reset_at_iso ? `<div class="prov-foot">${escHtml(fmtReset(m.reset_at_iso))}${m.detail ? " · " + escHtml(m.detail) : ""}</div>` : ""}`;
 }
 
-function agLine(snap) {
+function fmtCountdown(iso) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || isNaN(d)) return "";
+  const s = Math.round((d.getTime() - Date.now()) / 1000);
+  if (s <= 0) return "已重置";
+  const dd = Math.floor(s / 86400), hh = Math.floor((s % 86400) / 3600), mm = Math.ceil((s % 3600) / 60);
+  return dd ? `${dd}d ${hh}h` : hh ? `${hh}h ${mm}m` : `${mm}m`;
+}
+
+const AGQ_ICON = {
+  gemini: `<svg class="agq-ico" viewBox="0 0 16 16"><path d="M8 1Q8.6 7.4 15 8Q8.6 8.6 8 15Q7.4 8.6 1 8Q7.4 7.4 8 1Z" fill="#4285F4"/></svg>`,
+  other: `<svg class="agq-ico" viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linecap="round"><path d="M8 2v12M2.8 5l10.4 6M2.8 11l10.4-6"/></svg>`,
+};
+const AGQ_CLOCK = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.6V8l2.3 1.6"/></svg>`;
+
+// Antigravity windows as bar tiles: "<group> · <window>" metrics from providers/antigravity.py.
+function agBars(snap, oneCol = false) {
   if (!snap || snap.status !== "ok") return "";
-  const parts = (snap.metrics || []).filter(m => /^Gemini Models/.test(m.label) || /Claude/.test(m.label)).slice(0, 4)
-    .map(m => `${escHtml(m.label.replace("Gemini Models", "Gemini").replace("Claude and GPT models", "Claude/GPT"))} <b>${(pctOf(m) ?? 0).toFixed(0)}%</b>`);
-  return parts.length ? `<div class="acct-note" title="Antigravity 剩余额度（本地缓存）">🛸 ${parts.join(" · ")}</div>` : "";
+  const ms = snap.metrics || [];
+  if (!ms.length) return "";
+  const counts = {};
+  ms.forEach(m => { const g = String(m.label || "").split(" · ")[0]; counts[g] = (counts[g] || 0) + 1; });
+  const tiles = ms.map(m => {
+    const [group, win] = String(m.label || "").split(" · ");
+    const name = (group || "").replace("Gemini Models", "Gemini").replace("Claude and GPT models", "Claude / GPT");
+    const pct = pctOf(m) ?? 0;
+    const cls = pct <= 5 ? "crit" : pct <= 20 ? "warn" : "";
+    const left = m.reset_at_iso ? (new Date(m.reset_at_iso).getTime() - Date.now()) / 1000 : null;
+    const winTxt = win === "5 小时" ? "5H" : win === "每周" ? "周配额" : win === "每日" ? "日配额" : (win || "");
+    const tip = [m.label, m.reset_at_iso ? fmtReset(m.reset_at_iso) : "", m.detail || ""].filter(Boolean).join(" · ");
+    return `<div class="agq${counts[group] === 1 ? " wide" : ""}" title="${escHtml(tip)}">
+      <div class="agq-row">${/gemini/i.test(group) ? AGQ_ICON.gemini : AGQ_ICON.other}<span class="agq-name">${escHtml(name)}</span>
+        <span class="agq-win">${escHtml(winTxt)}</span>
+        ${m.reset_at_iso ? `<span class="agq-reset${left != null && left < 86400 ? " soon" : ""}">${AGQ_CLOCK}${escHtml(fmtCountdown(m.reset_at_iso))}</span>` : ""}
+        <span class="agq-pct ${cls}">${pct.toFixed(pct >= 99.95 || pct === 0 ? 0 : 1)}%</span></div>
+      <div class="agq-bar"><i class="${cls}" style="width:${Math.min(100, pct).toFixed(1)}%"></i></div></div>`;
+  });
+  return `<div class="agq-grid${oneCol ? " one" : ""}">${tiles.join("")}</div>`;
 }
 
 // ---------------------------------------------------------------- Google Flow credits (v2.4, experimental)
@@ -3787,6 +3860,7 @@ function benefitLive(b) {
   if (!s) return b.note ? `<div class="prov-foot">${escHtml(b.note)}</div>` : "";
   if (s.status !== "ok") return `<div class="prov-err">${escHtml(s.error || s.status)}</div>`;
   const ms = s.metrics || [];
+  if (b.provider === "antigravity") return agBars(s, true);
   if (ms[0]?.unit === "%") return `<div class="bn-live">${ms.slice(0, 4).map(renderPctLine).join("")}</div>`;
   if (b.provider === "google_storage") {
     const t = ms.find(m => m.key === "storage_total");
@@ -3818,7 +3892,13 @@ function benefitLive(b) {
 async function loadBenefits(force = false) {
   const grid = document.getElementById("bnGrid");
   try {
-    const res = await fetch(`/api/benefits${force ? "?refresh=1" : ""}`);
+    if (!acctData) await loadAccounts(false);
+    const acct = ovAccount();
+    if (currentView === "benefits") renderViewAccountSwitch(() => loadBenefits(false));
+    const qs = new URLSearchParams();
+    if (acct) qs.set("account", acct);
+    if (force) qs.set("refresh", "1");
+    const res = await fetch(`/api/benefits?${qs}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     benefitsData = data;
