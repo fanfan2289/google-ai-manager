@@ -739,6 +739,18 @@
   }
 
   /* Heatmap */
+  .hm-title { display: flex; align-items: baseline; gap: 10px; font-size: 12.5px; }
+  .hm-title b { color: var(--text); font-weight: 600; }
+  .hm-title span { font-size: 11.5px; color: var(--text-dim); }
+  .hm-more { margin-top: 16px; border-top: 1px dashed var(--border); padding-top: 10px; }
+  .hm-more summary { cursor: pointer; font-size: 12.5px; color: var(--text-muted); }
+  .hm-more summary:hover { color: var(--text); }
+  .run-target { display: inline-block; line-height: 1.6; font-size: 12px; color: var(--text-muted);
+                padding: 6px 12px; border-radius: 99px; border: 1px solid var(--border); background: var(--fill-deep); }
+  .run-target b { color: var(--text); }
+  .run-target.ok { border-color: var(--emerald-border, rgba(16,185,129,.35)); }
+  .run-target.busy { border-color: var(--amber-border, rgba(245,158,11,.4)); }
+  .run-target a { color: var(--text-blue); cursor: pointer; }
   .heatmap-grid {
     display: grid;
     grid-template-columns: repeat(24, 1fr);
@@ -1523,6 +1535,7 @@
             <button id="btnStartRun" class="btn btn-emerald" onclick="runCommandOnHold()">▶ 接管锁定 GPU 运行</button>
             <button id="btnStopRun" class="btn btn-danger" onclick="stopRemoteJob()">⏹ 中止并强杀 GPU</button>
           </div>
+          <div id="runTarget" class="run-target" style="margin:-2px 0 14px;">读取锁卡状态...</div>
 
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
             <span id="jobLogMeta" style="font-size:11.5px;color:var(--text-dim);font-family:var(--mono);">日志路径: 等待任务启动...</span>
@@ -1573,7 +1586,7 @@
           <div class="card-header">
             <div>
               <div class="card-title">24 小时放卡时段热力图（本地时间 00:00 – 23:00）</div>
-              <div class="card-sub">统计过去 72 小时每个小时的命中率，帮你掌握 G4 / A100 放卡规律</div>
+              <div class="card-sub">按小时统计每种卡的探测与命中，掌握放卡规律；没有命中的卡折叠在最下面</div>
             </div>
             <select id="analyticsHours" onchange="loadAnalytics()">
               <option value="24">最近 24 小时</option>
@@ -2074,6 +2087,7 @@ function renderState(st) {
   document.getElementById("cfgFlowOn").checked = Boolean(cfg.flow_credits_on);
   document.getElementById("cfgGcpOn").checked = Boolean(cfg.gcp_credits_on);
   renderAcctPill(st);
+  renderRunTarget(st);
   document.getElementById("cfgSkipBusy").checked = Boolean(cfg.skip_when_active_vm);
   document.getElementById("cfgToast").checked = Boolean(cfg.windows_toast);
   document.getElementById("cfgSound").checked = Boolean(cfg.browser_sound);
@@ -2919,6 +2933,33 @@ function openDownloads() {
 setInterval(() => { if (currentView === "sessions" && !document.hidden) loadSessions(false); }, 15000);
 
 // ---------------------------------------------------------------- Remote command runner (v2.3)
+// Which account / GPU a run would use: the locked GPU (runs reuse it, they never grab a new one).
+function renderRunTarget(st) {
+  const box = document.getElementById("runTarget");
+  if (!box) return;
+  const h = st?.active_hold;
+  const start = document.getElementById("btnStartRun");
+  let html, cls, canRun = false;
+  if (h && h.state === "CLAIMED_JOB") {
+    html = `⏳ 命令运行中：👤 <b>${escHtml(h.account || "-")}</b> · ⚡ <b>${escHtml(h.gpu || "-")}</b>${h.gpu_model ? `（${escHtml(h.gpu_model)}）` : ""}
+      · 会话 ${escHtml(h.session_name || "-")} · 最长还可运行 ${fmtMMSS(h.remaining_s ?? 0)}`;
+    cls = "busy";
+  } else if (h) {
+    html = `将在这台锁定的 GPU 上运行：👤 <b>${escHtml(h.account || "-")}</b> · ⚡ <b>${escHtml(h.gpu || "-")}</b>${h.gpu_model ? `（${escHtml(h.gpu_model)}）` : ""}
+      · 会话 ${escHtml(h.session_name || "-")} · 无人认领 ${fmtMMSS(h.remaining_s ?? 0)} 后自动关机`;
+    cls = "ok"; canRun = true;
+  } else {
+    const acct = st?.probe_account || st?.account?.account || "-";
+    html = `当前没有锁定的 GPU，运行前需要先抢到一张（抢卡账号：<b>${escHtml(acct)}</b>）
+      · <a onclick="switchView('dashboard')">去抢卡与锁卡 →</a>`;
+    cls = "";
+  }
+  if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
+  box.className = `run-target ${cls}`;
+  // Stop stays enabled: it also has to work for a job whose hold record is already gone.
+  if (start) { start.disabled = !canRun; start.title = canRun ? "" : h ? "已有命令在运行" : "先锁定一张 GPU"; }
+}
+
 function loadRunnerForm() {
   const box = document.getElementById("inpRemoteCmd");
   if (!box.dataset.loaded) {
@@ -3073,6 +3114,7 @@ async function clearHistory() {
   }
 }
 
+let hmMoreOpen = false;
 async function loadAnalytics() {
   try {
     const h = document.getElementById("analyticsHours").value || 72;
@@ -3085,8 +3127,13 @@ async function loadAnalytics() {
 
     const hm = data.heatmap || {};
     const container = document.getElementById("heatmapContainer");
-    const targetGpus = ["G4", "A100"];
-    container.innerHTML = targetGpus.map(gid => {
+    const ORDER = ["G4", "A100", "H100", "L4", "T4"];
+    const gpus = [...new Set([...ORDER, ...Object.keys(hm)])];
+    const sum = (gid, k) => (hm[gid] || []).reduce((n, r) => n + (r?.[k] || 0), 0);
+    // GPUs with at least one hit get a full row; the rest fold into one summary line.
+    const shown = gpus.filter(g => sum(g, "hits") > 0);
+    const folded = gpus.filter(g => sum(g, "hits") === 0);
+    const row = gid => {
       const hours = hm[gid] || [];
       const cells = Array.from({ length: 24 }, (_, hr) => {
         const row = hours[hr] || { total: 0, hits: 0, rate: 0 };
@@ -3099,8 +3146,12 @@ async function loadAnalytics() {
           </div>
         `;
       }).join("");
-      return `<div style="margin-top:12px;"><div style="font-weight:600;font-size:12.5px;color:var(--text);">${gid} 放卡分布</div><div class="heatmap-grid">${cells}</div></div>`;
-    }).join("");
+      return `<div style="margin-top:12px;"><div class="hm-title"><b>${gid} 放卡分布</b><span>探测 ${sum(gid, "total")} 次 · 命中 ${sum(gid, "hits")} 次</span></div><div class="heatmap-grid">${cells}</div></div>`;
+    };
+    const foldTxt = folded.map(g => `${g}（${sum(g, "total") ? `探测 ${sum(g, "total")} 次，未命中` : "未探测"}）`).join(" · ");
+    container.innerHTML = (shown.length ? shown.map(row).join("") : `<div class="card-sub" style="margin-top:12px;">这段时间还没有任何命中。</div>`)
+      + (folded.length ? `<details class="hm-more" ${hmMoreOpen ? "open" : ""} ontoggle="hmMoreOpen = this.open">
+          <summary>没有命中的卡：${escHtml(foldTxt)}</summary>${folded.map(row).join("")}</details>` : "");
   } catch (_) {}
 }
 
