@@ -901,7 +901,8 @@
   }
 
   /* Benefits center + self-check */
-  .bn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .bn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; grid-auto-flow: row dense; }
+  .bn-tile.span2 { grid-column: span 2; }
   .bn-tile { background: var(--fill-deep); border: 1px solid var(--border); border-radius: 10px; padding: 12px 13px;
              display: flex; flex-direction: column; gap: 7px; min-width: 0; }
   .bn-tile.planned { border-style: dashed; opacity: 0.7; }
@@ -3940,7 +3941,7 @@ function benefitLive(b) {
   if (!s) return b.note ? `<div class="prov-foot">${escHtml(b.note)}</div>` : "";
   if (s.status !== "ok") return `<div class="prov-err">${escHtml(s.error || s.status)}</div>`;
   const ms = s.metrics || [];
-  if (b.provider === "antigravity") return agBars(s, true);
+  if (b.provider === "antigravity") return agBars(s);
   if (ms[0]?.unit === "%") return `<div class="bn-live">${ms.slice(0, 4).map(renderPctLine).join("")}</div>`;
   const ex = s.extra || {};
   const readFoot = (extra = "") => `<div class="prov-foot">${ex.checked_at_iso ? "读取于 " + escHtml(fmtWhen(ex.checked_at_iso)) + extra + " · " : ""}实验性</div>`;
@@ -3985,7 +3986,8 @@ async function loadBenefits(force = false) {
         <button class="btn btn-sm" data-url="${escHtml(b.url)}">↗ 打开</button></div>`).join("") || `<div class="card-sub">无</div>`;
     grid.innerHTML = (data.items || []).filter(b => b.status === "tracked").map(b => {
       const [tone, txt] = BN_STATUS[b.status] || ["", b.status];
-      return `<div class="bn-tile ${b.status === "planned" ? "planned" : ""}">
+      const span = b.provider === "antigravity" && b.snapshot?.status === "ok" && (b.snapshot.metrics || []).length > 2;
+      return `<div class="bn-tile ${b.status === "planned" ? "planned" : ""}${span ? " span2" : ""}">
         <div class="prov-head"><span class="prov-name">${escHtml(b.name)}</span><span class="pill ${tone}" style="padding:1px 7px;font-size:10.5px;">${txt}</span></div>
         <div class="bn-allow">${escHtml(b.allowance)}${b.period ? `<span>${escHtml(b.period)}</span>` : ""}</div>
         ${benefitLive(b)}
