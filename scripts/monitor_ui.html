@@ -375,7 +375,9 @@
   .pill.blue { background: var(--accent-soft); border-color: var(--accent-border); color: var(--text-blue); }
 
   .view-hidden { display: none !important; }
-  .view-acct { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); font-weight: 600; }
+  .view-acct-row { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .view-acct select:disabled { opacity: .6; cursor: not-allowed; }
+  .view-acct { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; font-size: 12.5px; color: var(--text-dim); font-weight: 600; }
   .view-acct select { padding: 6px 30px 6px 12px; border-radius: 99px; border: 1px solid var(--border); background-color: var(--bg-card);
                       color: var(--text-strong); font-weight: 700; font-size: 12.5px; cursor: pointer; }
   .topbar-right {
@@ -1960,9 +1962,10 @@ function switchView(view) {
   document.querySelectorAll("#colabTabs button").forEach(b => b.classList.toggle("on", b.dataset.sub === view));
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === `view-${view}`));
   document.getElementById("topbarTitle").textContent = view === "overview" ? ovGreeting() : (VIEW_TITLES[view] || "Google AI Manager");
-  if (view !== "overview") document.getElementById("ovAcctSwitch").innerHTML = "";
-  // On the benefits page the account picker replaces the "probe account" pill.
-  document.getElementById("topAcctPill").classList.toggle("view-hidden", view === "benefits");
+  if (view !== "overview") { const sw = document.getElementById("ovAcctSwitch"); sw.innerHTML = ""; delete sw.dataset.colabKey; }
+  // On the benefits and Colab pages an account picker replaces the "probe account" pill.
+  document.getElementById("topAcctPill").classList.toggle("view-hidden", view === "benefits" || isColab);
+  if (isColab) { if (acctData) renderColabAccountSwitch(); else loadAccounts(false); }
   if (view === "stats") { statsTab === "history" ? loadHistory() : loadAnalytics(); }
   if (view === "overview") loadOverview(false);
   if (view === "runner") { refreshJobLog(); loadRunnerForm(); }
@@ -2402,6 +2405,35 @@ function renderViewAccountSwitch(onChange) {
       <select>${names.map(n => `<option value="${escHtml(n)}" ${n === acct ? "selected" : ""}>${escHtml(n)}</option>`).join("")}</select></label>` : "";
   const sel = box.querySelector("select");
   if (sel) sel.onchange = () => { localStorage.setItem("gamOvAccount", sel.value); onChange(); };
+}
+
+// Colab pages: picker for the account that probes / grabs (same setting as 账号管理 →「监控与抢卡使用的账号」).
+function renderColabAccountSwitch() {
+  if (!COLAB_VIEWS.includes(currentView) || !acctData) return;
+  const box = document.getElementById("ovAcctSwitch");
+  const old = box.querySelector("select");
+  if (old && document.activeElement === old) return;   // don't close an open dropdown on a state push
+  const rows = acctData.accounts || [];
+  const locked = acctData.hold_account ? `占卡中（${acctData.hold_account}），释放后才能切换`
+    : acctData.job_running ? "云端任务运行中，结束后才能切换" : "";
+  const probe = appState?.probe_account;
+  const effective = acctData.pinned || acctData.cli_active || "";
+  const backup = probe && probe !== effective
+    ? `<span class="pill amber" title="${escHtml(appState?.failover_note || "")}">🔁 备用号 ${escHtml(probe)}</span>` : "";
+  const opts = [`<option value="">跟随 CLI 默认（${escHtml(acctData.cli_active || "-")}）</option>`]
+    .concat(rows.map(r => `<option value="${escHtml(r.name)}">${escHtml(r.meta?.label ? `${r.meta.label}（${r.name}）` : r.name)}</option>`));
+  const html = `<span class="view-acct-row">${backup}<label class="view-acct" title="${escHtml(locked || "Colab 探测、抢卡、会话新建与运行命令使用的账号；不改 colab 命令行的全局默认账号")}">抢卡账号
+      <select ${locked ? "disabled" : ""}>${opts.join("")}</select></label></span>`;
+  const key = html + "|" + (acctData.pinned || "");
+  if (box.dataset.colabKey === key && old) return;   // state pushes arrive every second: skip identical re-renders
+  box.innerHTML = html;
+  box.dataset.colabKey = key;
+  const sel = box.querySelector("select");
+  sel.value = acctData.pinned || "";
+  sel.onchange = async () => {
+    sel.disabled = true;
+    await useAccount(sel.value);
+  };
 }
 
 function ovAccount() {
@@ -2943,8 +2975,10 @@ function renderAcctPill(st) {
   const switched = !!(st.probe_account && (st.failover_note || "").includes("切换到备用号"));
   pill.textContent = `👤 ${acct}${switched ? " · 备用号" : ""}`;
   pill.className = `pill ${switched ? "amber" : ""}`;
+  pill.classList.toggle("view-hidden", currentView === "benefits" || COLAB_VIEWS.includes(currentView));
   pill.title = st.failover_note || "当前探测 / 抢卡使用的账号（点击管理账号）";
   pill.style.display = "inline-flex";
+  renderColabAccountSwitch();
 }
 
 let failoverNames = null;
@@ -3406,6 +3440,7 @@ function renderAccounts() {
   sel.innerHTML = opts.join("");
   sel.value = acctData.pinned || "";
   sel.disabled = !!acctData.hold_account || !!acctData.job_running;
+  renderColabAccountSwitch();
 }
 
 document.getElementById("acctGrid").addEventListener("click", e => {
