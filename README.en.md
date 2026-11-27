@@ -38,7 +38,7 @@ Current version: **v2.9**
    ```
 2. Backend (WSL2 Ubuntu): `wsl.exe -d Ubuntu -e bash scripts/wsl_setup_env.sh`
 3. Start `desktop_app\start.bat` (or make a desktop shortcut to it; `--web` for browser mode on `http://127.0.0.1:8765`).
-   Command-line tools: `.\scripts\Invoke-GAM.ps1 stop | status | run | auth | monitor | drama`.
+   Command-line tools: `.\scripts\Invoke-GAM.ps1 stop | status | run | auth | monitor`.
 4. **Accounts → Add account → Start OAuth**.
 5. Optional: enable Flow / Cloud credit reading in **Settings → Experimental**, then **Connect** on an
    account card and sign in once in the dedicated Edge window.
@@ -59,5 +59,4 @@ wsl.exe -d Ubuntu -e bash -lc '$HOME/.local/share/uv/tools/google-colab-cli/bin/
 wsl.exe -d Ubuntu -e python3 -u scripts/colab_gpu_monitor.py --port 8766 --no-probe   # safe read-only backend
 ```
 
-`cloud_workstation/` is an optional example workflow (ComfyUI + MiniMax-H3 short drama), unrelated to
-the app itself. See [AGENTS.md](./AGENTS.md) for architecture and safety invariants. Licensed under MIT.
+See [AGENTS.md](./AGENTS.md) for architecture and safety invariants. Licensed under MIT.

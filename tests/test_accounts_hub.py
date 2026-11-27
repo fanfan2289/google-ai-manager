@@ -299,7 +299,7 @@ class OAuthJobTests(_HubCase):
         return st
 
     def test_derive_name(self) -> None:
-        self.assertEqual(derive_account_name("John.Doe+x@gmail.com", []), "john.doe-x")
+        self.assertEqual(derive_account_name("John.Doe+x@example.com", []), "john.doe-x")
         self.assertEqual(derive_account_name("main@example.com", ["main", "main2"]), "main3")
         self.assertEqual(derive_account_name(None, []), "google")
         self.assertEqual(derive_account_name("-x@y.z", []), "x")

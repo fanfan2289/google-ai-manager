@@ -53,11 +53,13 @@ This repository (`google-ai-manager`) is collaboratively developed by multiple A
 - **v2.8**: one `colab` nav entry → `COLAB_VIEWS` sub-tabs (`#colabTabs`, last sub-view in localStorage). Flow: `FlowHistory` (`~/.google-ai-manager/flow_history.json`, 90 days, one point per 6 h when unchanged), `usage_stats` (decreases only), `GET /api/flow/history`, `flow_low_threshold` toast on crossing. Cloud: reports carry `trial_state` and a sanitised `credits` list (kind / remaining / original / expires YYYY-MM-DD); `expiring()` → once-a-day toast 14 days before expiry. Drive: UI-only breakdown from `storage_drive / storage_trash / storage_other`. Reminders go through `MonitorEngine._notify` (respects `windows_toast`).
 - **Settings / About (v2.9)**: settings panes `.set-pane[data-pane]` + `setSettingsTab()`; `GET /static/<name>.png|svg` serves `scripts/static/` (flat names only, `STATIC_RE`). The column layout needs `min-height: 0` on `.main-area` / `.content-scroll` or long pages cannot scroll to the bottom.
 - **Themes (v2.8.1)**: `:root[data-theme="light"]` (default) / dark (original palette). Colours go through CSS variables (`--text-strong`, `--text-blue/amber/crimson/emerald`, `--fill-deep`, `--toast-*`, `--log-*`, `--nav-active-*`); do not hard-code hex text colours in new UI. The theme is set before first paint from `localStorage.gamTheme`; `toggleTheme()` switches it.
-  - `cloud_workstation/` is an optional example workflow (ComfyUI + MiniMax-H3 drama): `run_drama.sh` wraps the generic runner; `cloud_workstation/local/` holds local-only helpers and is skipped by the Drive sync. Never add drama-specific code to the app, backend or desktop shell.
+  - `cloud_workstation/` (ComfyUI drama example) is local-only and git-ignored: never re-add it or any video-generation / model-download scripts to the repo, and never add drama-specific code to the app, backend or desktop shell.
 
 ## 2. Non-Negotiable Safety Invariants
 
 1. **Zero Secret / PII Commits**: Never commit emails, OAuth tokens, refresh tokens, API keys, `logs/`, `outputs/`, `*.db`, `active_hold.json`, `gpu_monitor_config.json`, or `.venv-desktop/`. Always check `git status` and `git diff --cached` before committing.
+   - Everything pushed to GitHub must be desensitised. API keys (Gemini / AI Studio key pools), per-key RPM / RPD usage and liveness results, account names and e-mails live only under `~/.google-ai-manager/` (`0600`), never in the repo, fixtures, screenshots, logs or Notion. Tests use obviously fake values (`AIzaFAKE…`, `pro@example.com`); the UI and logs show keys masked (last 4 characters only).
+   - Run the secret scan in §4 before every push.
 2. **Anti-Ghost-Billing**:
    - Any probe allocation NOT intentionally held MUST be unassigned immediately in a `finally` block and verified via `list_assignments()`.
    - Any held VM (`HOLDING` or `CLAIMED_MANUAL`) MUST be persisted to `logs/active_hold.json` and enforced by the independent 1-second `_hold_watchdog_loop()` auto-shutdown timer.
@@ -80,13 +82,16 @@ Next:
 .\.venv-desktop\Scripts\python.exe -m py_compile desktop_app\colab_gpu_tools.py
 
 # WSL backend syntax check
-wsl.exe -d Ubuntu -e bash -lc 'bash -n scripts/wsl_run_remote.sh cloud_workstation/run_drama.sh && $HOME/.local/share/uv/tools/google-colab-cli/bin/python -m py_compile scripts/colab_gpu_monitor.py scripts/colab_meter.py'
+wsl.exe -d Ubuntu -e bash -lc 'bash -n scripts/wsl_run_remote.sh && $HOME/.local/share/uv/tools/google-colab-cli/bin/python -m py_compile scripts/colab_gpu_monitor.py scripts/colab_meter.py'
 
 # Offline unit tests (no network / Colab / credentials)
 .\.venv-desktop\Scripts\python.exe -m unittest discover -s tests -v
 
 # + engine tests (mocked Colab) inside the google-colab-cli venv
 wsl.exe -d Ubuntu -e bash -lc '$HOME/.local/share/uv/tools/google-colab-cli/bin/python -m unittest discover -s tests'
+
+# Secret scan before pushing (must print nothing)
+git grep -nIE 'AIza[0-9A-Za-z_-]{30,}|ya29\.|1//0[0-9A-Za-z_-]{20,}|GOCSPX-|sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|BEGIN [A-Z ]*PRIVATE KEY|@gmail\.com' -- ':!AGENTS.md'
 
 # Safe live test: read-only backend on a spare port (never probes or allocates GPUs,
 # does not disturb the production backend on 8765). Stop it with POST /api/shutdown.

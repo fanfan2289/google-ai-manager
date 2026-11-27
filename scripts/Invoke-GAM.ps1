@@ -1,6 +1,6 @@
 ﻿param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("auth", "run", "drama", "stop", "status", "dry-run", "monitor")]
+    [ValidateSet("auth", "run", "stop", "status", "dry-run", "monitor")]
     [string]$Mode,
 
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -41,10 +41,9 @@ switch ($Mode) {
         wsl.exe -d Ubuntu -e python3 "$WslProjectRoot/scripts/colab_gpu_monitor.py" @PassThruArgs
         exit $LASTEXITCODE
     }
-    { $_ -in "run", "drama" } {
-        # run   = 通用远端命令运行器（需 -c "SHELL_CMD"）
-        # drama = 示例短剧流水线（cloud_workstation/run_drama.sh）
-        $runScript = if ($Mode -eq "drama") { "$WslProjectRoot/cloud_workstation/run_drama.sh" } else { "$WslProjectRoot/scripts/wsl_run_remote.sh" }
+    "run" {
+        # 通用远端命令运行器（需 -c "SHELL_CMD"）
+        $runScript = "$WslProjectRoot/scripts/wsl_run_remote.sh"
         $exitCode = 1
         try {
             wsl.exe -d Ubuntu -e bash "$runScript" @PassThruArgs

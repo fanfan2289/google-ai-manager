@@ -1229,7 +1229,7 @@
           </div>
 
           <div class="hold-actions">
-            <button id="btnHeroRunDrama" class="btn btn-emerald" onclick="switchView('runner')">⌨ 在此 GPU 上运行命令</button>
+            <button id="btnHeroRunCmd" class="btn btn-emerald" onclick="switchView('runner')">⌨ 在此 GPU 上运行命令</button>
             <button id="btnHeroClaimManual" class="btn btn-primary" onclick="claimManual()">🛠 认领手动使用（转 120m 兜底）</button>
             <button id="btnHeroExtend10" class="btn btn-amber" onclick="extendHold(10)">⏱ +10 分钟续期</button>
             <button id="btnHeroExtend20" class="btn btn-amber" onclick="extendHold(20)">⏱ +20 分钟</button>
@@ -1473,8 +1473,8 @@
               <span class="switch-track"></span>
               <span>运行前挂载 Google Drive（/content/drive）</span>
             </label>
-            <button id="btnStartDrama" class="btn btn-emerald" onclick="runCommandOnHold()">▶ 接管锁定 GPU 运行</button>
-            <button id="btnStopDrama" class="btn btn-danger" onclick="stopRemoteJob()">⏹ 中止并强杀 GPU</button>
+            <button id="btnStartRun" class="btn btn-emerald" onclick="runCommandOnHold()">▶ 接管锁定 GPU 运行</button>
+            <button id="btnStopRun" class="btn btn-danger" onclick="stopRemoteJob()">⏹ 中止并强杀 GPU</button>
           </div>
 
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
@@ -2075,7 +2075,7 @@ function renderState(st) {
     document.getElementById("btnHeroMount").disabled = hold.drive_status === "MOUNTING";
 
     const isJob = hold.state === "CLAIMED_JOB";
-    document.getElementById("btnHeroRunDrama").style.display = isJob ? "none" : "inline-flex";
+    document.getElementById("btnHeroRunCmd").style.display = isJob ? "none" : "inline-flex";
     document.getElementById("btnHeroClaimManual").style.display = hold.state === "HOLDING" ? "inline-flex" : "none";
     document.getElementById("btnHeroExtend10").style.display = isJob ? "none" : "inline-flex";
     document.getElementById("btnHeroExtend20").style.display = isJob ? "none" : "inline-flex";

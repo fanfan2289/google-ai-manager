@@ -71,7 +71,6 @@
 | `run -g L4 -c "nvidia-smi"` | 抢一台 GPU 运行一条命令，跑完自动关机 |
 | `auth` | 命令行方式登录 Colab 与授权云盘（一般用界面的一键授权即可） |
 | `monitor --open` | 只启动后端并用浏览器打开面板 |
-| `drama` | 示例工作流（见下方 `cloud_workstation/`） |
 
 ---
 
@@ -93,7 +92,6 @@ google-ai-manager/
 │   └── static/                 # 关于页图片
 ├── providers/                  # 额度插件：colab / google_storage / antigravity / flow_credits / gcp_credits
 │                               #   accounts_hub(多账号) / colab_sessions / remote_runner / benefits / selfcheck / netcfg / paths
-├── cloud_workstation/          # 示例工作流：ComfyUI + MiniMax-H3 短剧（与应用本身无关，可删除）
 └── tests/                      # 单元测试
 ```
 
