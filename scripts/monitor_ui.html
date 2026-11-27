@@ -831,14 +831,16 @@
   .meter > i.crit { background: var(--crimson); }
   /* Antigravity quota bars (v2.9.1, Antigravity Tools style) */
   .agq-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
-  .agq { border: 1px solid var(--border); border-radius: 9px; padding: 6px 8px 0; background: var(--bg-card); overflow: hidden; min-width: 0; }
+  .agq { border: 1px solid var(--border); border-radius: 9px; padding: 6px 8px 0; background: var(--bg-card); overflow: hidden; min-width: 0; container-type: inline-size; }
   .agq.wide { grid-column: 1 / -1; }
   .agq-grid.one { grid-template-columns: minmax(0, 1fr); }
   .agq-row { display: flex; align-items: center; gap: 5px; font-size: 12px; min-width: 0; }
   .agq-ico { width: 15px; height: 15px; flex-shrink: 0; }
-  .agq-name { font-weight: 700; color: var(--text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .agq-name { font-weight: 700; color: var(--text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex-shrink: 0; max-width: 62%; }
+  .agq-amt { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--text); white-space: nowrap; }
+  .agq-meta { font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .agq-win { font-size: 11px; font-weight: 700; color: var(--text-dim); white-space: nowrap; }
-  .agq-reset { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; white-space: nowrap; color: var(--text-blue); }
+  .agq-reset { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; white-space: nowrap; color: var(--text-blue); min-width: 0; overflow: hidden; }
   .agq-reset.soon { color: var(--text-amber); }
   .agq-pct { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text-emerald); }
   .agq-pct.warn { color: var(--text-amber); }
@@ -847,6 +849,13 @@
   .agq-bar > i { display: block; height: 100%; background: var(--emerald); }
   .agq-bar > i.warn { background: var(--amber); }
   .agq-bar > i.crit { background: var(--crimson); }
+  /* Narrow tiles: countdown / read time drop to a second line instead of squeezing the name */
+  @container (max-width: 235px) {
+    .agq-row { flex-wrap: wrap; row-gap: 1px; }
+    .agq-reset, .agq-meta { order: 9; flex-basis: 100%; font-size: 11px; }
+  }
+  .acct-stat .agq-bar { height: 3px; margin: 5px -8px -6px; }
+  .bn-tile .agq-grid { margin-top: 0; }
   .proxy-result { font-size: 12px; font-family: var(--mono); color: var(--text-muted); }
   .form-title { font-weight: 600; color: var(--text); }
   .form-desc { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
@@ -1010,6 +1019,12 @@
   .ov-big { font-family: var(--mono); font-size: 30px; font-weight: 700; color: var(--text-strong); line-height: 1.15; margin-top: 4px; }
   .ov-big span { font-size: 12px; color: var(--text-dim); font-weight: 500; margin-left: 4px; font-family: var(--sans); }
   .ov-big.dim { font-size: 17px; color: var(--text-muted); font-family: var(--sans); font-weight: 600; }
+  .ov-big.msg { font-size: 13.5px; line-height: 1.45; }
+  .ov-meter { display: flex; align-items: center; gap: 8px; margin: 8px 0 2px; }
+  .ov-meter .meter { flex: 1; }
+  .ov-meter b { font-size: 11.5px; font-weight: 700; color: var(--text-emerald); font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
+  .ov-meter b.warn { color: var(--text-amber); }
+  .ov-meter b.crit { color: var(--text-crimson); }
   .ov-line { font-size: 12px; color: var(--text-muted); }
   .ov-foot { font-size: 11px; color: var(--text-dim); margin-top: auto; }
   .ov-bars { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 8px; align-items: center; font-size: 11.5px; color: var(--text-muted); }
@@ -1045,7 +1060,7 @@
   .sess-sub { font-size: 10.5px; color: var(--text-dim); }
 
   /* Accounts Hub */
-  .acct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .acct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 12px; }
   .acct-card {
     background: var(--fill-deep);
     border: 1px solid var(--border);
@@ -1067,10 +1082,12 @@
   .acct-badges { display: flex; flex-wrap: wrap; gap: 5px; }
   .acct-badges .pill { padding: 1px 7px; font-size: 10.5px; }
   .acct-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-  .acct-stat { background: rgba(148, 163, 184, 0.06); border-radius: 7px; padding: 6px 8px; min-width: 0; }
+  .acct-stat { background: rgba(148, 163, 184, 0.06); border-radius: 7px; padding: 6px 8px; min-width: 0; overflow: hidden; }
   .acct-stat b { display: block; font-family: var(--mono); font-size: 13px; color: var(--text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .acct-stat span { font-size: 10.5px; color: var(--text-dim); }
   .acct-note { font-size: 11.5px; color: var(--text-muted); white-space: pre-wrap; word-break: break-word; }
+  .acct-note.web-line { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; white-space: normal; }
+  .web-line .web-btns { display: flex; gap: 6px; margin-left: auto; }
   .acct-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
   .acct-agg { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 12px; color: var(--text-muted);
               margin: -4px 0 12px; padding: 8px 10px; border-radius: 8px; background: rgba(148, 163, 184, 0.06); }
@@ -2408,8 +2425,11 @@ function ovMeter(frac, warnLow = true) {
   if (frac == null || isNaN(frac)) return "";
   const pct = Math.max(0, Math.min(100, frac * 100));
   const cls = warnLow ? (pct <= 5 ? "crit" : pct <= 20 ? "warn" : "") : (pct >= 95 ? "crit" : pct >= 80 ? "warn" : "");
-  return `<div class="meter"><i class="${cls}" style="width:${pct.toFixed(1)}%"></i></div>`;
+  return `<div class="ov-meter"><div class="meter"><i class="${cls}" style="width:${pct.toFixed(1)}%"></i></div><b class="${cls}">${fmtPct(frac * 100)}</b></div>`;
 }
+
+// Status / error text in place of a number: long messages get a smaller font so cards keep their shape.
+const ovMsg = (txt, style = "") => `<div class="ov-big dim${String(txt).length > 8 ? " msg" : ""}"${style ? ` style="${style}"` : ""}>${escHtml(txt)}</div>`;
 
 function ovGreeting() {
   const acct = ovAccount();
@@ -2440,7 +2460,8 @@ function renderOverview() {
   const colabPill = hold ? `<span class="pill amber">🔒 ${escHtml(hold.gpu)}</span>`
     : s.colab && s.colab.status !== "ok" ? `<span class="pill crimson">异常</span>` : "";
   const colab = ovCard("dashboard", "⚡", "Colab 算力", colabPill,
-    bal ? `<div class="ov-big">${fmtCcu(bal.remaining)}<span>CCU</span></div>` : `<div class="ov-big dim">${s.colab ? escHtml(s.colab.error || "无法读取") : "加载中..."}</div>`,
+    bal ? `<div class="ov-big">${fmtCcu(bal.remaining)}<span>CCU</span></div>${ovMeter(bal.remaining / QUOTA_MONTHLY.colab)}`
+        : ovMsg(s.colab ? s.colab.error || "无法读取" : "加载中..."),
     [hold ? `锁卡中 · 剩余 ${fmtMMSS(Math.max(0, (hold.expires_at_ts || 0) - Date.now() / 1000))}`
           : `${burn && burn.used ? burn.used.toFixed(2) + " CCU/hr · " : ""}${vms && vms.used ? vms.used + " 个实例" : (appState?.paused ? "监控已暂停" : "没有运行中的实例")}`],
     "AI Pro 每月 200 CCU");
@@ -2456,13 +2477,13 @@ function renderOverview() {
     const fe = fs.extra || {};
     const lite = (fe.estimates || [])[0];
     flow = ovCard("benefits", "🎬", "Flow 积分", fe.stale ? `<span class="pill amber">较旧</span>` : "",
-      `<div class="ov-big">${Math.round(m.remaining)}<span>积分</span></div>${m.total ? ovMeter(m.remaining / m.total) : ""}`,
+      `<div class="ov-big">${Math.round(m.remaining)}<span>积分</span></div>${ovMeter(m.remaining / (m.total || QUOTA_MONTHLY.flow))}`,
       [`近 7 天用了 ${fe.used_7d ?? 0}${lite ? ` · 约 ${lite.clips} 条视频` : ""}`],
       "AI Pro 每月 1000 积分 · 按订阅周期发放" + (fe.checked_at_iso ? " · 读取于 " + fmtWhen(fe.checked_at_iso) : ""));
   } else {
     const connected = hasFlowBridge() ? Boolean(flowConnected[acct]) : fs && fs.status === "error";
     flow = ovCard("accounts", "🎬", "Flow 积分", `<span class="pill ${fs?.status === "error" ? "crimson" : ""}">${fs?.status === "error" ? "读取失败" : connected ? "等待读取" : "未连接"}</span>`,
-      `<div class="ov-big dim">${escHtml(fs?.status === "error" ? fs.error || "读取失败" : connected ? "等待首次读取" : "未连接")}</div>`,
+      ovMsg(fs?.status === "error" ? fs.error || "读取失败" : connected ? "等待首次读取" : "未连接"),
       [connected ? "" : "在账号管理的账号卡片上点「🔗 连接」"], "AI Pro 每月 1000 积分");
   }
 
@@ -2474,7 +2495,7 @@ function renderOverview() {
       ["设置 → 实验功能 → Google Cloud 赠金"], "开发者计划每月 $10");
   } else if (gs && gs.status === "ok" && (gs.metrics || []).length) {
     const m = gs.metrics[0];
-    gcp = ovCard("benefits", "☁️", "Cloud 赠金", "", `<div class="ov-big">${escHtml(m.unit || "$")}${Number(m.remaining).toFixed(2)}<span>剩余</span></div>`,
+    gcp = ovCard("benefits", "☁️", "Cloud 赠金", "", `<div class="ov-big">${escHtml(m.unit || "$")}${Number(m.remaining).toFixed(2)}<span>剩余</span></div>${ovMeter(Number(m.remaining) / QUOTA_MONTHLY.gcp)}`,
       [gs.extra?.checked_at_iso ? `读取于 ${escHtml(fmtWhen(gs.extra.checked_at_iso))}` : ""], "开发者计划每月 $10 · 每笔 12 个月有效");
   } else if (gs && gs.status === "ok" && gs.extra?.trial_state === "available") {
     gcp = ovCard("benefits", "☁️", "Cloud 赠金", "", `<div class="ov-big dim" style="color:var(--text-amber);">$300 可领</div>`,
@@ -2485,7 +2506,7 @@ function renderOverview() {
       [short], "开发者计划每月 $10 · " + (gs.extra?.state_text || ""));
   } else {
     gcp = ovCard("accounts", "☁️", "Cloud 赠金", `<span class="pill ${gs?.status === "error" ? "crimson" : ""}">${gs?.status === "error" ? "读取失败" : "未读取"}</span>`,
-      `<div class="ov-big dim">${escHtml(gs?.status === "error" ? gs.error || "读取失败" : "等待读取")}</div>`, [], "开发者计划每月 $10");
+      ovMsg(gs?.status === "error" ? gs.error || "读取失败" : "等待读取"), [], "开发者计划每月 $10");
   }
 
   // Drive
@@ -2493,7 +2514,7 @@ function renderOverview() {
   const trashM = metricOf(s.google_storage, "storage_trash");
   const drive = ovCard("benefits", "💾", "云盘存储", s.google_storage?.status === "unauthorized" ? `<span class="pill crimson">需重新授权</span>` : "",
     st ? `<div class="ov-big">${fmtBytes(st.used)}<span>/ ${st.total ? fmtBytes(st.total) : "--"}</span></div>${st.total ? ovMeter(st.used / st.total, false) : ""}`
-       : `<div class="ov-big dim">${escHtml(s.google_storage?.error || "无法读取")}</div>`,
+       : ovMsg(s.google_storage?.error || "无法读取"),
     [trashM && trashM.used > 1024 ** 3 ? `回收站 ${fmtBytes(trashM.used)}` : ""], "Google One · Drive / Gmail / 相册共用；点开看空间构成");
 
   // Antigravity
@@ -2503,10 +2524,10 @@ function renderOverview() {
     const first = re => (ag.metrics || []).find(m => re.test(m.label));
     const g = first(/^Gemini/), c = first(/Claude/);
     const pct = m => (m ? (pctOf(m) ?? 0).toFixed(0) + "%" : "--");
-    agBody = `<div class="ov-big">${pct(g)}<span>Gemini</span></div>`;
+    agBody = `<div class="ov-big">${pct(g)}<span>Gemini</span></div>${g ? ovMeter((pctOf(g) ?? 0) / 100) : ""}`;
     agLine2 = `Claude / GPT ${pct(c)} · 5 小时窗口`;
   } else {
-    agBody = `<div class="ov-big dim">${escHtml(ag?.error || "未检测到 Antigravity Tools")}</div>`;
+    agBody = ovMsg(ag?.error || "未检测到 Antigravity Tools");
   }
   const agCard = ovCard("benefits", "🛸", "Antigravity 反重力", ag?.extra?.stale ? `<span class="pill amber">较旧</span>` : "", agBody,
     [agLine2], "5 小时 + 每周双窗口" + (ag?.extra?.last_updated_iso ? " · 缓存更新于 " + fmtWhen(ag.extra.last_updated_iso) : ""));
@@ -3337,11 +3358,14 @@ function renderAccountCard(r) {
   (meta.tags || []).forEach(t => b.push(`<span class="pill">#${escHtml(t)}</span>`));
   const loading = !acctOverview;
   const stats = `<div class="acct-stats">
-      <div class="acct-stat"><b>${loading ? "…" : bal ? fmtCcu(bal.remaining) : "--"}</b><span>CCU 余额</span></div>
+      <div class="acct-stat" title="相对 AI Pro 每月 ${QUOTA_MONTHLY.colab} CCU"><b>${loading ? "…" : bal ? fmtCcu(bal.remaining) : "--"}</b><span>CCU 余额${bal ? " · " + fmtPct(bal.remaining / QUOTA_MONTHLY.colab * 100) : ""}</span>
+        ${bal ? `<div class="agq-bar"><i class="${remCls(bal.remaining / QUOTA_MONTHLY.colab * 100)}" style="width:${Math.min(100, bal.remaining / QUOTA_MONTHLY.colab * 100).toFixed(1)}%"></i></div>` : ""}</div>
       <div class="acct-stat"><b>${loading ? "…" : vms ? `${vms.used} VM` : "--"}</b><span>${burn && burn.used ? `${burn.used.toFixed(2)} CCU/hr` : "运行中实例"}</span></div>
-      <div class="acct-stat"><b>${loading ? "…" : stor ? fmtBytes(stor.used) : "--"}</b><span>${stor && stor.total ? `/ ${fmtBytes(stor.total)}` : "云端存储"}</span></div>
+      <div class="acct-stat"><b>${loading ? "…" : stor ? fmtBytes(stor.used) : "--"}</b><span>${stor && stor.total ? `/ ${fmtBytes(stor.total)} · ${fmtPct(stor.used / stor.total * 100)}` : "云端存储"}</span>
+        ${stor && stor.total ? `<div class="agq-bar"><i class="${usedCls(stor.used / stor.total * 100)}" style="width:${Math.min(100, stor.used / stor.total * 100).toFixed(1)}%"></i></div>` : ""}</div>
     </div>`;
   const nm = escHtml(r.name);
+  const web = acctWeb(snaps, r.name);
   return `<div class="acct-card${cur ? " current" : ""}">
     <div class="acct-card-head">
       <span class="acct-dot ${escHtml(meta.color || "")}"></span>
@@ -3352,9 +3376,8 @@ function renderAccountCard(r) {
     </div>
     <div class="acct-badges">${b.join("")}</div>
     ${stats}
-    ${agBars(snaps.antigravity)}
-    ${flowLine(snaps.flow_credits, r.name)}
-    ${gcpLine(snaps.gcp_credits, r.name)}
+    ${qGrid([...agTiles(snaps.antigravity), ...web.tiles])}
+    ${web.note}
     ${colabErr && !loading ? `<div class="prov-err">Colab：${escHtml(colabErr)}</div>` : ""}
     ${storBad && !loading ? `<div class="prov-err">云盘：${escHtml(snaps.google_storage.error || "")}</div>` : ""}
     ${meta.note ? `<div class="acct-note">${escHtml(meta.note)}</div>` : ""}
@@ -3735,29 +3758,76 @@ const AGQ_ICON = {
 };
 const AGQ_CLOCK = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.6V8l2.3 1.6"/></svg>`;
 
+Object.assign(AGQ_ICON, {
+  colab: `<svg class="agq-ico" viewBox="0 0 16 16"><path d="M9.6 1 3 9.2h4.3L6.4 15 13 6.8H8.7z" fill="#F9AB00"/></svg>`,
+  flow: `<svg class="agq-ico" viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="2.4" fill="#EA4335"/><path d="M6.6 5.6v4.8L10.6 8z" fill="#fff"/></svg>`,
+  cloud: `<svg class="agq-ico" viewBox="0 0 16 16"><path d="M4.6 13a3.1 3.1 0 0 1-.4-6.2 4.1 4.1 0 0 1 7.9-1A3.6 3.6 0 0 1 11.7 13z" fill="#4285F4"/></svg>`,
+  drive: `<svg class="agq-ico" viewBox="0 0 16 16"><rect x="1.5" y="4" width="13" height="8" rx="2" fill="#34A853"/><circle cx="11.6" cy="8" r="1.1" fill="#fff"/></svg>`,
+});
+
+// Monthly AI Pro allowances used as the 100 % mark for credit bars (balances can exceed them: rollover / top-ups).
+const QUOTA_MONTHLY = { colab: 200, flow: 1000, gcp: 10 };
+const remCls = p => (p == null ? "" : p <= 5 ? "crit" : p <= 20 ? "warn" : "");
+const usedCls = p => (p == null ? "" : p >= 95 ? "crit" : p >= 80 ? "warn" : "");
+function fmtPct(p) {
+  if (p == null || isNaN(p)) return "--";
+  if (p > 0 && p < 0.1) return "<0.1%";
+  return p.toFixed(p >= 99.95 || p === 0 ? 0 : 1) + "%";
+}
+
+// One quota tile, the same everywhere (Antigravity Tools style): icon · name · amount · meta …… value, bar underneath.
+function qTile({ ico = "", name = "", amt = "", win = "", meta = "", value = "", pct = null, cls = "", wide = false, tip = "" }) {
+  const w = pct == null || isNaN(pct) ? 0 : Math.max(0, Math.min(100, pct));
+  return `<div class="agq${wide ? " wide" : ""}"${tip ? ` title="${escHtml(tip)}"` : ""}>
+      <div class="agq-row">${ico}<span class="agq-name">${escHtml(name)}</span>${amt ? `<span class="agq-amt">${escHtml(amt)}</span>` : ""}${win ? `<span class="agq-win">${escHtml(win)}</span>` : ""}${meta}
+        <span class="agq-pct ${cls}">${escHtml(value)}</span></div>
+      <div class="agq-bar"><i class="${cls}" style="width:${w.toFixed(1)}%"></i></div></div>`;
+}
+const qGrid = (tiles, oneCol = false) => (tiles.length ? `<div class="agq-grid${oneCol ? " one" : ""}">${tiles.join("")}</div>` : "");
+const qMeta = txt => (txt ? `<span class="agq-meta">${escHtml(txt)}</span>` : "");
+
+function colabTile(bal, name = "Colab", wide = true) {
+  const v = bal?.remaining ?? 0, pct = v / QUOTA_MONTHLY.colab * 100;
+  return qTile({ ico: AGQ_ICON.colab, name, amt: `${fmtCcu(v)} CCU`, value: fmtPct(pct), pct, cls: remCls(pct), wide,
+    tip: `相对 AI Pro 每月 ${QUOTA_MONTHLY.colab} CCU；余额可能含往月结余或另购的计算单元` });
+}
+function flowTile(m, ex = {}, name = "Flow", wide = true, showWhen = true) {
+  const v = Math.round(m?.remaining ?? 0), total = m?.total || QUOTA_MONTHLY.flow, pct = v / total * 100;
+  const when = showWhen && ex.checked_at_iso ? fmtWhen(ex.checked_at_iso) + (ex.stale ? "（较旧）" : "") : "";
+  return qTile({ ico: AGQ_ICON.flow, name, amt: `${v} 积分`, meta: qMeta(when), value: fmtPct(pct), pct, cls: remCls(pct), wide,
+    tip: `相对 AI Pro 每月 ${total} 积分${ex.checked_at_iso ? " · 读取于 " + fmtWhen(ex.checked_at_iso) : ""}` });
+}
+function gcpTile(m, ex = {}, name = "Cloud 赠金", wide = true, showWhen = true) {
+  const v = Number(m?.remaining ?? 0), pct = v / QUOTA_MONTHLY.gcp * 100;
+  const when = showWhen && ex.checked_at_iso ? fmtWhen(ex.checked_at_iso) : "";
+  return qTile({ ico: AGQ_ICON.cloud, name, amt: `${m?.unit || "$"}${v.toFixed(2)}`, meta: qMeta(when), value: fmtPct(pct), pct, cls: remCls(pct), wide,
+    tip: `相对开发者计划每月 $${QUOTA_MONTHLY.gcp}；每笔赠金 12 个月有效` });
+}
+function driveTile(t, name = "云盘", wide = true) {
+  const pct = t.total ? t.used / t.total * 100 : null;
+  return qTile({ ico: AGQ_ICON.drive, name, amt: `${fmtBytes(t.used)} / ${t.total ? fmtBytes(t.total) : "--"}`, value: pct == null ? "--" : fmtPct(pct),
+    pct, cls: usedCls(pct), wide, tip: "已用 / 总容量（Drive、Gmail、相册共用）" });
+}
+
 // Antigravity windows as bar tiles: "<group> · <window>" metrics from providers/antigravity.py.
-function agBars(snap, oneCol = false) {
-  if (!snap || snap.status !== "ok") return "";
+function agBars(snap, oneCol = false) { return qGrid(agTiles(snap), oneCol); }
+
+function agTiles(snap) {
+  if (!snap || snap.status !== "ok") return [];
   const ms = snap.metrics || [];
-  if (!ms.length) return "";
   const counts = {};
   ms.forEach(m => { const g = String(m.label || "").split(" · ")[0]; counts[g] = (counts[g] || 0) + 1; });
-  const tiles = ms.map(m => {
+  return ms.map(m => {
     const [group, win] = String(m.label || "").split(" · ");
     const name = (group || "").replace("Gemini Models", "Gemini").replace("Claude and GPT models", "Claude / GPT");
     const pct = pctOf(m) ?? 0;
-    const cls = pct <= 5 ? "crit" : pct <= 20 ? "warn" : "";
     const left = m.reset_at_iso ? (new Date(m.reset_at_iso).getTime() - Date.now()) / 1000 : null;
     const winTxt = win === "5 小时" ? "5H" : win === "每周" ? "周配额" : win === "每日" ? "日配额" : (win || "");
     const tip = [m.label, m.reset_at_iso ? fmtReset(m.reset_at_iso) : "", m.detail || ""].filter(Boolean).join(" · ");
-    return `<div class="agq${counts[group] === 1 ? " wide" : ""}" title="${escHtml(tip)}">
-      <div class="agq-row">${/gemini/i.test(group) ? AGQ_ICON.gemini : AGQ_ICON.other}<span class="agq-name">${escHtml(name)}</span>
-        <span class="agq-win">${escHtml(winTxt)}</span>
-        ${m.reset_at_iso ? `<span class="agq-reset${left != null && left < 86400 ? " soon" : ""}">${AGQ_CLOCK}${escHtml(fmtCountdown(m.reset_at_iso))}</span>` : ""}
-        <span class="agq-pct ${cls}">${pct.toFixed(pct >= 99.95 || pct === 0 ? 0 : 1)}%</span></div>
-      <div class="agq-bar"><i class="${cls}" style="width:${Math.min(100, pct).toFixed(1)}%"></i></div></div>`;
+    const meta = m.reset_at_iso ? `<span class="agq-reset${left != null && left < 86400 ? " soon" : ""}">${AGQ_CLOCK}${escHtml(fmtCountdown(m.reset_at_iso))}</span>` : "";
+    return qTile({ ico: /gemini/i.test(group) ? AGQ_ICON.gemini : AGQ_ICON.other, name, win: winTxt, meta,
+      value: fmtPct(pct), pct, cls: remCls(pct), wide: counts[group] === 1, tip });
   });
-  return `<div class="agq-grid${oneCol ? " one" : ""}">${tiles.join("")}</div>`;
 }
 
 // ---------------------------------------------------------------- Google Flow credits (v2.4, experimental)
@@ -3784,43 +3854,48 @@ function webButtons(name, connected) {
     : `<button class="btn btn-sm btn-primary" data-act="flow-connect" data-name="${nm}">🔗 连接</button>`;
 }
 
-function gcpLine(snap, name) {
-  if (!appState?.config?.gcp_credits_on) return "";
-  const ex = snap?.extra || {};
-  let text;
-  if (snap && snap.status === "ok" && (snap.metrics || []).length) {
-    const m = snap.metrics[0];
-    text = `☁️ Cloud 赠金剩余 <b>${escHtml(m.unit || "$")}${Number(m.remaining).toFixed(2)}</b>${ex.checked_at_iso ? ` · ${escHtml(fmtWhen(ex.checked_at_iso))}` : ""}`;
-  } else if (snap && snap.status === "ok") {
-    text = `☁️ Cloud 赠金：<span style="color:var(--text-amber);">${escHtml(ex.state_text || "未领取")}</span>
-      <a style="cursor:pointer;color:var(--text-blue);" onclick="openExternal('${escHtml(ex.setup_url || "https://developers.google.com/program/my-benefits")}')">去领取 ↗</a>`;
-  } else if (snap && snap.status === "error") {
-    text = `☁️ Cloud 赠金：<span style="color:var(--text-crimson);">${escHtml(snap.error || "读取失败")}</span>`;
-  } else {
-    text = `☁️ Cloud 赠金：${hasFlowBridge() && flowConnected[name] ? "已连接，等待首次读取（约 30 秒）" : "未连接"}`;
+// Flow / Cloud credits on an account card: tiles for the numbers, one line for state + web-reading buttons.
+function acctWeb(snaps, name) {
+  const cfg = appState?.config || {};
+  if (!cfg.flow_credits_on && !cfg.gcp_credits_on) return { tiles: [], note: "" };
+  const f = snaps.flow_credits, g = snaps.gcp_credits;
+  const fx = f?.extra || {}, gx = g?.extra || {};
+  const tiles = [], msgs = [];
+  let when = null;
+  const known = snap => snap && !["not_configured", "unavailable"].includes(snap.status);
+  const connected = hasFlowBridge() ? Boolean(flowConnected[name])
+    : Boolean(known(f) && fx.connected !== false) || Boolean(known(g));
+  if (cfg.flow_credits_on) {
+    if (f?.status === "ok") {
+      tiles.push(m => flowTile((f.metrics || [])[0], fx, "Flow", m, false));
+      when = fx.checked_at_iso || when;
+      if (fx.stale) msgs.push(`<span style="color:var(--text-amber);">Flow 数据较旧</span>`);
+    } else if (f?.status === "error") {
+      const last = typeof fx.last_credits === "number" ? `（上次 ${fx.last_credits}）` : "";
+      msgs.push(`🎬 Flow：<span style="color:var(--text-crimson);">${escHtml(f.error || "读取失败")}</span>${last}`);
+    } else {
+      msgs.push(`🎬 Flow 积分：${connected ? "已连接，等待首次读取" : "未连接"}`);
+    }
   }
-  const btns = appState?.config?.flow_credits_on ? "" : webButtons(name, hasFlowBridge() ? Boolean(flowConnected[name]) : false);
-  return `<div class="acct-note" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span>${text}</span>${btns}</div>`;
-}
-
-function flowLine(snap, name) {
-  if (!appState?.config?.flow_credits_on) return "";
-  const nm = escHtml(name);
-  const ex = snap?.extra || {};
-  const known = snap && !["not_configured", "unavailable"].includes(snap.status);
-  const connected = hasFlowBridge() ? Boolean(flowConnected[name]) : Boolean(known) && ex.connected !== false;
-  let text;
-  if (snap && snap.status === "ok") {
-    const m = (snap.metrics || [])[0] || {};
-    text = `🎬 Flow 积分 <b>${Math.round(m.remaining ?? 0)}</b>${ex.checked_at_iso ? ` · ${escHtml(fmtWhen(ex.checked_at_iso))}` : ""}${ex.stale ? "（较旧）" : ""}`;
-  } else if (snap && snap.status === "error") {
-    const last = typeof ex.last_credits === "number" ? `（上次 ${ex.last_credits}）` : "";
-    text = `🎬 Flow：<span style="color:var(--text-crimson);">${escHtml(snap.error || "读取失败")}</span>${last}`;
-  } else {
-    text = `🎬 Flow 积分：${connected ? "已连接，等待首次读取" : "未连接"}`;
+  if (cfg.gcp_credits_on) {
+    if (g?.status === "ok" && (g.metrics || []).length) {
+      tiles.push(m => gcpTile(g.metrics[0], gx, "Cloud 赠金", m, false));
+      when = when || gx.checked_at_iso;
+    } else if (g?.status === "ok") {
+      msgs.push(`☁️ Cloud 赠金：<span style="color:var(--text-amber);">${escHtml(gx.state_text || "未领取")}</span>
+        <a style="cursor:pointer;color:var(--text-blue);" onclick="openExternal('${escHtml(gx.setup_url || "https://developers.google.com/program/my-benefits")}')">去领取 ↗</a>`);
+      when = when || gx.checked_at_iso;
+    } else if (g?.status === "error") {
+      msgs.push(`☁️ Cloud 赠金：<span style="color:var(--text-crimson);">${escHtml(g.error || "读取失败")}</span>`);
+    } else {
+      msgs.push(`☁️ Cloud 赠金：${connected ? "已连接，等待首次读取（约 30 秒）" : "未连接"}`);
+    }
   }
   const btns = webButtons(name, connected);
-  return `<div class="acct-note" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span>${text}</span>${btns}</div>`;
+  const whenTxt = when ? `<span class="agq-meta">网页读取于 ${escHtml(fmtWhen(when))}</span>` : "";
+  const note = msgs.length || btns || whenTxt
+    ? `<div class="acct-note web-line">${msgs.map(m => `<span>${m}</span>`).join("")}${whenTxt}<span class="web-btns">${btns}</span></div>` : "";
+  return { tiles: tiles.map(t => t(tiles.length === 1)), note };
 }
 
 async function flowConnect(name) {
@@ -3867,29 +3942,25 @@ function benefitLive(b) {
   const ms = s.metrics || [];
   if (b.provider === "antigravity") return agBars(s, true);
   if (ms[0]?.unit === "%") return `<div class="bn-live">${ms.slice(0, 4).map(renderPctLine).join("")}</div>`;
+  const ex = s.extra || {};
+  const readFoot = (extra = "") => `<div class="prov-foot">${ex.checked_at_iso ? "读取于 " + escHtml(fmtWhen(ex.checked_at_iso)) + extra + " · " : ""}实验性</div>`;
   if (b.provider === "google_storage") {
     const t = ms.find(m => m.key === "storage_total");
-    return t ? `<div class="bn-live"><span>已用 <b>${fmtBytes(t.used)}</b>${t.total ? ` / ${fmtBytes(t.total)}` : ""}</span>
-      ${t.total ? `<div class="meter"><i style="width:${Math.min(100, t.used / t.total * 100).toFixed(1)}%"></i></div>` : ""}</div>` : "";
+    if (!t) return "";
+    return t.total ? qGrid([driveTile(t, "已用")], true) : `<div class="bn-live"><span>已用 <b>${fmtBytes(t.used)}</b></span></div>`;
   }
   if (b.provider === "colab") {
     const bal = ms.find(m => m.key === "ccu_balance");
-    return bal ? `<div class="bn-live"><span>当前余额 <b>${fmtCcu(bal.remaining)}</b> CCU</span></div>` : "";
+    return bal ? qGrid([colabTile(bal, "当前余额")], true) : "";
   }
   if (b.provider === "gcp_credits") {
-    const ex = s.extra || {};
     const m = ms[0];
-    if (m) return `<div class="bn-live"><span>开发者计划赠金剩余 <b>${escHtml(m.unit || "$")}${Number(m.remaining).toFixed(2)}</b></span>
-      <span class="prov-foot">${ex.checked_at_iso ? "读取于 " + escHtml(fmtWhen(ex.checked_at_iso)) : ""} · 实验性</span></div>`;
-    return `<div class="bn-live"><span style="color:var(--text-amber);">${escHtml(ex.state_text || "未领取")}</span>
-      <span class="prov-foot">${ex.checked_at_iso ? "读取于 " + escHtml(fmtWhen(ex.checked_at_iso)) : ""} · 实验性</span></div>`;
+    if (m) return qGrid([gcpTile(m, ex, "剩余", true, false)], true) + readFoot();
+    return `<div class="bn-live"><span style="color:var(--text-amber);">${escHtml(ex.state_text || "未领取")}</span></div>` + readFoot();
   }
   if (b.provider === "flow_credits") {
     const m = ms[0];
-    const ex = s.extra || {};
-    return m ? `<div class="bn-live"><span>当前余额 <b>${Math.round(m.remaining)}</b> 积分</span>
-      ${m.total ? `<div class="meter"><i style="width:${Math.min(100, m.remaining / m.total * 100).toFixed(1)}%"></i></div>` : ""}
-      <span class="prov-foot">${ex.checked_at_iso ? "读取于 " + escHtml(fmtWhen(ex.checked_at_iso)) : ""}${ex.stale ? "（较旧）" : ""} · 实验性</span></div>` : "";
+    return m ? qGrid([flowTile(m, ex, "当前余额", true, false)], true) + readFoot(ex.stale ? "（较旧）" : "") : "";
   }
   return "";
 }
