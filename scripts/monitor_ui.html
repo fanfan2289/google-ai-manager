@@ -114,7 +114,7 @@
   :root[data-theme="light"] .icon-btn.danger { background: var(--crimson-soft); border-color: var(--crimson-border); }
   :root[data-theme="light"] .appbar { box-shadow: 0 1px 0 var(--border); border-bottom-color: transparent; }
   :root[data-theme="light"] .hold-hero { box-shadow: 0 6px 20px rgba(245, 158, 11, 0.10); }
-  :root[data-theme="light"] .brand-icon { box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25); }
+  :root[data-theme="light"] .brand-icon { box-shadow: 0 4px 12px rgba(155, 114, 203, 0.30); }
   :root[data-theme="light"] .status-dot { box-shadow: none; }
   :root[data-theme="light"] .content-scroll::-webkit-scrollbar-thumb { background: rgba(15, 23, 42, 0.18); }
   :root[data-theme="light"] .seg-btn.active-amber { color: #1f1300; }
@@ -163,11 +163,11 @@
     width: 34px;
     height: 34px;
     border-radius: 10px;
-    background: linear-gradient(135deg, #2563eb 0%, #10b981 100%);
+    background: linear-gradient(135deg, #4285F4 0%, #9B72CB 52%, #D96570 100%);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+    box-shadow: 0 4px 14px rgba(155, 114, 203, 0.35);
     flex-shrink: 0;
   }
   .brand-title {
@@ -900,8 +900,8 @@
   .set-pane.on { display: flex; }
   .about-card { padding: 30px 26px; }
   .about-hero { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; margin-bottom: 24px; }
-  .about-logo { width: 92px; height: 92px; border-radius: 24px; background: linear-gradient(135deg, #2563eb 0%, #10b981 100%);
-                display: flex; align-items: center; justify-content: center; box-shadow: 0 14px 34px rgba(37, 99, 235, 0.30); }
+  .about-logo { width: 92px; height: 92px; border-radius: 24px; background: linear-gradient(135deg, #4285F4 0%, #9B72CB 52%, #D96570 100%);
+                display: flex; align-items: center; justify-content: center; box-shadow: 0 14px 34px rgba(155, 114, 203, 0.32); }
   .about-hero h2 { font-size: 26px; font-weight: 800; color: var(--text-strong); margin-top: 8px; }
   .about-sub { font-size: 12.5px; color: var(--text-dim); }
   .about-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px; }
@@ -1092,11 +1092,7 @@
   <header class="appbar">
     <div class="brand">
       <div class="brand-icon">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="4" y="4" width="16" height="16" rx="3"></rect>
-          <rect x="9" y="9" width="6" height="6"></rect>
-          <path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"></path>
-        </svg>
+        <svg width="30" height="30" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M18.88 47.68A18.56 18.56 0 1 1 45.12 47.68" stroke="#fff" stroke-opacity=".38" stroke-width="5.44" stroke-linecap="round"/><path d="M18.88 47.68A18.56 18.56 0 0 1 45.12 21.44" stroke="#fff" stroke-width="5.44" stroke-linecap="round"/><path d="M32 23.68Q33.31 33.25 40.92 34.56Q33.31 35.87 32 45.44Q30.69 35.87 23.08 34.56Q30.69 33.25 32 23.68Z" fill="#fff"/></svg>
       </div>
       <div>
         <div class="brand-title">Google AI Manager</div>
@@ -1790,9 +1786,7 @@
           <div class="card about-card">
             <div class="about-hero">
               <div class="about-logo">
-                <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="4" y="4" width="16" height="16" rx="3"></rect><rect x="9" y="9" width="6" height="6"></rect>
-                  <path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"></path></svg>
+                <svg width="80" height="80" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M18.88 47.68A18.56 18.56 0 1 1 45.12 47.68" stroke="#fff" stroke-opacity=".38" stroke-width="5.44" stroke-linecap="round"/><path d="M18.88 47.68A18.56 18.56 0 0 1 45.12 21.44" stroke="#fff" stroke-width="5.44" stroke-linecap="round"/><path d="M32 23.68Q33.31 33.25 40.92 34.56Q33.31 35.87 32 45.44Q30.69 35.87 23.08 34.56Q30.69 33.25 32 23.68Z" fill="#fff"/></svg>
               </div>
               <h2>Google AI Manager</h2>
               <div class="about-sub"><span id="aboutVersion">v--</span> · Google AI Pro 额度与 Colab 算力管理</div>
@@ -2703,10 +2697,12 @@ async function sessAct(i, action) {
   }
   if (action === "terminal") {
     if (window.pywebview?.api?.open_session_terminal) {
+      showToast("正在确认会话并打开终端...", "amber");
       const res = await window.pywebview.api.open_session_terminal(r.account, r.name);
       if (!res?.ok) showToast(res?.error || "无法打开终端", "crimson");
+      else showToast("终端已在新窗口打开（首次使用会自动生成本工具专用 SSH 密钥）", "emerald");
     } else {
-      copyText(`colab -a ${r.account} ssh -s ${r.name}`);
+      copyText(`colab -a ${r.account} ssh -s ${r.name} --rm`);
       showToast("浏览器模式无法直接打开终端，已复制命令，请在 WSL 中运行", "amber");
     }
     return;

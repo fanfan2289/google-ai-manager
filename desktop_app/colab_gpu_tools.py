@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ctypes
 import json
+import math
 import os
 import re
 import shlex
@@ -62,7 +63,7 @@ EXTERNAL_URL_PREFIXES = (
 APP_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = APP_DIR.parent
 LOGS_DIR = PROJECT_DIR / "logs"
-ICON_PATH = APP_DIR / "colab_gpu_tools.ico"
+ICON_PATH = APP_DIR / "google_ai_manager.ico"
 DESKTOP_LOG_PATH = LOGS_DIR / "desktop_app.log"
 WEBVIEW_STORAGE_DIR = APP_DIR / "webview_data"
 
@@ -72,6 +73,7 @@ DOWNLOADS_DIR = PROJECT_DIR / "downloads"
 # Must match providers/colab_sessions.py (the backend re-validates everything it receives).
 _SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _ACCOUNT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+-]{0,63}$")
+TERMINAL_KEY_NAME = "gam_colab_ed25519"  # app-owned key pair in WSL ~/.ssh (never the user's own keys)
 _BACKEND_PROC: subprocess.Popen[Any] | None = None
 _BACKEND_LOG_FH: Any = None
 
@@ -101,69 +103,94 @@ def _ensure_single_instance() -> Any:
     return mutex
 
 
+# Gemini-style blue → violet → rose (brand colours only; the gauge + sparkle shape is our own).
+ICON_GRADIENT = ((66, 133, 244), (155, 114, 203), (217, 101, 112))
+ICON_SIZES = (256, 128, 64, 48, 32, 24, 16)
+
+
+def _lerp_stops(t: float) -> tuple[int, int, int, int]:
+    stops = ICON_GRADIENT
+    t = min(1.0, max(0.0, t)) * (len(stops) - 1)
+    i = min(int(t), len(stops) - 2)
+    f = t - i
+    a, b = stops[i], stops[i + 1]
+    return (*(round(a[k] + (b[k] - a[k]) * f) for k in range(3)), 255)
+
+
+def _sparkle(cx: float, cy: float, r: float, waist: float) -> list[tuple[float, float]]:
+    """Four-point sparkle: tips joined by inward-curving quadratic sides (taller than wide)."""
+    tips = [(0.0, -r), (r * 0.82, 0.0), (0.0, r), (-r * 0.82, 0.0)]
+    pts: list[tuple[float, float]] = []
+    for i in range(4):
+        (x0, y0), (x1, y1) = tips[i], tips[(i + 1) % 4]
+        qx = waist if (x0 + x1) > 0 else -waist  # control point near the centre
+        qy = waist if (y0 + y1) > 0 else -waist
+        for step in range(12):
+            t = step / 12
+            u = 1 - t
+            pts.append((cx + u * u * x0 + 2 * u * t * qx + t * t * x1,
+                        cy + u * u * y0 + 2 * u * t * qy + t * t * y1))
+    return pts
+
+
 def _draw_app_icon(dot_color: tuple[int, int, int, int] | None = None, size: int = 64) -> Image.Image:
-    """Draw a crisp rounded-square dark blue/emerald GPU chip icon with optional status dot."""
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
+    """Quota gauge + sparkle on a Gemini-style gradient tile, with an optional status dot.
 
-    # Outer rounded card (gradient approximation: rich indigo-blue fill + subtle border)
-    pad = max(2, size // 16)
-    r = max(8, size // 4)
-    draw.rounded_rectangle(
-        [pad, pad, size - pad, size - pad],
-        radius=r,
-        fill=(18, 36, 74, 255),
-        outline=(59, 130, 246, 255),
-        width=max(2, size // 24),
-    )
+    Drawn 4x larger and downsampled for smooth edges; strokes get thicker at small sizes.
+    """
+    ss = 4
+    S = size * ss
+    small = size <= 24
+    # Diagonal gradient (top-left → bottom-right)
+    grad = Image.new("RGBA", (S, S))
+    gd = ImageDraw.Draw(grad)
+    for i in range(2 * S):
+        gd.line([(i, 0), (0, i)], fill=_lerp_stops(i / (2 * S - 1)), width=2)
+    mask = Image.new("L", (S, S), 0)
+    pad = S * 0.03
+    ImageDraw.Draw(mask).rounded_rectangle([pad, pad, S - pad, S - pad], radius=S * 0.24, fill=255)
+    img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    img.paste(grad, (0, 0), mask)
+    # Gauge: faint full track (bottom-left → over the top → bottom-right) + bright progress arc.
+    cx, cy = S * 0.5, S * 0.54
+    rad = S * (0.29 if not small else 0.30)
+    w = S * (0.085 if not small else 0.13)
+    half = w / 2
+    # PIL strokes arcs inward from the box edge: widen the box by w/2 so the stroke is centred on `rad`.
+    box = [cx - rad - half, cy - rad - half, cx + rad + half, cy + rad + half]
 
-    # Inner GPU chip silhouette
-    c1 = int(size * 0.27)
-    c2 = int(size * 0.73)
-    draw.rounded_rectangle(
-        [c1, c1, c2, c2],
-        radius=max(4, size // 12),
-        fill=(16, 185, 129, 255),
-        outline=(236, 253, 245, 230),
-        width=max(1, size // 32),
-    )
-    # Inner core square
-    m1 = int(size * 0.40)
-    m2 = int(size * 0.60)
-    draw.rounded_rectangle(
-        [m1, m1, m2, m2],
-        radius=max(2, size // 24),
-        fill=(10, 13, 20, 255),
-    )
+    def stroke(layer: Image.Image, start: float, end: float) -> None:
+        d = ImageDraw.Draw(layer)
+        d.arc(box, start, end, fill=(255, 255, 255, 255), width=round(w))
+        for deg in (start, end):  # round caps
+            x, y = cx + rad * math.cos(math.radians(deg)), cy + rad * math.sin(math.radians(deg))
+            d.ellipse([x - half, y - half, x + half, y + half], fill=(255, 255, 255, 255))
 
-    # Pins
-    pin_w = max(2, size // 24)
-    pin_len = max(4, size // 10)
-    for frac in (0.38, 0.62):
-        pos = int(size * frac)
-        draw.line([(pos, c1 - pin_len), (pos, c1)], fill=(147, 197, 253, 255), width=pin_w)
-        draw.line([(pos, c2), (pos, c2 + pin_len)], fill=(147, 197, 253, 255), width=pin_w)
-        draw.line([(c1 - pin_len, pos), (c1, pos)], fill=(147, 197, 253, 255), width=pin_w)
-        draw.line([(c2, pos), (c2 + pin_len, pos)], fill=(147, 197, 253, 255), width=pin_w)
+    if not small:
+        track = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+        stroke(track, 135, 405)
+        track.putalpha(track.getchannel("A").point(lambda v: v * 38 // 100))
+        img.alpha_composite(track)
+    bright = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    stroke(bright, 135, 315)
+    r = S * (0.17 if not small else 0.21)
+    ImageDraw.Draw(bright).polygon(_sparkle(cx, cy, r, r * 0.12), fill=(255, 255, 255, 255))
+    img.alpha_composite(bright)
 
+    img = img.resize((size, size), Image.LANCZOS)
     if dot_color is not None:
-        d = int(size * 0.30)
-        x0 = size - d - 1
-        y0 = size - d - 1
-        draw.ellipse([x0 - 2, y0 - 2, size - 1, size - 1], fill=(10, 13, 20, 255))
-        draw.ellipse([x0, y0, size - 3, size - 3], fill=dot_color)
-
+        draw = ImageDraw.Draw(img)
+        d = size * 0.34
+        x0, y0 = size - d, size - d
+        draw.ellipse([x0 - 1, y0 - 1, size - 0.5, size - 0.5], fill=(255, 255, 255, 255))
+        draw.ellipse([x0 + size * 0.04, y0 + size * 0.04, size - 0.5 - size * 0.04, size - 0.5 - size * 0.04], fill=dot_color)
     return img
 
 
 def ensure_ico_file() -> Path:
     if not ICON_PATH.is_file():
-        base = _draw_app_icon(dot_color=None, size=256)
-        base.save(
-            ICON_PATH,
-            format="ICO",
-            sizes=[(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)],
-        )
+        imgs = [_draw_app_icon(None, s) for s in ICON_SIZES]
+        imgs[0].save(ICON_PATH, format="ICO", sizes=[(s, s) for s in ICON_SIZES], append_images=imgs[1:])
     return ICON_PATH
 
 
@@ -292,20 +319,39 @@ class DesktopController:
         return {"ok": True}
 
     def open_session_terminal(self, account: str, session: str) -> dict[str, Any]:
-        """Open a new console attached to a Colab session (`colab ssh`, or `colab repl` without an SSH key)."""
+        """Open a new console with a real shell on a live Colab session (`colab ssh`).
+
+        `colab ssh -s NAME` would *create* the session if it were gone, so the session is first
+        checked against the backend's fresh live listing, and `--rm` stops anything ssh would still
+        auto-create (it is a no-op for an existing runtime). The app uses its own key pair
+        (`~/.ssh/gam_colab_ed25519`, created on first use in WSL); only the public key is sent.
+        """
         account, session = str(account or "").strip(), str(session or "").strip()
         if not (_ACCOUNT_RE.match(account) and _SESSION_RE.match(session)):
             return {"ok": False, "error": "invalid account or session name"}
+        try:
+            listing = _http_json("/api/colab/sessions?refresh=1", timeout=45.0)
+        except Exception as exc:
+            return {"ok": False, "error": f"无法确认会话状态：{exc}"}
+        live = any(
+            a.get("account") == account and any(r.get("name") == session for r in a.get("sessions") or [])
+            for a in listing.get("accounts") or []
+        )
+        if not live:
+            return {"ok": False, "error": "该会话已不在运行（或不属于这个账号），请刷新列表"}
         netcfg = _to_wsl_path(PROJECT_DIR / "providers" / "netcfg.py")
         a, s = shlex.quote(account), shlex.quote(session)
+        key = "$HOME/.ssh/" + TERMINAL_KEY_NAME
         script = (
             'export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"; '
             f'eval "$(python3 {shlex.quote(netcfg)} shell-env 2>/dev/null)" || true; '
-            f'echo "Colab 会话 {session}（账号 {account}）"; '
-            'if [ -f ~/.ssh/id_ed25519.pub ] || [ -f ~/.ssh/id_ecdsa.pub ]; then '
-            f'colab -a {a} ssh -s {s}; '
-            'else echo "未找到 SSH 公钥（~/.ssh/id_ed25519.pub），改用 Python REPL（在命令前加 ! 可运行 Shell 命令）。'
-            '需要完整终端可先在 WSL 中运行: ssh-keygen -t ed25519"; '
+            f'echo "Colab 会话 {session}（账号 {account}）正在连接终端..."; '
+            f'if [ ! -f "{key}.pub" ]; then '
+            'mkdir -p ~/.ssh && chmod 700 ~/.ssh && '
+            f'ssh-keygen -q -t ed25519 -N "" -C google-ai-manager -f "{key}" && '
+            'echo "已为本工具生成专用 SSH 密钥（只发送公钥给 Colab）"; fi; '
+            f'if [ -f "{key}.pub" ]; then colab -a {a} ssh -s {s} --rm -i "{key}.pub"; '
+            'else echo "SSH 密钥生成失败，改用 Python REPL（在命令前加 ! 可运行 Shell 命令）"; '
             f'colab -a {a} repl -s {s}; fi; '
             'echo; read -rp "按回车关闭窗口..." _'
         )
